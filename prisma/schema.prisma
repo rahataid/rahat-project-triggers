@@ -20,6 +20,19 @@ enum ApplicationEnvironment {
   TEST
 }
 
+enum DataSource {
+  DHM
+  GLOFAS
+  MANUAL
+}
+
+enum ActivityStatus {
+  NOT_STARTED
+  WORK_IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
 model Application {
   cuid        String                 @id @default(cuid())
   name        String
@@ -33,4 +46,119 @@ model Application {
   deletedAt DateTime?
 
   @@map("tbl_applications")
+}
+
+enum Phases {
+  PREPAREDNESS
+  READINESS
+  ACTIVATION
+}
+
+model Phase {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+  app  String
+
+  name                      Phases @unique
+  requiredMandatoryTriggers Int?   @default(0)
+  requiredOptionalTriggers  Int?   @default(0)
+
+  receivedMandatoryTriggers Int? @default(0)
+  receivedOptionalTriggers  Int? @default(0)
+
+  canRevert        Boolean @default(false)
+  canTriggerPayout Boolean @default(false)
+  isActive         Boolean @default(false)
+
+  activatedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime?  @updatedAt()
+  Trigger     Trigger[]
+  Activity    Activity[]
+
+  @@map("tbl_phases")
+}
+
+model Trigger {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique
+  app  String
+
+  repeatKey        String     @unique
+  title            String?
+  dataSource       DataSource
+  location         String?
+  repeatEvery      String?
+  triggerStatement Json?      @db.JsonB()
+
+  triggerDocuments Json?   @db.JsonB()
+  notes            String?
+
+  phase   Phase?  @relation(fields: [phaseId], references: [uuid])
+  phaseId String?
+
+  isMandatory Boolean @default(false)
+  isTriggered Boolean @default(false)
+  isDeleted   Boolean @default(false)
+
+  triggeredBy String?
+
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt()
+
+  @@map("tbl_triggers")
+}
+
+model ActivityCategory {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+  app  String
+
+  name      String  @unique
+  isDeleted Boolean @default(false)
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime?  @updatedAt()
+  Activity  Activity[]
+
+  @@map("tbl_activity_categories")
+}
+
+model Activity {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+  app  String
+
+  title          String
+  leadTime       String
+  responsibility String
+  source         String
+
+  phase      Phase?            @relation(fields: [phaseId], references: [uuid])
+  phaseId    String
+  category   ActivityCategory? @relation(fields: [categoryId], references: [uuid])
+  categoryId String
+
+  description String?
+  notes       String?
+
+  status ActivityStatus @default(NOT_STARTED)
+
+  activityDocuments     Json? @db.JsonB()
+  activityCommunication Json? @db.JsonB()
+  activityPayout        Json? @db.JsonB()
+
+  isAutomated Boolean
+  isDeleted   Boolean @default(false)
+
+  completedBy String?
+  completedAt DateTime?
+
+  differenceInTriggerAndActivityCompletion String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt()
+
+  @@map("tbl_activities")
 }
