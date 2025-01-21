@@ -1,26 +1,56 @@
 import { Injectable } from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { PaginationDto } from 'src/common/dto';
+import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
+
+const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
 export class CategoryService {
-  create(createCategoryDto: CreateCategoryDto) {
-    return 'This action adds a new category';
+  constructor(private prisma: PrismaService) {}
+
+  create(appId: string, dto: CreateCategoryDto) {
+    return this.prisma.activityCategory.create({
+      data: {
+        ...dto,
+        app: appId,
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all category`;
+  findAll(appId: string, dto: PaginationDto) {
+    const orderBy: Record<string, 'asc' | 'desc'> = {};
+    orderBy[dto.sort] = dto.order;
+    return paginate(
+      this.prisma.activityCategory,
+      {
+        where: {
+          app: appId,
+        },
+        orderBy,
+      },
+      {
+        page: dto.page,
+        perPage: dto.perPage,
+      },
+    );
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} category`;
+  findOne(uuid: string) {
+    return this.prisma.activityCategory.findUnique({
+      where: {
+        uuid,
+      },
+    });
   }
 
-  update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    return `This action updates a #${id} category`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} category`;
+  update(uuid: string, dto: UpdateCategoryDto) {
+    return this.prisma.activityCategory.update({
+      where: {
+        uuid,
+      },
+      data: dto,
+    });
   }
 }

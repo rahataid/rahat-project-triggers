@@ -46,6 +46,11 @@ async function bootstrap() {
       .setTitle('Rahat Triggers')
       .setDescription('API service for Rahat Triggers')
       .setVersion('1.0')
+      .addApiKey({ type: 'apiKey', name: 'app-id', in: 'header' }, 'app-id')
+      .addBearerAuth(
+        { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+        'JWT',
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
