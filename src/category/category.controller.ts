@@ -7,7 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiHeader, ApiOperation } from '@nestjs/swagger';
+import { ApiHeader } from '@nestjs/swagger';
 import { AppId } from '@rumsan/app';
 import { PaginationDto } from 'src/common/dto';
 import { CategoryService } from './category.service';
@@ -34,9 +34,6 @@ export class CategoryController {
     required: true,
   })
   @Get()
-  @ApiOperation({
-    summary: 'List categories by app',
-  })
   findAll(@AppId() appId: string, @Query() dto: PaginationDto): any {
     return this.categoryService.findAll(appId, dto);
   }
