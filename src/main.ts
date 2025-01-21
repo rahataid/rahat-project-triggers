@@ -5,6 +5,7 @@ import { RsExceptionFilter } from '@rumsan/extensions/exceptions';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 const port = process.env.PORT || 3333;
 
@@ -13,6 +14,18 @@ async function bootstrap() {
 
   const globalPrefix = 'api/v1';
   app.enableCors();
+
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.REDIS,
+      options: {
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT),
+        password: process.env.REDIS_PASSWORD,
+      },
+    },
+    { inheritAppConfig: true },
+  );
 
   // app.use(bodyParser.json({ limit: '50mb' }));
   // app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
@@ -38,6 +51,8 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('/swagger', app, document);
   }
+
+  await app.startAllMicroservices();
   await app.listen(port);
   console.log(
     `Application is running on:  http://localhost:${port}/${globalPrefix}`,
