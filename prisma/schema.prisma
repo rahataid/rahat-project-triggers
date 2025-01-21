@@ -12,3 +12,25 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum ApplicationEnvironment {
+  PRODUCTION
+  STAGING
+  DEVELOPMENT
+  TEST
+}
+
+model Application {
+  cuid        String                 @id @default(cuid())
+  name        String
+  publicKey   String
+  description String?
+  environment ApplicationEnvironment
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  updatedBy String    @default("system")
+  deletedAt DateTime?
+
+  @@map("tbl_applications")
+}
