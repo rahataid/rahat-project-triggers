@@ -54,6 +54,39 @@ enum Phases {
   ACTIVATION
 }
 
+model SourcesData {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+  app  String
+
+  source   String?
+  location String?
+  data     Json    @db.JsonB()
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt()
+
+  @@map("tbl_sources_data")
+}
+
+model DailyMonitoring {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+  app  String
+
+  dataEntryBy String
+  source      String?
+  location    String?
+  data        Json    @db.JsonB()
+
+  createdBy String?
+  isDeleted Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt()
+
+  @@map("tbl_daily_monitoring")
+}
+
 model Phase {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
@@ -149,7 +182,7 @@ model Activity {
   activityCommunication Json? @db.JsonB()
   activityPayout        Json? @db.JsonB()
 
-  isAutomated Boolean
+  isAutomated Boolean @default(false)
   isDeleted   Boolean @default(false)
 
   completedBy String?
