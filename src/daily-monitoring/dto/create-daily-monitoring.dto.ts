@@ -26,11 +26,11 @@ export class CreateDailyMonitoringDto {
   location?: string;
 
   @ApiProperty({
-    example: { temperature: 22.5, humidity: 60 },
+    example: [{ temperature: 22.5 }, { humidity: 60 }],
     description: 'The monitoring data in JSON format',
   })
   @IsNotEmpty()
-  data: Record<any, any>;
+  info: object;
 
   @ApiProperty({
     example: 'admin',

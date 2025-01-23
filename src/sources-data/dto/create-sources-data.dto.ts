@@ -18,9 +18,9 @@ export class CreateSourcesDataDto {
   location?: string;
 
   @ApiProperty({
-    example: { key: 'value' },
+    example: [{ key: 'value' }],
     description: 'The JSON data associated with the source',
   })
   @IsNotEmpty()
-  data: Record<string, any>;
+  info: object;
 }
