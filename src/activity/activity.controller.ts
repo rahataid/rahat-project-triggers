@@ -8,8 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ActivityService } from './activity.service';
-import { CreateActivityDto } from './dto/create-activity.dto';
-import { UpdateActivityDto } from './dto/update-activity.dto';
+import { CreateActivityDto, UpdateActivityDto } from './dto';
 import { ApiHeader } from '@nestjs/swagger';
 import { AppId } from '@rumsan/app';
 import { PaginationDto } from 'src/common/dto';

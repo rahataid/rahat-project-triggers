@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CreateTriggerDto } from './dto/create-trigger.dto';
-import { UpdateTriggerDto } from './dto/update-trigger.dto';
+import { CreateTriggerDto, UpdateTriggerDto } from './dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { PaginationDto } from 'src/common/dto';
 

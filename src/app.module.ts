@@ -5,10 +5,10 @@ import { RumsanAppModule } from '@rumsan/app';
 import { CategoryModule } from './category/category.module';
 import { PrismaModule } from '@rumsan/prisma';
 import { PhasesModule } from './phases/phases.module';
-import { SourcesModule } from './sources/sources.module';
-import { MonitorModule } from './monitor/monitor.module';
 import { TriggerModule } from './trigger/trigger.module';
 import { ActivityModule } from './activity/activity.module';
+import { SourcesDataModule } from './sources-data/sources-data.module';
+import { DailyMonitoringModule } from './daily-monitoring/daily-monitoring.module';
 
 @Module({
   imports: [
@@ -16,10 +16,10 @@ import { ActivityModule } from './activity/activity.module';
     RumsanAppModule,
     CategoryModule,
     PhasesModule,
-    SourcesModule,
-    MonitorModule,
     TriggerModule,
     ActivityModule,
+    SourcesDataModule,
+    DailyMonitoringModule,
   ],
   controllers: [AppController],
   providers: [AppService],

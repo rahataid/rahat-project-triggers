@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-
-export class CreateSourceDto {
+export class CreateSourcesDataDto {
   @ApiProperty({
     example: 'source-name',
     description: 'The source name or identifier',
