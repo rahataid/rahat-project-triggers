@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CreateActivityDto } from './dto/create-activity.dto';
-import { UpdateActivityDto } from './dto/update-activity.dto';
+import { CreateActivityDto, UpdateActivityDto } from './dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { PaginationDto } from 'src/common/dto';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });

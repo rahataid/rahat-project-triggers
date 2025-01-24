@@ -8,8 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { TriggerService } from './trigger.service';
-import { CreateTriggerDto } from './dto/create-trigger.dto';
-import { UpdateTriggerDto } from './dto/update-trigger.dto';
+import { CreateTriggerDto, UpdateTriggerDto } from './dto';
 import { ApiHeader } from '@nestjs/swagger';
 import { AppId } from '@rumsan/app';
 import { PaginationDto } from 'src/common/dto';

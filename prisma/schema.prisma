@@ -61,7 +61,7 @@ model SourcesData {
 
   source   String?
   location String?
-  data     Json    @db.JsonB()
+  info     Json    @db.JsonB()
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt()
@@ -77,7 +77,7 @@ model DailyMonitoring {
   dataEntryBy String
   source      String?
   location    String?
-  data        Json    @db.JsonB()
+  info        Json    @db.JsonB()
 
   createdBy String?
   isDeleted Boolean   @default(false)

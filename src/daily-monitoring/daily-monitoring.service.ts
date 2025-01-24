@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { CreateSourceDto } from './dto/create-source.dto';
-import { UpdateSourceDto } from './dto/update-source.dto';
+import { CreateDailyMonitoringDto, UpdateDailyMonitoringDto } from './dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { PaginationDto } from 'src/common/dto';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
-export class SourcesService {
+export class DailyMonitoringService {
   constructor(private prisma: PrismaService) {}
-  create(appId: string, dto: CreateSourceDto) {
-    return this.prisma.sourcesData.create({
+  create(appId: string, dto: CreateDailyMonitoringDto) {
+    return this.prisma.dailyMonitoring.create({
       data: {
         ...dto,
         app: appId,
@@ -21,7 +20,7 @@ export class SourcesService {
     const orderBy: Record<string, 'asc' | 'desc'> = {};
     orderBy[dto.sort] = dto.order;
     return paginate(
-      this.prisma.sourcesData,
+      this.prisma.dailyMonitoring,
       {
         where: {
           app: appId,
@@ -36,15 +35,15 @@ export class SourcesService {
   }
 
   findOne(uuid: string) {
-    return this.prisma.sourcesData.findUnique({
+    return this.prisma.dailyMonitoring.findUnique({
       where: {
         uuid,
       },
     });
   }
 
-  update(uuid: string, dto: UpdateSourceDto) {
-    return this.prisma.sourcesData.update({
+  update(uuid: string, dto: UpdateDailyMonitoringDto) {
+    return this.prisma.dailyMonitoring.update({
       where: {
         uuid,
       },

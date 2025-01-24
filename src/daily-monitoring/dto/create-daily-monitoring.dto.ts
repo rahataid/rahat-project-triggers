@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-
-export class CreateMonitorDto {
+export class CreateDailyMonitoringDto {
   @ApiProperty({
     example: 'John Doe',
     description: 'The name of the person who entered the data',
@@ -27,11 +26,11 @@ export class CreateMonitorDto {
   location?: string;
 
   @ApiProperty({
-    example: { temperature: 22.5, humidity: 60 },
+    example: [{ temperature: 22.5 }, { humidity: 60 }],
     description: 'The monitoring data in JSON format',
   })
   @IsNotEmpty()
-  data: Record<string, any>;
+  info: object;
 
   @ApiProperty({
     example: 'admin',
