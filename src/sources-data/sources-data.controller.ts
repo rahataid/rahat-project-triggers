@@ -1,7 +1,7 @@
 import {
   Controller,
   Get,
-  Post,
+  // Post,
   Body,
   Patch,
   Param,
@@ -17,14 +17,14 @@ import { ApiHeader } from '@nestjs/swagger';
 export class SourcesDataController {
   constructor(private readonly sourcesDataService: SourcesDataService) {}
 
-  @ApiHeader({
-    name: 'app-id',
-    description: 'Application ID',
-    required: true,
-  })
-  @Post()
-  create(@AppId() appId: string, @Body() dto: CreateSourcesDataDto) {
-    return this.sourcesDataService.create(appId, dto);
+  // @ApiHeader({
+  //   name: 'app-id',
+  //   description: 'Application ID',
+  //   required: true,
+  // })
+  // @Post()
+  create(@Body() dto: CreateSourcesDataDto) {
+    return this.sourcesDataService.create(dto);
   }
 
   @ApiHeader({

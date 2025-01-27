@@ -9,6 +9,7 @@ import { TriggerModule } from './trigger/trigger.module';
 import { ActivityModule } from './activity/activity.module';
 import { SourcesDataModule } from './sources-data/sources-data.module';
 import { DailyMonitoringModule } from './daily-monitoring/daily-monitoring.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { DailyMonitoringModule } from './daily-monitoring/daily-monitoring.modul
     ActivityModule,
     SourcesDataModule,
     DailyMonitoringModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],
