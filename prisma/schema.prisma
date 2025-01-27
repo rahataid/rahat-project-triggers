@@ -57,7 +57,6 @@ enum Phases {
 model SourcesData {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
-  app  String
 
   source   String?
   location String?
