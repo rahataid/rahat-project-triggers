@@ -4,6 +4,8 @@ import { Cron } from '@nestjs/schedule';
 import { SettingsService } from '@rumsan/settings';
 import { getFormattedDate, parseGlofasData } from 'src/common';
 import { GlofasStationInfo } from './dto';
+import { DhmService } from './dhm.service';
+import { GlofasService } from './glofas.service';
 
 // const DATASOURCE = {
 //   DHM: {
@@ -22,7 +24,11 @@ import { GlofasStationInfo } from './dto';
 export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ScheduleSourcesDataService.name);
 
-  constructor(private readonly sourceService: SourcesDataService) {}
+  constructor(
+    private readonly sourceService: SourcesDataService,
+    private readonly dhmService: DhmService,
+    private readonly glofasService: GlofasService,
+  ) {}
   onApplicationBootstrap() {
     this.synchronizeDHM();
     this.synchronizeGlofas();
@@ -37,12 +43,12 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
 
       const location = dhmSettings['LOCATION'];
       const dhmURL = dhmSettings['URL'];
-      const waterLevelResponse = await this.sourceService.getRiverStationData(
+      const waterLevelResponse = await this.dhmService.getRiverStationData(
         dhmURL,
         location,
       );
 
-      const waterLevelData = this.sourceService.sortByDate(
+      const waterLevelData = this.dhmService.sortByDate(
         waterLevelResponse.data.results as any[],
       );
 
@@ -52,11 +58,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       }
 
       const recentWaterLevel = waterLevelData[0];
-      return this.sourceService.create({
-        source: 'DHM',
-        location: location,
-        info: { recentWaterLevel },
-      });
+      return this.dhmService.saveWaterLevelsData(location, recentWaterLevel);
     } catch (err) {
       this.logger.error('DHM Err:', err.message);
     }
@@ -74,7 +76,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       >;
       const location = glofasSettings['LOCATION'];
 
-      const hasExistingRecord = await this.sourceService.findGlofasDataByDate(
+      const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
         location,
         dateString,
       );
@@ -84,7 +86,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         return;
       }
 
-      const stationData = await this.sourceService.getStationData({
+      const stationData = await this.glofasService.getStationData({
         ...glofasSettings,
         TIMESTRING: dateTimeString,
       });
