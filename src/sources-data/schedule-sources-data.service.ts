@@ -2,10 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { SourcesDataService } from './sources-data.service';
 import { Cron } from '@nestjs/schedule';
 import { SettingsService } from '@rumsan/settings';
-import {
-  getFormattedDate,
-  parseGlofasData,
-} from 'src/common/formattedfunction';
+import { getFormattedDate, parseGlofasData } from 'src/common';
 import { GlofasStationInfo } from './dto';
 
 // const DATASOURCE = {
