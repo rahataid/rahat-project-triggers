@@ -2,6 +2,8 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { SourcesDataService } from './sources-data.service';
 import { Cron } from '@nestjs/schedule';
 import { SettingsService } from '@rumsan/settings';
+import { getFormattedDate, parseGlofasData } from 'src/common';
+import { GlofasStationInfo } from './dto';
 
 // const DATASOURCE = {
 //   DHM: {
@@ -23,6 +25,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   constructor(private readonly sourceService: SourcesDataService) {}
   onApplicationBootstrap() {
     this.synchronizeDHM();
+    this.synchronizeGlofas();
   }
   @Cron('0 0 * * * *')
   async synchronizeDHM() {
@@ -56,6 +59,46 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       });
     } catch (err) {
       this.logger.error('DHM Err:', err.message);
+    }
+  }
+  @Cron('0 0 * * * *')
+  async synchronizeGlofas() {
+    try {
+      this.logger.log('GLOFAS: syncing once every hour');
+      // const glofasSettings = DATASOURCE.GLOFAS;
+
+      const { dateString, dateTimeString } = getFormattedDate();
+      const glofasSettings = SettingsService.get('DATASOURCE.GLOFAS') as Omit<
+        GlofasStationInfo,
+        'TIMESTRING'
+      >;
+      const location = glofasSettings['LOCATION'];
+
+      const hasExistingRecord = await this.sourceService.findGlofasDataByDate(
+        location,
+        dateString,
+      );
+
+      if (hasExistingRecord) {
+        console.log('existingRecord');
+        return;
+      }
+
+      const stationData = await this.sourceService.getStationData({
+        ...glofasSettings,
+        TIMESTRING: dateTimeString,
+      });
+      const reportingPoints = stationData?.content['Reporting Points'].point;
+
+      const glofasData = parseGlofasData(reportingPoints);
+
+      return this.sourceService.create({
+        source: 'GLOFAS',
+        location: location,
+        info: { ...glofasData, forecastDate: dateString },
+      });
+    } catch (err) {
+      this.logger.error('GLOFAS Err:', err.message);
     }
   }
 }

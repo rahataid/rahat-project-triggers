@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { CreateSourcesDataDto, UpdateSourcesDataDto } from './dto';
+import {
+  CreateSourcesDataDto,
+  GlofasStationInfo,
+  UpdateSourcesDataDto,
+} from './dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { PaginationDto } from 'src/common/dto';
 import { DateTime } from 'luxon';
@@ -102,5 +106,52 @@ export class SourcesDataService {
       return true;
     }
     return false;
+  }
+
+  async getStationData(payload: GlofasStationInfo) {
+    const glofasURL = new URL(payload.URL);
+
+    const queryParams = {
+      SERVICE: 'WMS',
+      VERSION: '1.3.0',
+      REQUEST: 'GetFeatureInfo',
+      FORMAT: 'image/png',
+      TRANSPARENT: 'true',
+      QUERY_LAYERS: 'reportingPoints',
+      LAYERS: 'reportingPoints',
+      INFO_FORMAT: 'application/json',
+      WIDTH: '832',
+      HEIGHT: '832',
+      CRS: 'EPSG:3857',
+      STYLES: '',
+      BBOX: payload.BBOX,
+      I: payload.I,
+      J: payload.J,
+      TIME: payload.TIMESTRING,
+      // BBOX: '9914392.14877593,2400326.5202299603,12627804.736861974,5113739.108316004',
+      // I: '108',
+      // J: '341',
+      // TIME: "2024-06-09T00:00:00"
+    };
+
+    for (const [key, value] of Object.entries(queryParams)) {
+      glofasURL.searchParams.append(key, value);
+    }
+
+    return (await this.httpService.axiosRef.get(glofasURL.href)).data;
+  }
+
+  async findGlofasDataByDate(location: string, forecastDate: string) {
+    const recordExists = await this.prisma.sourcesData.findFirst({
+      where: {
+        source: 'GLOFAS',
+        location: location,
+        info: {
+          path: ['forecastDate'],
+          equals: forecastDate,
+        },
+      },
+    });
+    return recordExists;
   }
 }
