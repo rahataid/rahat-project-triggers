@@ -11,12 +11,20 @@ import {
 
 export class CreateTriggerDto {
   @ApiProperty({
+    example: 'unique-key',
+    description: 'A unique key to identify the trigger',
+  })
+  @IsString()
+  @IsOptional()
+  uuid?: string;
+
+  @ApiProperty({
     example: 'unique-repeat-key',
     description: 'A unique key to identify the trigger',
   })
   @IsString()
-  @IsNotEmpty()
-  repeatKey: string;
+  @IsOptional()
+  repeatKey?: string;
 
   @ApiProperty({
     example: 'Trigger Title',
