@@ -12,7 +12,7 @@ import { CreateTriggerDto } from 'src/trigger/dto';
 import { GlofasDataObject, GlofasStationInfo } from './dto';
 
 import { AbstractSource } from './sources-data-abstract';
-import { BQUEUE, EVENTS } from 'src/constant';
+import { BQUEUE, EVENTS, JOBS } from 'src/constant';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
@@ -129,14 +129,14 @@ export class GlofasService implements AbstractSource {
         },
       });
 
-      // this.triggerQueue.add(JOBS.TRIGGERS.REACHED_THRESHOLD, payload, {
-      //   attempts: 3,
-      //   removeOnComplete: true,
-      //   backoff: {
-      //     type: 'exponential',
-      //     delay: 1000,
-      //   },
-      // });
+      this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, payload, {
+        attempts: 3,
+        removeOnComplete: true,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      });
 
       return;
     }
