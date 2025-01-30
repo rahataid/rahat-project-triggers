@@ -14,7 +14,6 @@ import { BQUEUE, EVENTS, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BeneficiaryService } from 'src/beneficiary/beneficiary.service';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
@@ -24,7 +23,6 @@ const BATCH_SIZE = 20;
 export class PhasesService {
   constructor(
     private prisma: PrismaService,
-    private readonly beneficiaryService: BeneficiaryService,
     @Inject(forwardRef(() => TriggerService))
     private readonly triggerService: TriggerService,
     private eventEmitter: EventEmitter2,
@@ -178,24 +176,25 @@ export class PhasesService {
         },
       });
     }
+    // todo :: beneficiaryService should  be called by microservice
 
-    if (phaseDetails.canTriggerPayout) {
-      const allBenfs = await this.beneficiaryService.getCount();
-      const batches = this.createBatches(allBenfs, BATCH_SIZE);
+    // if (phaseDetails.canTriggerPayout) {
+    //   const allBenfs = await this.beneficiaryService.getCount();
+    //   const batches = this.createBatches(allBenfs, BATCH_SIZE);
 
-      if (batches.length) {
-        batches?.forEach((batch) => {
-          this.contractQueue.add(JOBS.PAYOUT.ASSIGN_TOKEN, batch, {
-            attempts: 3,
-            removeOnComplete: true,
-            backoff: {
-              type: 'exponential',
-              delay: 1000,
-            },
-          });
-        });
-      }
-    }
+    //   if (batches.length) {
+    //     batches?.forEach((batch) => {
+    //       this.contractQueue.add(JOBS.PAYOUT.ASSIGN_TOKEN, batch, {
+    //         attempts: 3,
+    //         removeOnComplete: true,
+    //         backoff: {
+    //           type: 'exponential',
+    //           delay: 1000,
+    //         },
+    //       });
+    //     });
+    //   }
+    // }
 
     const updatedPhase = await this.prisma.phase.update({
       where: {

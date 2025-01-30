@@ -4,11 +4,9 @@ import { PhasesController } from './phases.controller';
 import { PrismaModule } from '@rumsan/prisma';
 import { BullModule } from '@nestjs/bull';
 import { BQUEUE } from 'src/constant';
-import { BeneficiaryModule } from 'src/beneficiary/beneficiary.module';
+// import { BeneficiaryModule } from 'src/beneficiary/beneficiary.module';
 import { TriggerModule } from 'src/trigger/trigger.module';
-import { StatsModule } from 'src/stats/stats.module';
 import { PhasesStatsService } from './phases.stats.service';
-import { BeneficiaryService } from 'src/beneficiary/beneficiary.service';
 
 @Module({
   imports: [
@@ -22,12 +20,11 @@ import { BeneficiaryService } from 'src/beneficiary/beneficiary.service';
     BullModule.registerQueue({
       name: BQUEUE.COMMUNICATION,
     }),
-    BeneficiaryModule,
+    // BeneficiaryModule,
     forwardRef(() => TriggerModule),
-    StatsModule,
   ],
   controllers: [PhasesController],
-  providers: [PhasesService, PhasesStatsService, BeneficiaryService],
+  providers: [PhasesService, PhasesStatsService],
   exports: [PhasesService, PhasesStatsService],
 })
 export class PhasesModule {}

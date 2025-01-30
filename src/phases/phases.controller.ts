@@ -51,10 +51,12 @@ export class PhasesController {
     return this.phasesService.findAll(appId, dto);
   }
 
-  @Get('stats')
-  async getStats() {
-    return this.phasesStatsService.getStats();
-  }
+  // todo getStats method  call statsservice which will be handle by microservice
+
+  // @Get('stats')
+  // async getStats() {
+  //   return this.phasesStatsService.getStats();
+  // }
   @Get(':uuid')
   getOne(@Param('uuid') uuid: string) {
     return this.phasesService.getOne(uuid);

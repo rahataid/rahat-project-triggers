@@ -1,26 +1,26 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-// import { PhasesService } from '../phases/phases.service';
 import { EVENTS } from 'src/constant';
 import { PhasesStatsService } from 'src/phases/phases.stats.service';
 
+// todo :: PhasesStatsService method  use microservice call
 @Injectable()
 export class StatsProcessor implements OnApplicationBootstrap {
   constructor(private readonly phasesStatsService: PhasesStatsService) {}
 
   async onApplicationBootstrap() {
-    this.phasesStatsService.calculatePhaseActivities();
+    // this.phasesStatsService.calculatePhaseActivities();
   }
 
   @OnEvent(EVENTS.PHASE_ACTIVATED)
   async onPhaseTriggered(eventObject) {
-    this.phasesStatsService.savePhaseActivatedStats(eventObject.phaseId);
+    // this.phasesStatsService.savePhaseActivatedStats(eventObject.phaseId);
     return;
   }
 
   @OnEvent(EVENTS.PHASE_REVERTED)
   async onPhaseReverted(eventObject) {
-    this.phasesStatsService.savePhaseRevertStats(eventObject);
+    // this.phasesStatsService.savePhaseRevertStats(eventObject);
     return;
   }
 
@@ -31,7 +31,7 @@ export class StatsProcessor implements OnApplicationBootstrap {
   @OnEvent(EVENTS.PHASE_REVERTED)
   @OnEvent(EVENTS.PHASE_ACTIVATED)
   async onActivityCompleted() {
-    this.phasesStatsService.calculatePhaseActivities();
+    // this.phasesStatsService.calculatePhaseActivities();
     return;
   }
 }

@@ -15,8 +15,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ProcessorsModule } from './processors/processors.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ListenersModule } from './listeners/listeners.module';
-import { BeneficiaryModule } from './beneficiary/beneficiary.module';
-import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -44,8 +42,6 @@ import { StatsModule } from './stats/stats.module';
     DailyMonitoringModule,
     ScheduleModule.forRoot(),
     ListenersModule,
-    BeneficiaryModule,
-    StatsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

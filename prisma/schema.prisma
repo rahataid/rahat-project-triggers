@@ -201,30 +201,3 @@ model Activity {
 
   @@map("tbl_activities")
 }
-
-model Stats {
-  name  String  @id @unique
-  data  Json
-  group String?
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt()
-
-  @@map("tbl_stats")
-}
-
-model Beneficiary {
-  id   Int    @id @default(autoincrement()) @db.Integer()
-  uuid String @unique @db.Uuid()
-
-  walletAddress String?
-  gender        Gender  @default(UNKNOWN)
-  extras        Json?
-  benTokens     Int     @default(0)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt()
-  deletedAt DateTime?
-
-  @@map("tbl_beneficiaries")
-}

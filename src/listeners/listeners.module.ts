@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ListernersService } from './listeners.service';
 import { BullModule } from '@nestjs/bull';
 import { BQUEUE } from 'src/constant';
-import { StatsService } from 'src/stats/stats.service';
+// import { StatsService } from 'src/stats/stats.service';
 
 @Module({
   imports: [
@@ -10,6 +10,6 @@ import { StatsService } from 'src/stats/stats.service';
       name: BQUEUE.SCHEDULE,
     }),
   ],
-  providers: [ListernersService, StatsService],
+  providers: [ListernersService],
 })
 export class ListenersModule {}
