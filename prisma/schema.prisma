@@ -54,6 +54,13 @@ enum Phases {
   ACTIVATION
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
 model SourcesData {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())

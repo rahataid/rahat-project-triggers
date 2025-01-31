@@ -6,7 +6,7 @@ import { PaginatorTypes, PrismaService, paginator } from '@rumsan/prisma';
 import { Queue } from 'bull';
 import { DateTime } from 'luxon';
 import { AbstractSource } from './sources-data-abstract';
-import { BQUEUE } from 'src/constant';
+import { BQUEUE, JOBS } from 'src/constant';
 import { CreateTriggerDto } from 'src/trigger/dto';
 import { DhmDataObject } from './dto';
 import { SettingsService } from '@rumsan/settings';
@@ -67,7 +67,6 @@ export class DhmService implements AbstractSource {
       currentLevel,
       payload.triggerStatement?.waterLevel,
     );
-    console.log(waterLevelReached);
     if (waterLevelReached) {
       if (payload.isMandatory) {
         await this.prisma.phase.update({
@@ -103,15 +102,14 @@ export class DhmService implements AbstractSource {
           isTriggered: true,
         },
       });
-
-      // this.triggerQueue.add(JOBS.TRIGGERS.REACHED_THRESHOLD, payload, {
-      //   attempts: 3,
-      //   removeOnComplete: true,
-      //   backoff: {
-      //     type: 'exponential',
-      //     delay: 1000,
-      //   },
-      // });
+      this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, payload, {
+        attempts: 3,
+        removeOnComplete: true,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      });
 
       return;
     }

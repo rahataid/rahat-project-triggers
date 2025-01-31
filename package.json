@@ -37,6 +37,7 @@
     "@rumsan/extensions": "^0.1.103",
     "@rumsan/prisma": "^1.0.121",
     "@rumsan/settings": "^0.0.108",
+    "@rumsan/communication": "0.0.17",
     "body-parser": "^1.20.3",
     "bull": "^4.16.5",
     "cheerio": "^1.0.0",

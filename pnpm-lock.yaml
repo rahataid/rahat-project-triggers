@@ -47,6 +47,9 @@ importers:
       '@rumsan/app':
         specifier: ^0.0.5
         version: 0.0.5(class-transformer@0.5.1)(class-validator@0.14.1)(prisma@6.2.1)(reflect-metadata@0.1.14)(rxjs@7.8.1)(typescript@5.7.3)
+      '@rumsan/communication':
+        specifier: 0.0.17
+        version: 0.0.17
       '@rumsan/extensions':
         specifier: ^0.1.103
         version: 0.1.103
@@ -791,6 +794,9 @@ packages:
 
   '@rumsan/app@0.0.5':
     resolution: {integrity: sha512-vPMJxbSbl+6Kb6S+9sr8QFc/eyb5C6ZFxzoQnuANDIq+ky0UoyhNBmgITMQzTNOmS43Env00P/+wm2weJkzZoA==}
+
+  '@rumsan/communication@0.0.17':
+    resolution: {integrity: sha512-LYZlfjyiOzpvp73bOie3Okx9uepvUO95D6PI+MDxIHnZnfsTOCcYBYtNzoJ4W+05zD1QPc+QyfAvUs8iA1oZHg==}
 
   '@rumsan/core@3.0.116':
     resolution: {integrity: sha512-+IGGUZp7cdmuvdFa6hvdxpC/rfgJets18UKJxTgjDLPgja/B4h2t2sXsYd67XGWM4yciCLmuiT+i+2JSXdUPBw==}
@@ -4144,6 +4150,8 @@ snapshots:
       - typescript
       - utf-8-validate
       - zod
+
+  '@rumsan/communication@0.0.17': {}
 
   '@rumsan/core@3.0.116(@nestjs/core@10.4.15)(prisma@6.2.1)(reflect-metadata@0.1.14)':
     dependencies:

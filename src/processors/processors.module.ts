@@ -5,6 +5,8 @@ import { PhasesModule } from '../phases/phases.module';
 // import { CommunicationProcessor } from './communication.processor';
 // import { ContractProcessor } from './contract.processor';
 import { ScheduleProcessor } from './schedule.processor';
+import { TriggerProcessor } from './trigger.processor';
+import { StatsProcessor } from './stats.processor';
 // import { StatsProcessor } from './stats.processor';
 // import { TriggerProcessor } from './trigger.processor';
 
@@ -12,11 +14,11 @@ import { ScheduleProcessor } from './schedule.processor';
   imports: [SourcesDataModule, PhasesModule],
   providers: [
     ScheduleProcessor,
-    // TriggerProcessor,
+    TriggerProcessor,
     PrismaService,
     // ContractProcessor,
     // CommunicationProcessor,
-    // StatsProcessor,
+    StatsProcessor,
   ],
 })
 export class ProcessorsModule {}
