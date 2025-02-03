@@ -318,4 +318,16 @@ export class TriggerService {
 
     return updatedTrigger;
   }
+
+  async findByLocation(appId: string, location: string) {
+    return this.prisma.trigger.findMany({
+      where: {
+        app: appId,
+        location: {
+          contains: location,
+          mode: 'insensitive',
+        },
+      },
+    });
+  }
 }

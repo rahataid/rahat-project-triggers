@@ -41,6 +41,16 @@ export class TriggerController {
   getOne(@Param('repeatKey') repeatKey: string) {
     return this.triggerService.getOne(repeatKey);
   }
+
+  @ApiHeader({
+    name: 'app-id',
+    description: 'Application ID',
+    required: true,
+  })
+  @Get(':location')
+  getByLocation(@AppId() appId: string, @Param('location') location: string) {
+    return this.triggerService.findByLocation(appId, location);
+  }
   @Patch(':uuid/activate')
   activateTrigger(@Param('uuid') uuid: string, @Body() dto: UpdateTriggerDto) {
     return this.triggerService.activateTrigger(uuid, dto);

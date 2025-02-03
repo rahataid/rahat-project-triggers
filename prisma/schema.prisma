@@ -98,9 +98,10 @@ model Phase {
   uuid String @unique @default(uuid())
   app  String
 
-  name                      Phases @unique
-  requiredMandatoryTriggers Int?   @default(0)
-  requiredOptionalTriggers  Int?   @default(0)
+  name                      Phases  @unique
+  location                  String?
+  requiredMandatoryTriggers Int?    @default(0)
+  requiredOptionalTriggers  Int?    @default(0)
 
   receivedMandatoryTriggers Int? @default(0)
   receivedOptionalTriggers  Int? @default(0)

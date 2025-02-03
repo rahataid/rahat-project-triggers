@@ -57,6 +57,15 @@ export class PhasesController {
   // async getStats() {
   //   return this.phasesStatsService.getStats();
   // }
+  @ApiHeader({
+    name: 'app-id',
+    description: 'Application ID',
+    required: true,
+  })
+  @Get(':location')
+  getByLocation(@AppId() appId: string, @Param('location') location: string) {
+    return this.phasesService.findByLocation(appId, location);
+  }
   @Get(':uuid')
   getOne(@Param('uuid') uuid: string) {
     return this.phasesService.getOne(uuid);
