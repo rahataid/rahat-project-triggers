@@ -67,55 +67,54 @@ export class DhmService implements AbstractSource {
       currentLevel,
       payload.triggerStatement?.waterLevel,
     );
-    if (waterLevelReached) {
-      if (payload.isMandatory) {
-        await this.prisma.phase.update({
-          where: {
-            uuid: payload.phaseId,
-          },
-          data: {
-            receivedMandatoryTriggers: {
-              increment: 1,
-            },
-          },
-        });
-      }
 
-      if (!payload.isMandatory) {
-        await this.prisma.phase.update({
-          where: {
-            uuid: payload.phaseId,
-          },
-          data: {
-            receivedOptionalTriggers: {
-              increment: 1,
-            },
-          },
-        });
-      }
-
-      await this.prisma.trigger.update({
-        where: {
-          uuid: payload.uuid,
-        },
-        data: {
-          isTriggered: true,
-        },
-      });
-      this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, payload, {
-        attempts: 3,
-        removeOnComplete: true,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      });
-
+    if (waterLevelReached === false) {
+      this.logger.log(`${dataSource}: ${location}: Water is in a safe level.`);
       return;
     }
 
-    this.logger.log(`${dataSource}: ${location}: Water is in a safe level.`);
-    return;
+    if (payload.isMandatory) {
+      await this.prisma.phase.update({
+        where: {
+          uuid: payload.phaseId,
+        },
+        data: {
+          receivedMandatoryTriggers: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    if (!payload.isMandatory) {
+      await this.prisma.phase.update({
+        where: {
+          uuid: payload.phaseId,
+        },
+        data: {
+          receivedOptionalTriggers: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    await this.prisma.trigger.update({
+      where: {
+        uuid: payload.uuid,
+      },
+      data: {
+        isTriggered: true,
+      },
+    });
+    this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, payload, {
+      attempts: 3,
+      removeOnComplete: true,
+      backoff: {
+        type: 'exponential',
+        delay: 1000,
+      },
+    });
   }
 
   compareWaterLevels(currentLevel: number, threshold: number) {

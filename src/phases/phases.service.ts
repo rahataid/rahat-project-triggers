@@ -150,23 +150,24 @@ export class PhasesService {
       const activityComms = JSON.parse(
         JSON.stringify(activity.activityCommunication),
       );
-      for (const comm of activityComms) {
-        this.communicationQueue.add(
-          JOBS.ACTIVITIES.COMMUNICATION.TRIGGER,
-          {
-            communicationId: comm?.communicationId,
-            activityId: activity?.uuid,
-          },
-          {
-            attempts: 3,
-            removeOnComplete: true,
-            backoff: {
-              type: 'exponential',
-              delay: 1000,
-            },
-          },
-        );
-      }
+      console.log('activityComms', activityComms);
+      // for (const comm of activityComms) {
+      //   this.communicationQueue.add(
+      //     JOBS.ACTIVITIES.COMMUNICATION.TRIGGER,
+      //     {
+      //       communicationId: comm?.communicationId,
+      //       activityId: activity?.uuid,
+      //     },
+      //     {
+      //       attempts: 3,
+      //       removeOnComplete: true,
+      //       backoff: {
+      //         type: 'exponential',
+      //         delay: 1000,
+      //       },
+      //     },
+      //   );
+      // }
       await this.prisma.activity.update({
         where: {
           uuid: activity.uuid,
@@ -368,5 +369,17 @@ export class PhasesService {
     }
 
     return batches;
+  }
+
+  async findByLocation(appId: string, location: string) {
+    return this.prisma.phase.findMany({
+      where: {
+        app: appId,
+        location: {
+          contains: location,
+          mode: 'insensitive',
+        },
+      },
+    });
   }
 }

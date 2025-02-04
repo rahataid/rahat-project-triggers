@@ -56,4 +56,11 @@ export class CreatePhaseDto {
   @IsBoolean()
   @IsOptional()
   canTriggerPayout?: boolean;
+
+  @ApiProperty({
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  location?: string;
 }
