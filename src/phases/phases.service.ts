@@ -7,7 +7,7 @@ import {
 import { CreatePhaseDto } from './dto/create-phase.dto';
 import { UpdatePhaseDto } from './dto/update-phase.dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
-import { Phases } from '@prisma/client';
+import { ActivityStatus, DataSource, Phases } from '@prisma/client';
 import { PaginationDto } from 'src/common/dto';
 import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
@@ -16,10 +16,8 @@ import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
-const BATCH_SIZE = 20;
 
 export declare const MS_TIMEOUT = 500000;
 @Injectable()
@@ -132,6 +130,7 @@ export class PhasesService {
   }
 
   async activatePhase(uuid: string) {
+    console.log(uuid);
     const phaseDetails = await this.prisma.phase.findUnique({
       where: {
         uuid: uuid,
@@ -141,26 +140,26 @@ export class PhasesService {
           where: {
             isAutomated: true,
             status: {
-              not: 'COMPLETED',
+              not: ActivityStatus.COMPLETED,
             },
             isDeleted: false,
           },
         },
       },
     });
-
     const phaseActivities = phaseDetails.Activity;
+    console.log(phaseDetails);
     for (const activity of phaseActivities) {
       const activityComms = JSON.parse(
         JSON.stringify(activity.activityCommunication),
       );
+
       for (const comm of activityComms) {
         this.client
           .send(
             { cmd: JOBS.ACTIVITIES.COMMUNICATION.TRIGGER_CAMPAIGN },
             {
               communicationId: comm?.communicationId,
-              activityId: activity?.uuid,
             },
           )
           .subscribe({
@@ -173,18 +172,12 @@ export class PhasesService {
           uuid: activity.uuid,
         },
         data: {
-          status: 'COMPLETED',
+          status: ActivityStatus.COMPLETED,
         },
       });
     }
 
     // todo :: beneficiaryService should  be called by microservice
-
-    const allBenefs = await firstValueFrom(
-      this.client.send({ cmd: JOBS.BENEFICIARY.GET_BENEFICIARIES_COUNT }, {}),
-    );
-
-    console.log('count', allBenefs);
 
     // if (phaseDetails.canTriggerPayout) {
     //   const allBenfs = await this.beneficiaryService.getCount();
@@ -268,7 +261,7 @@ export class PhasesService {
       await this.prisma.activity.findMany({
         where: {
           differenceInTriggerAndActivityCompletion: null,
-          status: 'COMPLETED',
+          status: ActivityStatus.COMPLETED,
           isDeleted: false,
         },
         include: {
@@ -312,7 +305,7 @@ export class PhasesService {
 
     for (const trigger of phase.Trigger) {
       const { repeatKey } = trigger;
-      if (trigger.dataSource === 'MANUAL') {
+      if (trigger.dataSource === DataSource.MANUAL) {
         await this.triggerService.create(appId, {
           title: trigger.title,
           dataSource: trigger.dataSource,
