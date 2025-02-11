@@ -15,6 +15,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ProcessorsModule } from './processors/processors.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ListenersModule } from './listeners/listeners.module';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { MS_TRIGGER_CLIENTS } from './constant';
 
 @Module({
   imports: [
@@ -31,6 +33,17 @@ import { ListenersModule } from './listeners/listeners.module';
       }),
       inject: [ConfigService],
     }),
+    ClientsModule.register([
+      {
+        name: MS_TRIGGER_CLIENTS.RAHAT,
+        transport: Transport.REDIS,
+        options: {
+          host: process.env.REDIS_HOST,
+          port: +process.env.REDIS_PORT,
+          password: process.env.REDIS_PASSWORD,
+        },
+      },
+    ]),
     PrismaModule,
     ProcessorsModule,
     RumsanAppModule,

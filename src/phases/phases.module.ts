@@ -3,10 +3,11 @@ import { PhasesService } from './phases.service';
 import { PhasesController } from './phases.controller';
 import { PrismaModule } from '@rumsan/prisma';
 import { BullModule } from '@nestjs/bull';
-import { BQUEUE } from 'src/constant';
+import { BQUEUE, MS_TRIGGER_CLIENTS } from 'src/constant';
 // import { BeneficiaryModule } from 'src/beneficiary/beneficiary.module';
 import { TriggerModule } from 'src/trigger/trigger.module';
 import { PhasesStatsService } from './phases.stats.service';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
   imports: [
@@ -20,8 +21,18 @@ import { PhasesStatsService } from './phases.stats.service';
     BullModule.registerQueue({
       name: BQUEUE.COMMUNICATION,
     }),
-    // BeneficiaryModule,
     forwardRef(() => TriggerModule),
+    ClientsModule.register([
+      {
+        name: MS_TRIGGER_CLIENTS.RAHAT,
+        transport: Transport.REDIS,
+        options: {
+          host: process.env.REDIS_HOST,
+          port: +process.env.REDIS_PORT,
+          password: process.env.REDIS_PASSWORD,
+        },
+      },
+    ]),
   ],
   controllers: [PhasesController],
   providers: [PhasesService, PhasesStatsService],

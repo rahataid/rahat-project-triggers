@@ -25,11 +25,15 @@ export const JOBS = {
     UPDATE: 'rahat.jobs.activities.update',
     UPDATE_STATUS: 'rahat.jobs.activities.updateStatus',
     COMMUNICATION: {
-      TRIGGER: 'rahat.jobs.activity.communication.trigger',
+      TRIGGER_CAMPAIGN: 'rahat.jobs.communication.trigger_campaign',
       SESSION_LOGS: 'rahat.jobs.activities.communication.sessionLogs',
       RETRY_FAILED: 'rahat.jobs.activities.communication.retryFailed',
       GET_STATS: 'rahat.jobs.activities.communication.getStats',
     },
+  },
+
+  BENEFICIARY: {
+    GET_BENEFICIARIES_COUNT: 'rahat.jobs.beneficiary.count',
   },
 };
 
@@ -44,4 +48,8 @@ export const EVENTS = {
   BENEFICIARY_UPDATED: 'events.beneficiary_updated',
   AUTOMATED_TRIGGERED: 'events.automated_triggered',
   TOKEN_RESERVED: 'events.token_reserved',
+};
+
+export const MS_TRIGGER_CLIENTS = {
+  RAHAT: 'RAHAT_TRIGGER_CLIENT',
 };

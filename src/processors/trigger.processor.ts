@@ -39,7 +39,6 @@ export class TriggerProcessor {
     const conditionsMet = this.checkTriggerConditions(
       phaseData.triggerRequirements,
     );
-    console.log('automated condition');
     if (conditionsMet) {
       this.phaseService.activatePhase(phaseData.uuid);
     }
@@ -52,7 +51,6 @@ export class TriggerProcessor {
     const conditionsMet = this.checkTriggerConditions(
       phaseData.triggerRequirements,
     );
-    console.log('manual conditions');
     if (conditionsMet) {
       this.phaseService.activatePhase(phaseData.uuid);
     }
