@@ -10,7 +10,7 @@ export const JOBS = {
     ADD: 'rahat.jobs.schedule.add',
   },
   PAYOUT: {
-    ASSIGN_TOKEN: 'rahat.jobs.payout.assignToken',
+    ASSIGN_TOKEN: 'rahat.jobs.payout.assign_token',
   },
   TRIGGER: {
     ADD: 'rahat.jobs.trigger.add',

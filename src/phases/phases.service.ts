@@ -16,7 +16,7 @@ import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy } from '@nestjs/microservices';
-
+import { firstValueFrom } from 'rxjs';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 export declare const MS_TIMEOUT = 500000;
@@ -148,7 +148,6 @@ export class PhasesService {
       },
     });
     const phaseActivities = phaseDetails.Activity;
-    console.log(phaseDetails);
     for (const activity of phaseActivities) {
       const activityComms = JSON.parse(
         JSON.stringify(activity.activityCommunication),
@@ -179,24 +178,16 @@ export class PhasesService {
 
     // todo :: beneficiaryService should  be called by microservice
 
-    // if (phaseDetails.canTriggerPayout) {
-    //   const allBenfs = await this.beneficiaryService.getCount();
-    //   const batches = this.createBatches(allBenfs, BATCH_SIZE);
-
-    //   if (batches.length) {
-    //     batches?.forEach((batch) => {
-    //       this.contractQueue.add(JOBS.PAYOUT.ASSIGN_TOKEN, batch, {
-    //         attempts: 3,
-    //         removeOnComplete: true,
-    //         backoff: {
-    //           type: 'exponential',
-    //           delay: 1000,
-    //         },
-    //       });
-    //     });
-    //   }
-    // }
-
+    if (phaseDetails.canTriggerPayout) {
+      return firstValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.PAYOUT.ASSIGN_TOKEN,
+          },
+          {},
+        ),
+      );
+    }
     const updatedPhase = await this.prisma.phase.update({
       where: {
         uuid: uuid,
