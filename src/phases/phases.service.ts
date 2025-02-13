@@ -130,7 +130,6 @@ export class PhasesService {
   }
 
   async activatePhase(uuid: string) {
-    console.log(uuid);
     const phaseDetails = await this.prisma.phase.findUnique({
       where: {
         uuid: uuid,
@@ -147,16 +146,19 @@ export class PhasesService {
         },
       },
     });
+
     const phaseActivities = phaseDetails.Activity;
     for (const activity of phaseActivities) {
       const activityComms = JSON.parse(
         JSON.stringify(activity.activityCommunication),
       );
-
       for (const comm of activityComms) {
         this.client
           .send(
-            { cmd: JOBS.ACTIVITIES.COMMUNICATION.TRIGGER_CAMPAIGN },
+            {
+              cmd: JOBS.ACTIVITIES.COMMUNICATION.TRIGGER_CAMPAIGN,
+              location: phaseDetails?.location,
+            },
             {
               communicationId: comm?.communicationId,
             },
@@ -183,6 +185,7 @@ export class PhasesService {
         this.client.send(
           {
             cmd: JOBS.PAYOUT.ASSIGN_TOKEN,
+            location: phaseDetails?.location,
           },
           {},
         ),
