@@ -33,7 +33,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     this.synchronizeDHM();
     this.synchronizeGlofas();
   }
-  @Cron('0 0 * * * *')
+  @Cron('*/5 * * * *') // every 5 min
   async synchronizeDHM() {
     try {
       this.logger.log('DHM: syncing every hour');
@@ -63,7 +63,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       this.logger.error('DHM Err:', err.message);
     }
   }
-  @Cron('0 0 * * * *')
+  @Cron('0 * * * *')
   async synchronizeGlofas() {
     try {
       this.logger.log('GLOFAS: syncing once every hour');
