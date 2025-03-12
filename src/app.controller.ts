@@ -1,16 +1,19 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { AppService } from './app.service';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  private readonly logger = new Logger(AppController.name);
+
+  constructor(private readonly appService: AppService) { }
 
   @MessagePattern({
-    cmd: 'test.trigger',
-    uuid: 'a83e3867-de4b-4c20-b955-3d84875bc423',
+    cmd: 'try.trigger',
   })
   getHello(): string {
-    return this.appService.getHello();
+    this.logger.log('Received command: try.trigger');
+    const response = this.appService.getHello();
+    return response;
   }
 }
