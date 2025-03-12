@@ -62,6 +62,21 @@ export const MS_TRIGGERS_JOBS = {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
     GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
   },
+  ACTIVITIES: {
+    GET_ONE: 'ms.jobs.activities.getOne',
+    GET_ALL: 'ms.jobs.activities.getAll',
+    GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
+    ADD: 'ms.jobs.activities.add',
+    REMOVE: 'ms.jobs.activities.remove',
+    UPDATE: 'ms.jobs.activities.update',
+    UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
+    COMMUNICATION: {
+      // TRIGGER: 'ms.jobs.activity.communication.trigger',
+      // SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
+      // RETRY_FAILED: 'ms.jobs.activities.communication.retryFailed',
+      GET_STATS: 'ms.jobs.activities.communication.getStats',
+    },
+  },
 };
 export const EVENTS = {
   PHASE_ACTIVATED: 'events.phase_activated',
