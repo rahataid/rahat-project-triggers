@@ -1,50 +1,66 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
-import { ApiHeader } from '@nestjs/swagger';
-import { AppId } from '@rumsan/app';
-import { PaginationDto } from 'src/common/dto';
+import { Controller } from '@nestjs/common';
+import { MessagePattern } from '@nestjs/microservices';
+import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { CategoryService } from './category.service';
+import { ListCategoryDto } from './dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Controller('category')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
-  @ApiHeader({
-    name: 'app-id',
-    description: 'Application ID',
-    required: true,
+  // @ApiHeader({
+  //   name: 'app-id',
+  //   description: 'Application ID',
+  //   required: true,
+  // })
+  // @Post()
+  // create(@AppId() appId: string, @Body() dto: CreateCategoryDto) {
+  //   return this.categoryService.create(appId, dto);
+  // }
+
+  // @ApiHeader({
+  //   name: 'app-id',
+  //   description: 'Application ID',
+  //   required: true,
+  // })
+  // @Get()
+  // findAll(@AppId() appId: string, @Query() dto: PaginationDto): any {
+  //   return this.categoryService.findAll(appId, dto);
+  // }
+
+  // @Get(':uuid')
+  // findOne(@Param('uuid') uuid: string) {
+  //   return this.categoryService.findOne(uuid);
+  // }
+
+  // @Patch(':uuid')
+  // update(@Param('uuid') uuid: string, @Body() dto: UpdateCategoryDto) {
+  //   return this.categoryService.update(uuid, dto);
+  // }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.CATEGORIES.ADD,
+    uuid: process.env.PROJECT_ID,
   })
-  @Post()
-  create(@AppId() appId: string, @Body() dto: CreateCategoryDto) {
-    return this.categoryService.create(appId, dto);
+  async add(payload: CreateCategoryDto) {
+    const { appId, ...rest } = payload;
+    return this.categoryService.create(appId, rest);
   }
 
-  @ApiHeader({
-    name: 'app-id',
-    description: 'Application ID',
-    required: true,
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.CATEGORIES.GET_ALL,
+    uuid: process.env.PROJECT_ID,
   })
-  @Get()
-  findAll(@AppId() appId: string, @Query() dto: PaginationDto): any {
-    return this.categoryService.findAll(appId, dto);
+  async getAll(payload: ListCategoryDto): any {
+    return this.categoryService.findAll(payload);
   }
 
-  @Get(':uuid')
-  findOne(@Param('uuid') uuid: string) {
-    return this.categoryService.findOne(uuid);
-  }
-
-  @Patch(':uuid')
-  update(@Param('uuid') uuid: string, @Body() dto: UpdateCategoryDto) {
-    return this.categoryService.update(uuid, dto);
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.CATEGORIES.REMOVE,
+    uuid: process.env.PROJECT_ID,
+  })
+  async remove(payload: { uuid: string }) {
+    return this.categoryService.remove(payload);
   }
 }

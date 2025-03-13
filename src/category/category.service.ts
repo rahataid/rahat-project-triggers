@@ -3,6 +3,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { PaginationDto } from 'src/common/dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
+import { ListCategoryDto } from './dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -19,22 +20,24 @@ export class CategoryService {
     });
   }
 
-  findAll(appId: string, dto: PaginationDto) {
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    orderBy[dto.sort] = dto.order;
-    return paginate(
-      this.prisma.activityCategory,
-      {
-        where: {
-          app: appId,
-        },
-        orderBy,
+  findAll(payload: ListCategoryDto) {
+    const { appId, order, sort, name, page, perPage } = payload;
+
+    const query = {
+      where: {
+        app: appId,
+        isDeleted: false,
+        ...(name && { name: { contains: name, mode: 'insensitive' } }),
       },
-      {
-        page: dto.page,
-        perPage: dto.perPage,
+      orderBy: {
+        [sort]: order,
       },
-    );
+    };
+
+    return paginate(this.prisma.activityCategory, query, {
+      page,
+      perPage,
+    });
   }
 
   findOne(uuid: string) {
@@ -51,6 +54,17 @@ export class CategoryService {
         uuid,
       },
       data: dto,
+    });
+  }
+
+  async remove(payload: { uuid: string }) {
+    return await this.prisma.activityCategory.update({
+      where: {
+        uuid: payload.uuid,
+      },
+      data: {
+        isDeleted: true,
+      },
     });
   }
 }

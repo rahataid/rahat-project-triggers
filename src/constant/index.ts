@@ -77,6 +77,19 @@ export const MS_TRIGGERS_JOBS = {
       GET_STATS: 'ms.jobs.activities.communication.getStats',
     },
   },
+  CATEGORIES: {
+    GET_ALL: 'ms.jobs.categories.getAll',
+    ADD: 'ms.jobs.categories.add',
+    REMOVE: 'ms.jobs.categories.remove',
+  },
+
+  DAILY_MONITORING: {
+    ADD: 'ms.jobs.dailyMonitoring.add',
+    GET_ALL: 'ms.jobs.dailyMonitoring.getAll',
+    GET_ONE: 'ms.jobs.dailyMonitoring.getOne',
+    UPDATE: 'ms.jobs.dailyMonitoring.update',
+    REMOVE: 'ms.jobs.dailyMonitoring.remove',
+  },
 };
 export const EVENTS = {
   PHASE_ACTIVATED: 'events.phase_activated',
