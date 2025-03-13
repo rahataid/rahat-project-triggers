@@ -2,6 +2,14 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 export class CreateDailyMonitoringDto {
   @ApiProperty({
+    example: '',
+    description: 'app id',
+  })
+  @IsString()
+  @IsOptional()
+  appId?: string;
+
+  @ApiProperty({
     example: 'John Doe',
     description: 'The name of the person who entered the data',
   })

@@ -1,53 +1,100 @@
 import { Injectable } from '@nestjs/common';
-import { CreateDailyMonitoringDto, UpdateDailyMonitoringDto } from './dto';
+import { RpcException } from '@nestjs/microservices';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
-import { PaginationDto } from 'src/common/dto';
+import {
+  CreateDailyMonitoringDto,
+  ListDailyMonitoringDto,
+  UpdateDailyMonitoringDto,
+} from './dto';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
 export class DailyMonitoringService {
   constructor(private prisma: PrismaService) {}
-  create(appId: string, dto: CreateDailyMonitoringDto) {
+  create(dto: CreateDailyMonitoringDto) {
+    const { appId, ...rest } = dto;
+
     return this.prisma.dailyMonitoring.create({
       data: {
-        ...dto,
+        ...rest,
         app: appId,
       },
     });
   }
 
-  findAll(appId: string, dto: PaginationDto) {
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    orderBy[dto.sort] = dto.order;
-    return paginate(
-      this.prisma.dailyMonitoring,
-      {
-        where: {
-          app: appId,
-        },
-        orderBy,
+  findAll(payload: ListDailyMonitoringDto) {
+    const { page, perPage, dataEntryBy, location, createdAt, appId } = payload;
+
+    const query = {
+      where: {
+        isDeleted: false,
+        app: appId,
+        ...(dataEntryBy && {
+          dataEntryBy: { contains: dataEntryBy, mode: 'insensitive' },
+        }),
+        ...(location && {
+          location: { contains: location, mode: 'insensitive' },
+        }),
+        ...(createdAt && {
+          createdAt: {
+            gte: createdAt,
+          },
+        }),
       },
-      {
-        page: dto.page,
-        perPage: dto.perPage,
-      },
-    );
+    };
+
+    return paginate(this.prisma.dailyMonitoring, query, {
+      page,
+      perPage,
+    });
   }
 
-  findOne(uuid: string) {
+  async findOne(payload: { uuid: string }) {
+    const { uuid } = payload;
     return this.prisma.dailyMonitoring.findUnique({
       where: {
-        uuid,
+        uuid: uuid,
+        isDeleted: false,
       },
     });
   }
 
-  update(uuid: string, dto: UpdateDailyMonitoringDto) {
-    return this.prisma.dailyMonitoring.update({
+  async update(payload: UpdateDailyMonitoringDto) {
+    const { uuid, dataEntryBy, location, info } = payload;
+    const existing = await this.prisma.dailyMonitoring.findUnique({
       where: {
-        uuid,
+        uuid: uuid,
       },
-      data: dto,
+    });
+
+    if (!existing) throw new RpcException('Monitoring Data not found!');
+
+    const existingData = JSON.parse(JSON.stringify(existing));
+
+    const updatedMonitoringData = await this.prisma.dailyMonitoring.update({
+      where: {
+        uuid: uuid,
+      },
+      data: {
+        dataEntryBy: dataEntryBy || existingData.dataEntryBy,
+        location: location || existingData.location,
+        info: JSON.parse(JSON.stringify(info)) || existingData,
+        updatedAt: new Date(),
+      },
+    });
+
+    return updatedMonitoringData;
+  }
+
+  async remove(payload: { uuid: string }) {
+    const { uuid } = payload;
+    return await this.prisma.dailyMonitoring.update({
+      where: {
+        uuid: uuid,
+      },
+      data: {
+        isDeleted: true,
+      },
     });
   }
 }
