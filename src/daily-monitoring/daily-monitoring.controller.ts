@@ -12,7 +12,7 @@ import {
 export class DailyMonitoringController {
   constructor(
     private readonly dailyMonitoringService: DailyMonitoringService,
-  ) {}
+  ) { }
 
   // @ApiHeader({
   //   name: 'app-id',
@@ -56,7 +56,7 @@ export class DailyMonitoringController {
     cmd: MS_TRIGGERS_JOBS.DAILY_MONITORING.GET_ALL,
     uuid: process.env.PROJECT_ID,
   })
-  async getAll(payload: ListDailyMonitoringDto): any {
+  async getAll(payload: ListDailyMonitoringDto): Promise<any> {
     return this.dailyMonitoringService.findAll(payload);
   }
 

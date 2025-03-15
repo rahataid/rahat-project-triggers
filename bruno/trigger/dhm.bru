@@ -1,0 +1,16 @@
+meta {
+  name: dhm
+  type: http
+  seq: 2
+}
+
+post {
+  url: https://www.dhm.gov.np/frontend_dhm/site/getRiverWatchFilter
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  type: 1
+  map-value: 7
+}

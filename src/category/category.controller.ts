@@ -7,7 +7,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 
 @Controller('category')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly categoryService: CategoryService) { }
 
   // @ApiHeader({
   //   name: 'app-id',
@@ -52,7 +52,7 @@ export class CategoryController {
     cmd: MS_TRIGGERS_JOBS.CATEGORIES.GET_ALL,
     uuid: process.env.PROJECT_ID,
   })
-  async getAll(payload: ListCategoryDto): any {
+  async getAll(payload: ListCategoryDto): Promise<any> {
     return this.categoryService.findAll(payload);
   }
 

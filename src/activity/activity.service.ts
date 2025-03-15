@@ -13,7 +13,7 @@ export class ActivityService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
-  ) {}
+  ) { }
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
@@ -580,7 +580,7 @@ export class ActivityService {
     const activitiesHavingComms = await this.prisma.activity.findMany({
       where: {
         isDeleted: false,
-        activityCommunication: { not: [] || {} },
+        activityCommunication: { not: { equals: [] } },
       },
       select: {
         uuid: true,

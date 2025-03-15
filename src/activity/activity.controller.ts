@@ -7,7 +7,7 @@ import { MS_TRIGGERS_JOBS } from 'src/constant';
 
 @Controller('activity')
 export class ActivityController {
-  constructor(private readonly activityService: ActivityService) {}
+  constructor(private readonly activityService: ActivityService) { }
 
   // @ApiHeader({
   //   name: 'app-id',
@@ -50,7 +50,7 @@ export class ActivityController {
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ALL,
     uuid: process.env.PROJECT_ID,
   })
-  async getAll(payload: GetActivityDto): any {
+  async getAll(payload: GetActivityDto): Promise<any> {
     return this.activityService.getAll(payload);
   }
 
@@ -58,7 +58,7 @@ export class ActivityController {
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_HAVING_COMMS,
     uuid: process.env.PROJECT_ID,
   })
-  async getHavingComms(payload: GetActivityDto): any {
+  async getHavingComms(payload: GetActivityDto): Promise<any> {
     return this.activityService.getHavingComms(payload);
   }
 
