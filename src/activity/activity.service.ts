@@ -1,11 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { RpcException } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { ActivityStatus } from '@prisma/client';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import { EVENTS } from 'src/constant';
+import {
+  EVENTS,
+  JOBS,
+  MS_TRIGGER_CLIENTS,
+  TransportType,
+  ValidationAddress,
+} from 'src/constant';
 import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
+import { firstValueFrom } from 'rxjs';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
@@ -13,7 +20,8 @@ export class ActivityService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
-  ) { }
+    @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
+  ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
@@ -163,175 +171,6 @@ export class ActivityService {
     return deletedActivity;
   }
 
-  /*  async triggerCommunication(payload: {
-    communicationId: string;
-    activityId: string;
-  }) {
-    const activity = await this.prisma.activity.findUnique({
-      where: {
-        uuid: payload.activityId,
-      },
-    });
-    if (!activity) throw new RpcException('Activity communication not found.');
-    const { activityCommunication } = activity;
-
-    const parsedCommunications = JSON.parse(
-      JSON.stringify(activityCommunication),
-    ) as Array<{
-      groupId: string;
-      message:
-        | string
-        | {
-            mediaURL: string;
-            fileName: string;
-          };
-      groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
-      transportId: string;
-      communicationId: string;
-    }>;
-
-    const selectedCommunication = parsedCommunications.find(
-      (c) => c?.communicationId === payload.communicationId,
-    );
-
-    if (!Object.keys(selectedCommunication).length)
-      throw new RpcException('Selected communication not found.');
-
-    const transportDetails = await this.commsClient.transport.get(
-      selectedCommunication.transportId,
-    );
-
-    if (!transportDetails.data)
-      throw new RpcException('Selected transport not found.');
-
-    const addresses = await this.getAddresses(
-      selectedCommunication.groupType,
-      selectedCommunication.groupId,
-      transportDetails.data.validationAddress as ValidationAddress,
-    );
-
-    let messageContent: string;
-    if (transportDetails.data.type === TransportType.VOICE) {
-      const msg = selectedCommunication.message as {
-        mediaURL: string;
-        fileName: string;
-      };
-      messageContent = msg.mediaURL;
-    } else {
-      messageContent = selectedCommunication.message as string;
-    }
-  */
-
-  /*
-    const sessionData = await this.commsClient.broadcast.create({
-      addresses: addresses,
-      maxAttempts: 3,
-      message: {
-        content: messageContent,
-        meta: {
-          subject: 'INFO',
-        },
-      },
-      options: {},
-      transport: selectedCommunication.transportId,
-      trigger: TriggerType.IMMEDIATE,
-    });
-
-    const updatedCommunicationsData = parsedCommunications.map((c) => {
-      if (c?.communicationId === payload.communicationId) {
-        return {
-          ...c,
-          sessionId: sessionData.data.cuid,
-        };
-      }
-      return c;
-    });
-
-    await this.prisma.activity.update({
-      where: {
-        uuid: payload.activityId,
-      },
-      data: {
-        activityCommunication: updatedCommunicationsData,
-      },
-    });
-
-    return sessionData.data;
-  }
-    */
-
-  // async getAddresses(
-  //   groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
-  //   groupId: string,
-  //   validationAddress: ValidationAddress,
-  // ) {
-  //   switch (groupType) {
-  //     case 'STAKEHOLDERS':
-  //       const group = await this.prisma.stakeholdersGroups.findUnique({
-  //         where: {
-  //           uuid: groupId,
-  //         },
-  //         include: {
-  //           stakeholders: true,
-  //         },
-  //       });
-  //       if (!group) throw new RpcException('Stakeholders group not found.');
-  //       return group.stakeholders
-  //         .map((stakeholder) => {
-  //           if (validationAddress === ValidationAddress.EMAIL) {
-  //             return stakeholder?.email || null;
-  //           } else if (
-  //             validationAddress === ValidationAddress.PHONE &&
-  //             stakeholder.phone
-  //           ) {
-  //             return stakeholder.phone.substring(
-  //               +stakeholder.phone.length - 10,
-  //             );
-  //           } else if (validationAddress === ValidationAddress.ANY) {
-  //             if (stakeholder.phone) {
-  //               return stakeholder.phone
-  //                 ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
-  //                 : null;
-  //             }
-  //           }
-  //           return null;
-  //         })
-  //         .filter(Boolean);
-  //     case 'BENEFICIARY':
-  //       const beneficiaryGroup = await this.beneficiaryService.getOneGroup(
-  //         groupId as UUID,
-  //       );
-  //       if (!beneficiaryGroup)
-  //         throw new RpcException('Beneficiary group not found.');
-  //       const groupedBeneficiaries = beneficiaryGroup.groupedBeneficiaries;
-  //       return groupedBeneficiaries
-  //         ?.map((beneficiary) => {
-  //           if (validationAddress === ValidationAddress.EMAIL) {
-  //             return beneficiary.Beneficiary?.pii?.email || null;
-  //           } else if (
-  //             validationAddress === ValidationAddress.PHONE &&
-  //             beneficiary.Beneficiary?.pii?.phone
-  //           ) {
-  //             return beneficiary.Beneficiary?.pii?.phone.substring(
-  //               +beneficiary.Beneficiary?.pii?.phone?.length - 10,
-  //             );
-  //           } else if (validationAddress === ValidationAddress.ANY) {
-  //             if (beneficiary.Beneficiary?.pii?.phone) {
-  //               return beneficiary.Beneficiary?.pii?.phone
-  //                 ? beneficiary.Beneficiary?.pii?.phone.substring(
-  //                     +beneficiary.Beneficiary?.pii?.phone.length - 10,
-  //                   )
-  //                 : null;
-  //             }
-  //           }
-  //           return null;
-  //         })
-  //         .filter(Boolean);
-  //     default:
-  //       return [];
-  //   }
-  // }
-
   async updateStatus(payload: {
     uuid: string;
     status: ActivityStatus;
@@ -462,52 +301,59 @@ export class ActivityService {
     });
   }
 
-  // async getSessionLogs(payload: {
-  //   communicationId: string;
-  //   activityId: string;
-  // }) {
-  //   const { communicationId, activityId } = payload;
+  async getSessionLogs(payload: {
+    communicationId: string;
+    activityId: string;
+  }) {
+    const { communicationId, activityId } = payload;
 
-  //   const { selectedCommunication } =
-  //     await this.getActivityCommunicationDetails(communicationId, activityId);
+    const { selectedCommunication } =
+      await this.getActivityCommunicationDetails(communicationId, activityId);
 
-  //   const { groupName } = await this.getGroupDetails(
-  //     selectedCommunication.groupType,
-  //     selectedCommunication.groupId,
-  //   );
+    const { groupName } = await this.getGroupDetails(
+      selectedCommunication.groupType,
+      selectedCommunication.groupId,
+    );
 
-  //   const sessionDetails = (
-  //     await this.commsClient.session.get(selectedCommunication.sessionId)
-  //   ).data;
+    const sessionDetails = await firstValueFrom(
+      this.client.send(
+        {
+          cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
+          uuid: process.env.PROJECT_ID,
+        },
+        {
+          sessionId: selectedCommunication.sessionId,
+        },
+      ),
+    );
+    const { addresses, ...rest } = sessionDetails;
 
-  //   const { addresses, ...rest } = sessionDetails;
+    return {
+      sessionDetails: rest,
+      communicationDetail: selectedCommunication,
+      groupName,
+    };
+  }
 
-  //   return {
-  //     sessionDetails: rest,
-  //     communicationDetail: selectedCommunication,
-  //     groupName,
-  //   };
-  // }
+  async retryFailedBroadcast(payload: {
+    communicationId: string;
+    activityId: string;
+  }) {
+    const { communicationId, activityId } = payload;
 
-  // async retryFailedBroadcast(payload: {
-  //   communicationId: string;
-  //   activityId: string;
-  // }) {
-  //   const { communicationId, activityId } = payload;
+    const { selectedCommunication } =
+      await this.getActivityCommunicationDetails(communicationId, activityId);
 
-  //   const { selectedCommunication } =
-  //     await this.getActivityCommunicationDetails(communicationId, activityId);
+    // const retryResponse = (
+    //   await this.commsClient.session.retryIncomplete(
+    //     selectedCommunication.sessionId
+    //   )
+    // ).data;
 
-  //   // const retryResponse = (
-  //   //   await this.commsClient.session.retryIncomplete(
-  //   //     selectedCommunication.sessionId
-  //   //   )
-  //   // ).data;
+    // return retryResponse;
+  }
 
-  //   // return retryResponse;
-  // }
-
-  /*  async getActivityCommunicationDetails(
+  async getActivityCommunicationDetails(
     communicationId: string,
     activityId: string,
   ) {
@@ -544,38 +390,45 @@ export class ActivityService {
 
     return { selectedCommunication, activity };
   }
-*/
 
-  /*  async getGroupDetails(
+  async getGroupDetails(
     groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
     groupId: string,
   ) {
     let group: any;
     let groupName: string;
-    switch (groupType) {
-      case 'STAKEHOLDERS':
-        group = await this.prisma.stakeholdersGroups.findUnique({
-          where: {
-            uuid: groupId,
+    if (groupType === 'STAKEHOLDERS') {
+      group = await firstValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.STAKEHOLDERS.GET_ONE_GROUP,
+            uuid: process.env.PROJECT_ID,
           },
-        });
-        groupName = group.name;
-        break;
-      case 'BENEFICIARY':
-        group = await this.prisma.beneficiaryGroups.findUnique({
-          where: {
-            uuid: groupId,
+          { uuid: groupId },
+        ),
+      );
+      groupName = group.name;
+    } else if (groupType === 'BENEFICIARY') {
+      group = await firstValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.BENEFICIARY.GET_ONE_GROUP,
+            uuid: process.env.PROJECT_ID,
           },
-        });
-        groupName = group.name;
-        break;
-      default:
-        break;
+          { uuid: groupId },
+        ),
+      );
+      groupName = group.name;
+    } else {
+      throw new Error('Invalid group type');
     }
+    if (!group) {
+      throw new Error('No response from microservice');
+    }
+
+    console.log(`Group (${groupType}):`, group);
     return { group, groupName };
   }
-    */
-
   async getCommsStats() {
     const activitiesHavingComms = await this.prisma.activity.findMany({
       where: {
@@ -605,4 +458,207 @@ export class ActivityService {
       totalCommsProject,
     };
   }
+
+  // async triggerCommunication(payload: {
+  //   communicationId: string;
+  //   activityId: string;
+  // }) {
+  //   const activity = await this.prisma.activity.findUnique({
+  //     where: {
+  //       uuid: payload.activityId,
+  //     },
+  //   });
+  //   if (!activity) throw new RpcException('Activity communication not found.');
+  //   const { activityCommunication } = activity;
+
+  //   const parsedCommunications = JSON.parse(
+  //     JSON.stringify(activityCommunication),
+  //   ) as Array<{
+  //     groupId: string;
+  //     message:
+  //       | string
+  //       | {
+  //           mediaURL: string;
+  //           fileName: string;
+  //         };
+  //     groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
+  //     transportId: string;
+  //     communicationId: string;
+  //   }>;
+
+  //   const selectedCommunication = parsedCommunications.find(
+  //     (c) => c?.communicationId === payload.communicationId,
+  //   );
+
+  //   if (!Object.keys(selectedCommunication).length)
+  //     throw new RpcException('Selected communication not found.');
+
+  //   // const transportDetails = await this.commsClient.transport.get(
+  //   //   selectedCommunication.transportId,
+  //   // );
+
+  //   const transportDetails = await firstValueFrom(
+  //     this.client.send(
+  //       {
+  //         cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_DETAILS,
+  //         uuid: process.env.PROJECT_ID,
+  //       },
+  //       {
+  //         transportId: selectedCommunication.transportId,
+  //       },
+  //     ),
+  //   );
+
+  //   if (!transportDetails.data)
+  //     throw new RpcException('Selected transport not found.');
+
+  //   const addresses = await this.getAddresses(
+  //     selectedCommunication.groupType,
+  //     selectedCommunication.groupId,
+  //     transportDetails.data.validationAddress as ValidationAddress,
+  //   );
+
+  //   let messageContent: string;
+  //   if (transportDetails.data.type === TransportType.VOICE) {
+  //     const msg = selectedCommunication.message as {
+  //       mediaURL: string;
+  //       fileName: string;
+  //     };
+  //     messageContent = msg.mediaURL;
+  //   } else {
+  //     messageContent = selectedCommunication.message as string;
+  //   }
+
+  //   /// cva_communication microservice
+  //   // const sessionData = await this.commsClient.broadcast.create({
+  //   //   addresses: addresses,
+  //   //   maxAttempts: 3,
+  //   //   message: {
+  //   //     content: messageContent,
+  //   //     meta: {
+  //   //       subject: 'INFO',
+  //   //     },
+  //   //   },
+  //   //   options: {},
+  //   //   transport: selectedCommunication.transportId,
+  //   //   trigger: TriggerType.IMMEDIATE,
+  //   // });
+  //   const sessionData = await firstValueFrom(
+  //     this.client.send(
+  //       {
+  //         cmd: JOBS.ACTIVITIES.COMMUNICATION.BROAD_CAST_CREATE,
+  //         uuid: process.env.PROJECT_ID,
+  //       },
+  //       {
+  //         uuid: selectedCommunication.communicationId,
+  //         // addresses,
+  //         // msgContent: messageContent,
+  //         // transportId: selectedCommunication.transportId,
+  //         // activityTrigger: true,
+  //       },
+  //     ),
+  //   );
+
+  //   console.log('session', sessionData);
+
+  //   const updatedCommunicationsData = parsedCommunications.map((c) => {
+  //     if (c?.communicationId === payload.communicationId) {
+  //       return {
+  //         ...c,
+  //         sessionId: sessionData.cuid,
+  //       };
+  //     }
+  //     return c;
+  //   });
+
+  //   await this.prisma.activity.update({
+  //     where: {
+  //       uuid: payload.activityId,
+  //     },
+  //     data: {
+  //       activityCommunication: updatedCommunicationsData,
+  //     },
+  //   });
+
+  //   return sessionData;
+  // }
+
+  // async getAddresses(
+  //   groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
+  //   groupId: string,
+  //   validationAddress: ValidationAddress,
+  // ) {
+  //   switch (groupType) {
+  //     case 'STAKEHOLDERS':
+  //       const group = await firstValueFrom(
+  //         this.client.send(
+  //           {
+  //             cmd: JOBS.STAKEHOLDERS.GET_ONE_GROUP,
+  //             uuid: process.env.PROJECT_ID,
+  //           },
+  //           { uuid: groupId },
+  //         ),
+  //       );
+  //       if (!group) throw new RpcException('Stakeholders group not found.');
+  //       return group.stakeholders
+  //         .map((stakeholder) => {
+  //           if (validationAddress === ValidationAddress.EMAIL) {
+  //             return stakeholder?.email || null;
+  //           } else if (
+  //             validationAddress === ValidationAddress.PHONE &&
+  //             stakeholder.phone
+  //           ) {
+  //             return stakeholder.phone.substring(
+  //               +stakeholder.phone.length - 10,
+  //             );
+  //           } else if (validationAddress === ValidationAddress.ANY) {
+  //             if (stakeholder.phone) {
+  //               return stakeholder.phone
+  //                 ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
+  //                 : null;
+  //             }
+  //           }
+  //           return null;
+  //         })
+  //         .filter(Boolean);
+  //     case 'BENEFICIARY':
+  //       const beneficiaryGroup = await firstValueFrom(
+  //         this.client.send(
+  //           {
+  //             cmd: JOBS.BENEFICIARY.GET_ONE_GROUP,
+  //             uuid: process.env.PROJECT_ID,
+  //           },
+  //           { uuid: groupId },
+  //         ),
+  //       );
+  //       if (!beneficiaryGroup)
+  //         throw new RpcException('Beneficiary group not found.');
+  //       const groupedBeneficiaries = beneficiaryGroup.groupedBeneficiaries;
+  //       return groupedBeneficiaries
+  //         ?.map((beneficiary) => {
+  //           if (validationAddress === ValidationAddress.EMAIL) {
+  //             return beneficiary.Beneficiary?.pii?.email || null;
+  //           } else if (
+  //             validationAddress === ValidationAddress.PHONE &&
+  //             beneficiary.Beneficiary?.pii?.phone
+  //           ) {
+  //             return beneficiary.Beneficiary?.pii?.phone.substring(
+  //               +beneficiary.Beneficiary?.pii?.phone?.length - 10,
+  //             );
+  //           } else if (validationAddress === ValidationAddress.ANY) {
+  //             if (beneficiary.Beneficiary?.pii?.phone) {
+  //               return beneficiary.Beneficiary?.pii?.phone
+  //                 ? beneficiary.Beneficiary?.pii?.phone.substring(
+  //                     +beneficiary.Beneficiary?.pii?.phone.length - 10,
+  //                   )
+  //                 : null;
+  //             }
+  //           }
+  //           return null;
+  //         })
+  //         .filter(Boolean);
+  //     default:
+  //       return [];
+  //   }
+  // }
 }

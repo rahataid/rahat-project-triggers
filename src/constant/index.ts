@@ -29,11 +29,19 @@ export const JOBS = {
       SESSION_LOGS: 'rahat.jobs.activities.communication.sessionLogs',
       RETRY_FAILED: 'rahat.jobs.activities.communication.retryFailed',
       GET_STATS: 'rahat.jobs.activities.communication.getStats',
+      GET_SESSION: 'rahat.jobs.communication.session',
+      GET_TRANSPORT_DETAILS: 'rahat.jobs.communication.transport_details ',
+      BROAD_CAST_CREATE: 'rahat.jobs.communication.broad_cast_create',
     },
   },
 
   BENEFICIARY: {
     GET_BENEFICIARIES_COUNT: 'rahat.jobs.beneficiary.count',
+    GET_ONE_GROUP: 'aa.jobs.beneficiary.getOneGroup',
+  },
+
+  STAKEHOLDERS: {
+    GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
 };
 
@@ -71,8 +79,8 @@ export const MS_TRIGGERS_JOBS = {
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
     COMMUNICATION: {
-      // TRIGGER: 'ms.jobs.activity.communication.trigger',
-      // SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
+      TRIGGER: 'ms.jobs.activity.communication.trigger',
+      SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
       // RETRY_FAILED: 'ms.jobs.activities.communication.retryFailed',
       GET_STATS: 'ms.jobs.activities.communication.getStats',
     },
@@ -107,3 +115,17 @@ export const EVENTS = {
 export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
 };
+
+export enum ValidationAddress {
+  ANY = 'ANY',
+  EMAIL = 'EMAIL',
+  PHONE = 'PHONE',
+}
+
+export enum TransportType {
+  SMTP = 'SMTP',
+  VOICE = 'VOICE',
+  API = 'API',
+  SES = 'SES',
+  ECHO = 'ECHO',
+}

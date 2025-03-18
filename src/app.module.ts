@@ -59,4 +59,4 @@ import { MS_TRIGGER_CLIENTS } from './constant';
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })
-export class AppModule { }
+export class AppModule {}

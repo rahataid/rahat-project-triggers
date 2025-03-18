@@ -6,7 +6,7 @@ import { MessagePattern } from '@nestjs/microservices';
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
-  constructor(private readonly appService: AppService) { }
+  constructor(private readonly appService: AppService) {}
 
   @MessagePattern({ cmd: 'try.trigger' })
   getHello(): string {
@@ -22,4 +22,3 @@ export class AppController {
   //   return response;
   // }
 }
-

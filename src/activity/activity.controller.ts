@@ -7,7 +7,7 @@ import { MS_TRIGGERS_JOBS } from 'src/constant';
 
 @Controller('activity')
 export class ActivityController {
-  constructor(private readonly activityService: ActivityService) { }
+  constructor(private readonly activityService: ActivityService) {}
 
   // @ApiHeader({
   //   name: 'app-id',
@@ -86,19 +86,20 @@ export class ActivityController {
   //   communicationId: string;
   //   activityId: string;
   // }) {
+  //   console.log('object');
   //   return this.activityService.triggerCommunication(payload);
   // }
 
-  // @MessagePattern({
-  //   cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.SESSION_LOGS,
-  //   uuid: process.env.PROJECT_ID,
-  // })
-  // async communicationLogs(payload: {
-  //   communicationId: string;
-  //   activityId: string;
-  // }) {
-  //   return this.activityService.getSessionLogs(payload);
-  // }
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.SESSION_LOGS,
+    uuid: process.env.PROJECT_ID,
+  })
+  async communicationLogs(payload: {
+    communicationId: string;
+    activityId: string;
+  }) {
+    return this.activityService.getSessionLogs(payload);
+  }
 
   // @MessagePattern({
   //   cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.RETRY_FAILED,

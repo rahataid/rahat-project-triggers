@@ -12,7 +12,7 @@ import {
 export class DailyMonitoringController {
   constructor(
     private readonly dailyMonitoringService: DailyMonitoringService,
-  ) { }
+  ) {}
 
   // @ApiHeader({
   //   name: 'app-id',
