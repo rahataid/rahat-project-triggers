@@ -27,10 +27,10 @@ export class CategoryService {
       where: {
         app: appId,
         isDeleted: false,
-        ...(name && { name: { contains: name, mode: 'insensitive' } }),
+        // ...(name && { name: { contains: name, mode: 'insensitive' } }),
       },
       orderBy: {
-        [sort]: order,
+        // [sort]: order,
       },
     };
 

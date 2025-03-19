@@ -64,8 +64,60 @@ export class ActivityService {
 
   async add(payload: CreateActivityDto) {
     try {
+      const {
+        activityCommunication,
+        title,
+        isAutomated,
+        leadTime,
+        categoryId,
+        description,
+        phaseId,
+        responsibility,
+        source,
+        activityDocuments,
+        appId,
+        activityPayout,
+      } = payload;
+
+      const createActivityCommunicationPayload = [];
+      const createActivityPayoutPayload = activityPayout || [];
+      const docs = activityDocuments || [];
+
+      if (activityCommunication?.length) {
+        for (const comms of activityCommunication as any) {
+          const communicationId = randomUUID();
+
+          createActivityCommunicationPayload.push({
+            ...comms,
+            communicationId,
+          });
+        }
+      }
+
       const newActivity = await this.prisma.activity.create({
-        data: { ...payload, app: payload.appId },
+        data: {
+          title,
+          description,
+          leadTime,
+          responsibility,
+          source,
+          isAutomated,
+          category: {
+            connect: { uuid: categoryId },
+          },
+          phase: {
+            connect: { uuid: phaseId },
+          },
+          activityCommunication: JSON.parse(
+            JSON.stringify(createActivityCommunicationPayload),
+          ),
+          activityPayout: JSON.parse(
+            JSON.stringify(createActivityPayoutPayload),
+          ),
+
+          activityDocuments: JSON.parse(JSON.stringify(docs)),
+          app: appId,
+        },
       });
 
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {});
@@ -177,10 +229,12 @@ export class ActivityService {
       isApproved,
       responsibility,
       status,
+      appId,
     } = payload;
 
     const query = {
       where: {
+        app: appId,
         isDeleted: false,
         ...(title && { title: { contains: title, mode: 'insensitive' } }),
         ...(category && { categoryId: category }),

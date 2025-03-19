@@ -17,6 +17,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { GetPhaseDto } from './dto';
+import { create } from 'domain';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 export declare const MS_TIMEOUT = 500000;
@@ -33,26 +35,28 @@ export class PhasesService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
   ) {}
 
-  create(appId: string, dto: CreatePhaseDto) {
+  async create(payload: CreatePhaseDto) {
+    const { appId, name, ...rest } = payload;
     return this.prisma.phase.create({
       data: {
-        ...dto,
-        name: dto.name as Phases,
+        ...rest,
+        name: name as Phases,
         app: appId,
       },
     });
   }
 
-  findAll(appId: string, dto: PaginationDto) {
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    orderBy[dto.sort] = dto.order;
+  findAll(payload: GetPhaseDto) {
+    const { appId, ...dto } = payload;
     return paginate(
       this.prisma.phase,
       {
         where: {
           app: appId,
         },
-        orderBy,
+        orderBy: {
+          createdAt: 'desc',
+        },
       },
       {
         page: dto.page,

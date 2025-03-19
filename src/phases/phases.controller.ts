@@ -66,12 +66,20 @@ export class PhasesController {
   // }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.CREATE,
+    uuid: process.env.PROJECT_ID,
+  })
+  async create(payload) {
+    console.log(payload);
+    return this.phasesService.create(payload);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ALL,
     uuid: process.env.PROJECT_ID,
   })
   async getAll(payload: any): Promise<any> {
-    const { appId, dto } = payload;
-    return this.phasesService.findAll(appId, dto);
+    return this.phasesService.findAll(payload);
   }
 
   @MessagePattern({

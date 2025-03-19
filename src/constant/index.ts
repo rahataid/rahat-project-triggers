@@ -57,6 +57,7 @@ export const MS_TRIGGERS_JOBS = {
   },
 
   PHASES: {
+    CREATE: 'ms.jobs.phases.create',
     GET_ONE: 'ms.jobs.phases.getOne',
     GET_ALL: 'ms.jobs.phases.getAll',
     GET_STATS: 'ms.jobs.phases.getStats',

@@ -9,6 +9,9 @@ import {
 export class GetActivityDto {
   @IsOptional()
   @IsString()
+  appId?: string;
+  @IsOptional()
+  @IsString()
   title?: string;
 
   @IsOptional()
