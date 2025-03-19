@@ -4,15 +4,11 @@ import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { ActivityStatus } from '@prisma/client';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import {
-  EVENTS,
-  JOBS,
-  MS_TRIGGER_CLIENTS,
-  TransportType,
-  ValidationAddress,
-} from 'src/constant';
+import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
 import { firstValueFrom } from 'rxjs';
+import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
+import { randomUUID } from 'crypto';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
@@ -79,18 +75,95 @@ export class ActivityService {
     }
   }
 
-  // todo:should work out on this  for throwing the same response as in rahat-project-aa
   async getOne(payload: { uuid: string }) {
     const { uuid } = payload;
-    return this.prisma.activity.findUnique({
-      where: {
-        uuid: uuid,
-      },
-      include: {
-        category: true,
-        phase: true,
-      },
-    });
+    // return this.prisma.activity.findUnique({
+    //   where: {
+    //     uuid: uuid,
+    //   },
+    //   include: {
+    //     category: true,
+    //     phase: true,
+    //   },
+    // });
+
+    const { activityCommunication: aComm, ...activityData } =
+      await this.prisma.activity.findUnique({
+        where: {
+          uuid: uuid,
+        },
+        include: {
+          category: true,
+          phase: true,
+        },
+      });
+
+    const activityCommunication = [];
+    const activityPayout = [];
+
+    if (Array.isArray(aComm) && aComm.length) {
+      for (const comm of aComm) {
+        const communication = JSON.parse(
+          JSON.stringify(comm),
+        ) as ActivityCommunicationData & {
+          transportId: string;
+          sessionId: string;
+        };
+
+        let sessionStatus = SessionStatus.NEW;
+        if (communication.sessionId) {
+          const sessionDetails = await firstValueFrom(
+            this.client.send(
+              {
+                cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
+                uuid: process.env.PROJECT_ID,
+              },
+              {
+                sessionId: communication.sessionId,
+              },
+            ),
+          );
+          sessionStatus = sessionDetails.status;
+        }
+        // const transport = await this.commsClient.transport.get(
+        //   communication.transportId,
+        // );
+
+        const transport = await firstValueFrom(
+          this.client.send(
+            {
+              cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_DETAILS,
+              uuid: process.env.PROJECT_ID,
+            },
+            {
+              transportId: communication.transportId,
+            },
+          ),
+        );
+        const transportName = transport.data.name;
+
+        const { group, groupName } = await this.getGroupDetails(
+          communication.groupType,
+          communication.groupId,
+        );
+
+        activityCommunication.push({
+          ...communication,
+          groupName: groupName,
+          transportName: transportName,
+          sessionStatus,
+          ...(communication.sessionId && {
+            sessionId: communication.sessionId,
+          }),
+        });
+      }
+    }
+
+    return {
+      ...activityData,
+      activityCommunication,
+      activityPayout,
+    };
   }
 
   async getAll(payload: GetActivityDto) {
@@ -255,24 +328,24 @@ export class ActivityService {
     });
     if (!activity) throw new RpcException('Activity not found.');
 
-    // const updateActivityCommunicationPayload = [];
-    // const updateActivityDocuments = activityDocuments?.length
-    //   ? JSON.parse(JSON.stringify(activityDocuments))
-    //   : [];
+    const updateActivityCommunicationPayload = [];
+    const updateActivityDocuments = activityDocuments?.length
+      ? JSON.parse(JSON.stringify(activityDocuments))
+      : [];
 
-    // if (activityCommunication?.length) {
-    //   for (const comms of activityCommunication) {
-    //     if (comms?.communicationId) {
-    //       updateActivityCommunicationPayload.push(comms);
-    //     } else {
-    //       const communicationId = randomUUID();
-    //       updateActivityCommunicationPayload.push({
-    //         ...comms,
-    //         communicationId,
-    //       });
-    //     }
-    //   }
-    // }
+    if (activityCommunication?.length) {
+      for (const comms of activityCommunication as any) {
+        if (comms?.communicationId) {
+          updateActivityCommunicationPayload.push(comms);
+        } else {
+          const communicationId = randomUUID();
+          updateActivityCommunicationPayload.push({
+            ...comms,
+            communicationId,
+          });
+        }
+      }
+    }
     return await this.prisma.activity.update({
       where: {
         uuid: uuid,
@@ -294,8 +367,8 @@ export class ActivityService {
             uuid: categoryId || activity.categoryId,
           },
         },
-        activityCommunication,
-        activityDocuments,
+        activityCommunication: updateActivityCommunicationPayload,
+        activityDocuments: updateActivityDocuments || activityDocuments,
         updatedAt: new Date(),
       },
     });

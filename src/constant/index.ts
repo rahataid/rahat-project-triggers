@@ -115,17 +115,3 @@ export const EVENTS = {
 export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
 };
-
-export enum ValidationAddress {
-  ANY = 'ANY',
-  EMAIL = 'EMAIL',
-  PHONE = 'PHONE',
-}
-
-export enum TransportType {
-  SMTP = 'SMTP',
-  VOICE = 'VOICE',
-  API = 'API',
-  SES = 'SES',
-  ECHO = 'ECHO',
-}
