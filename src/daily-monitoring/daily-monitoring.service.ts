@@ -51,12 +51,33 @@ export class DailyMonitoringService {
 
   async findOne(payload: { uuid: string }) {
     const { uuid } = payload;
-    return this.prisma.dailyMonitoring.findUnique({
+    const result = await this.prisma.dailyMonitoring.findUnique({
       where: {
         uuid: uuid,
         isDeleted: false,
       },
     });
+    const latest = result.id;
+    const manyData = await this.prisma.dailyMonitoring.findMany({
+      where: {
+        id: {
+          gte: latest - 2,
+          lte: latest,
+        },
+        location: result.location,
+        isDeleted: false,
+      },
+    });
+
+    const { info: monitoringData, ...rest } = result;
+
+    return {
+      singleData: {
+        ...rest,
+        monitoringData,
+      },
+      multipleData: manyData,
+    };
   }
 
   async update(payload: UpdateDailyMonitoringDto) {
