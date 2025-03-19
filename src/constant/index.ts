@@ -62,6 +62,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_STATS: 'ms.jobs.phases.getStats',
     ADD_TRIGGERS: 'ms.jobs.phases.addTriggers',
     REVERT_PHASE: 'ms.jobs.phases.revertPhase',
+    GET_BY_LOCATION: 'ms.jobs.phases.getByLocation',
   },
   RIVER_STATIONS: {
     GET_DHM: 'ms.jobs.riverStations.getDhm',

@@ -100,6 +100,14 @@ export class PhasesController {
     return this.phasesService.revertPhase(appId, rest);
   }
 
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.GET_BY_LOCATION,
+    uuid: process.env.PROJECT_ID,
+  })
+  async getByLocation(payload) {
+    return this.phasesService.findByLocation(payload.appId, payload.location);
+  }
+
   // @MessagePattern({
   //   cmd: MS_TRIGGERS_JOBS.PHASES.GET_STATS,
   //   uuid: process.env.PROJECT_ID,

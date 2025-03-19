@@ -178,8 +178,6 @@ export class PhasesService {
       });
     }
 
-    // todo :: beneficiaryService should  be called by microservice
-
     if (phaseDetails.canTriggerPayout) {
       return firstValueFrom(
         this.client.send(
@@ -343,26 +341,6 @@ export class PhasesService {
     });
 
     return updatedPhase;
-  }
-  createBatches(total: number, batchSize: number, start = 1) {
-    const batches: { size: number; start: number; end: number }[] = [];
-    let elementsRemaining = total; // Track remaining elements to batch
-
-    while (elementsRemaining > 0) {
-      const end = start + Math.min(batchSize, elementsRemaining) - 1;
-      const currentBatchSize = end - start + 1;
-
-      batches.push({
-        size: currentBatchSize,
-        start: start,
-        end: end,
-      });
-
-      elementsRemaining -= currentBatchSize; // Subtract batched elements
-      start = end + 1; // Move start to the next element
-    }
-
-    return batches;
   }
 
   async findByLocation(appId: string, location: string) {
