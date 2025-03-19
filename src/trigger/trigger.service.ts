@@ -30,8 +30,14 @@ export class TriggerService {
     if (dto.dataSource === DataSource.MANUAL) {
       return this.createManualTrigger(appId, dto);
     }
-    const sanitizedPayload: any = {
-      ...dto,
+
+    const sanitizedPayload = {
+      title: dto.title,
+      dataSource: dto.dataSource,
+      location: dto.location,
+      triggerStatement: dto.triggerStatement,
+      phaseId: dto.phaseId,
+      isMandatory: dto.isMandatory,
       app: appId,
       repeatEvery: '30000',
     };
@@ -39,21 +45,20 @@ export class TriggerService {
     return this.scheduleJob(sanitizedPayload);
   }
   getAll(appId: string, dto: GetTriggersDto) {
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    orderBy[dto.sort] = dto.order;
     return paginate(
       this.prisma.trigger,
       {
         where: {
           isDeleted: false,
           ...(dto.phaseId && { phaseId: dto.phaseId }),
-
           app: appId,
         },
         include: {
           phase: true,
         },
-        orderBy,
+        orderBy: {
+          updatedAt: 'desc',
+        },
       },
       {
         page: dto.page,

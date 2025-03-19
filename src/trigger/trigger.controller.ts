@@ -20,10 +20,8 @@ export class TriggerController {
     uuid: process.env.PROJECT_ID,
   })
   create(payload: any) {
-    // const { appId, ...rest } = payload;
-    console.log('rest');
-    return { message: payload };
-    // return this.triggerService.create(appId, rest);
+    const { appId, ...rest } = payload;
+    return this.triggerService.create(appId, rest);
   }
 
   // @ApiHeader({
@@ -60,7 +58,8 @@ export class TriggerController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_BY_LOCATION,
     uuid: process.env.PROJECT_ID,
   })
-  getByLocation(@AppId() appId: string, @Param('location') location: string) {
+  getByLocation(payload) {
+    const { appId, location } = payload;
     return this.triggerService.findByLocation(appId, location);
   }
   // @Patch(':uuid/activate')
@@ -68,7 +67,8 @@ export class TriggerController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ACTIVATE,
     uuid: process.env.PROJECT_ID,
   })
-  activateTrigger(@Param('uuid') uuid: string, @Body() dto: UpdateTriggerDto) {
+  activateTrigger(payload) {
+    const { uuid, ...dto } = payload;
     return this.triggerService.activateTrigger(uuid, dto);
   }
 
@@ -77,7 +77,8 @@ export class TriggerController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.REMOVE,
     uuid: process.env.PROJECT_ID,
   })
-  remove(@Param('repeatKey') repeatKey: string) {
+  remove(payload) {
+    const { repeatKey } = payload;
     return this.triggerService.remove(repeatKey);
   }
 }
