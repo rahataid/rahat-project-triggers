@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Run Rahat Triggers in Debug mode",
+            "runtimeExecutable": "pnpm",
+            "autoAttachChildProcesses": true,
+            "restart": true,
+            "sourceMaps": true,
+            "stopOnEntry": false,
+            "console": "integratedTerminal",
+            "runtimeArgs": [
+                "run", 
+                "start:debug", 
+                "--", 
+                "--inspect-brk"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${file}"
+        }
+    ]
+}
