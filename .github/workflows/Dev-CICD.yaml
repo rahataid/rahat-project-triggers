@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - "dev"
+  workflow_dispatch:
 
 env:
   CI: false
@@ -41,5 +42,5 @@ jobs:
         with:
           context: .
           file: Dockerfile.triggers
-          push: ${{ github.event_name == 'push' && 'true' || 'false' }}
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
           tags: esatya/rahat-project-triggers:dev
