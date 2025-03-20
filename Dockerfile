@@ -1,0 +1,25 @@
+FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat && \
+    npm install -g pnpm
+
+FROM base AS builder
+WORKDIR /opt/app
+COPY . .
+RUN pnpm install && \
+    npx prisma generate && \
+    pnpm build
+
+FROM base AS devDeps
+WORKDIR /opt/app
+COPY package.json ./
+RUN  pnpm install --prod
+
+# Production image, copy all the files and run next
+FROM base AS runner
+USER node
+WORKDIR /usr/src/app
+COPY --chown=node:node --from=devDeps /opt/app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /opt/app/prisma ./prisma
+COPY --chown=node:node --from=builder /opt/app/dist ./dist
+RUN pnpx prisma generate
+CMD ["node", "dist/main.js"]
