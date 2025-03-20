@@ -55,6 +55,13 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.LIST_PROJECT_SPECIFIC,
+    uuid: process.env.PROJECT_ID,
+  })
+  async listProjectSpecific(payload: GetActivityDto): Promise<any> {
+    return this.activityService.listProjectSpecific(payload);
+  }
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_HAVING_COMMS,
     uuid: process.env.PROJECT_ID,
   })

@@ -2,7 +2,7 @@ import { Body, Controller, Param } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { AppId } from '@rumsan/app';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
-import { UpdateTriggerDto } from './dto';
+import { GetTriggersDto, UpdateTriggerDto } from './dto';
 import { TriggerService } from './trigger.service';
 
 @Controller('trigger')
@@ -34,9 +34,8 @@ export class TriggerController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_ALL,
     uuid: process.env.PROJECT_ID,
   })
-  findAll(dto: any): any {
-    const { appId, ...rest } = dto;
-    return this.triggerService.getAll(appId, rest);
+  findAll(payload: GetTriggersDto): any {
+    return this.triggerService.getAll(payload);
   }
 
   // @Get(':repeatKey')
@@ -58,9 +57,8 @@ export class TriggerController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_BY_LOCATION,
     uuid: process.env.PROJECT_ID,
   })
-  getByLocation(payload) {
-    const { appId, location } = payload;
-    return this.triggerService.findByLocation(appId, location);
+  getByLocation(payload): Promise<any> {
+    return this.triggerService.findByLocation(payload);
   }
   // @Patch(':uuid/activate')
   @MessagePattern({

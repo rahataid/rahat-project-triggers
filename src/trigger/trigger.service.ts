@@ -44,7 +44,8 @@ export class TriggerService {
 
     return this.scheduleJob(sanitizedPayload);
   }
-  getAll(appId: string, dto: GetTriggersDto) {
+  getAll(payload: GetTriggersDto) {
+    const { appId, ...dto } = payload;
     return paginate(
       this.prisma.trigger,
       {
@@ -324,15 +325,39 @@ export class TriggerService {
     return updatedTrigger;
   }
 
-  async findByLocation(appId: string, location: string) {
-    return this.prisma.trigger.findMany({
-      where: {
-        app: appId,
-        location: {
-          contains: location,
-          mode: 'insensitive',
+  async findByLocation(payload) {
+    const { appId, location, ...dto } = payload;
+    return paginate(
+      this.prisma.trigger,
+      {
+        where: {
+          isDeleted: false,
+          location: {
+            contains: location,
+            mode: 'insensitive',
+          },
+          app: appId,
+        },
+        include: {
+          phase: true,
+        },
+        orderBy: {
+          updatedAt: 'desc',
         },
       },
-    });
+      {
+        page: dto.page,
+        perPage: dto.perPage,
+      },
+    );
+    // return this.prisma.trigger.findMany({
+    //   where: {
+    //     app: appId,
+    //     location: {
+    //       contains: location,
+    //       mode: 'insensitive',
+    //     },
+    //   },
+    // });
   }
 }

@@ -229,6 +229,47 @@ export class ActivityService {
       isApproved,
       responsibility,
       status,
+    } = payload;
+
+    const query = {
+      where: {
+        isDeleted: false,
+        ...(title && { title: { contains: title, mode: 'insensitive' } }),
+        ...(category && { categoryId: category }),
+        ...(phase && { phaseId: phase }),
+        ...(isComplete && { isComplete: isComplete }),
+        ...(isApproved && { isApproved: isApproved }),
+        ...(responsibility && {
+          responsibility: { contains: responsibility, mode: 'insensitive' },
+        }),
+        ...(status && { status: status }),
+      },
+      include: {
+        category: true,
+        phase: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    };
+
+    return paginate(this.prisma.activity, query, {
+      page,
+      perPage,
+    });
+  }
+
+  async listProjectSpecific(payload: GetActivityDto) {
+    const {
+      page,
+      perPage,
+      title,
+      category,
+      phase,
+      isComplete,
+      isApproved,
+      responsibility,
+      status,
       appId,
     } = payload;
 
@@ -260,7 +301,6 @@ export class ActivityService {
       perPage,
     });
   }
-
   async getHavingComms(payload: GetActivityDto) {
     const { page, perPage } = payload;
 

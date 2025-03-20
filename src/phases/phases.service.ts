@@ -37,13 +37,17 @@ export class PhasesService {
 
   async create(payload: CreatePhaseDto) {
     const { appId, name, ...rest } = payload;
-    return this.prisma.phase.create({
-      data: {
-        ...rest,
-        name: name as Phases,
-        app: appId,
-      },
-    });
+    console.log(payload);
+    try {
+      return this.prisma.phase.create({
+        data: {
+          app: appId as string,
+          name: name as Phases,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   findAll(payload: GetPhaseDto) {

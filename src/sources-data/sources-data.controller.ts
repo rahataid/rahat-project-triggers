@@ -55,7 +55,11 @@ export class SourcesDataController {
     uuid: process.env.PROJECT_ID,
   })
   async getDhmWaterLevels(payload: PaginationDto): Promise<any> {
-    return this.dhmService.getWaterLevels(payload);
+    try {
+      return this.dhmService.getWaterLevels(payload);
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   @MessagePattern({

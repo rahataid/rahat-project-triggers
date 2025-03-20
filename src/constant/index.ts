@@ -80,6 +80,7 @@ export const MS_TRIGGERS_JOBS = {
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
+    LIST_PROJECT_SPECIFIC: 'ms.jobs.activities.listProjectSpecific',
     COMMUNICATION: {
       TRIGGER: 'ms.jobs.activity.communication.trigger',
       SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',

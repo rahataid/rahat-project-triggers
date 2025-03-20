@@ -70,7 +70,6 @@ export class PhasesController {
     uuid: process.env.PROJECT_ID,
   })
   async create(payload) {
-    console.log(payload);
     return this.phasesService.create(payload);
   }
 
