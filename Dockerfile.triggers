@@ -19,8 +19,8 @@ FROM base AS runner
 USER node
 WORKDIR /usr/src/app
 COPY --chown=node:node --from=devDeps /opt/app/node_modules ./node_modules
-# COPY --chown=node:node --from=builder /opt/app/node_modules/.prisma/client ./node_modules/.prisma/client
+COPY --chown=node:node --from=builder /opt/app/node_modules/.pnpm/@prisma+client* ./node_modules/.pnpm/
 COPY --chown=node:node --from=builder /opt/app/prisma ./prisma
 COPY --chown=node:node --from=builder /opt/app/dist ./dist
-RUN pnpx prisma generate
+# RUN pnpx prisma generate
 CMD ["node", "dist/main.js"]
