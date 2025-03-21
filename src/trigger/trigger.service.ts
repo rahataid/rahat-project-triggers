@@ -30,30 +30,36 @@ export class TriggerService {
     if (dto.dataSource === DataSource.MANUAL) {
       return this.createManualTrigger(appId, dto);
     }
-    const sanitizedPayload: any = {
-      ...dto,
+
+    const sanitizedPayload = {
+      title: dto.title,
+      dataSource: dto.dataSource,
+      location: dto.location,
+      triggerStatement: dto.triggerStatement,
+      phaseId: dto.phaseId,
+      isMandatory: dto.isMandatory,
       app: appId,
       repeatEvery: '30000',
     };
 
     return this.scheduleJob(sanitizedPayload);
   }
-  getAll(appId: string, dto: GetTriggersDto) {
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    orderBy[dto.sort] = dto.order;
+  getAll(payload: GetTriggersDto) {
+    const { appId, ...dto } = payload;
     return paginate(
       this.prisma.trigger,
       {
         where: {
           isDeleted: false,
           ...(dto.phaseId && { phaseId: dto.phaseId }),
-
           app: appId,
         },
         include: {
           phase: true,
         },
-        orderBy,
+        orderBy: {
+          updatedAt: 'desc',
+        },
       },
       {
         page: dto.page,
@@ -319,15 +325,39 @@ export class TriggerService {
     return updatedTrigger;
   }
 
-  async findByLocation(appId: string, location: string) {
-    return this.prisma.trigger.findMany({
-      where: {
-        app: appId,
-        location: {
-          contains: location,
-          mode: 'insensitive',
+  async findByLocation(payload) {
+    const { appId, location, ...dto } = payload;
+    return paginate(
+      this.prisma.trigger,
+      {
+        where: {
+          isDeleted: false,
+          location: {
+            contains: location,
+            mode: 'insensitive',
+          },
+          app: appId,
+        },
+        include: {
+          phase: true,
+        },
+        orderBy: {
+          updatedAt: 'desc',
         },
       },
-    });
+      {
+        page: dto.page,
+        perPage: dto.perPage,
+      },
+    );
+    // return this.prisma.trigger.findMany({
+    //   where: {
+    //     app: appId,
+    //     location: {
+    //       contains: location,
+    //       mode: 'insensitive',
+    //     },
+    //   },
+    // });
   }
 }

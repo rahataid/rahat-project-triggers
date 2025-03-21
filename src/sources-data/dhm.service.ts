@@ -131,17 +131,24 @@ export class DhmService implements AbstractSource {
     return stations.data;
   }
 
-  async getWaterLevels(payload: PaginationDto) {
+  async getWaterLevels(payload: any) {
+    console.log(payload);
     const { page, perPage } = payload;
-    const dhmSettings = SettingsService.get('DATASOURCE.DHM');
-    const location = dhmSettings['LOCATION'];
 
+    const dhmSettings = SettingsService.get('DATASOURCE.DHM');
+    const location = this.configService.get('LOCATION');
+    // try {
+    //   const k = await this.prisma.trigger.findMany();
+    //   return 'l';
+    // } catch (error) {
+    //   console.log(error);
+    // }
     return paginate(
       this.prisma.sourcesData,
       {
         where: {
           source: 'DHM',
-          location: location,
+          location: 'Karnali at Chisapani',
         },
         orderBy: {
           createdAt: 'desc',

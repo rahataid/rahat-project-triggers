@@ -1,63 +1,82 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Query,
-  Delete,
-} from '@nestjs/common';
-import { TriggerService } from './trigger.service';
-import { CreateTriggerDto, GetTriggersDto, UpdateTriggerDto } from './dto';
-import { ApiHeader } from '@nestjs/swagger';
+import { Body, Controller, Param } from '@nestjs/common';
+import { MessagePattern } from '@nestjs/microservices';
 import { AppId } from '@rumsan/app';
+import { MS_TRIGGERS_JOBS } from 'src/constant';
+import { GetTriggersDto, UpdateTriggerDto } from './dto';
+import { TriggerService } from './trigger.service';
 
 @Controller('trigger')
 export class TriggerController {
   constructor(private readonly triggerService: TriggerService) {}
 
-  @ApiHeader({
-    name: 'app-id',
-    description: 'Application ID',
-    required: true,
+  // @ApiHeader({
+  //   name: 'appId',
+  //   description: 'Application ID',
+  //   required: true,
+  // })
+  // @Post()
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.ADD,
+    uuid: process.env.PROJECT_ID,
   })
-  @Post()
-  create(@AppId() appId: string, @Body() dto: CreateTriggerDto) {
-    return this.triggerService.create(appId, dto);
+  create(payload: any) {
+    const { appId, ...rest } = payload;
+    return this.triggerService.create(appId, rest);
   }
 
-  @ApiHeader({
-    name: 'app-id',
-    description: 'Application ID',
-    required: true,
+  // @ApiHeader({
+  //   name: 'app-id',
+  //   description: 'Application ID',
+  //   required: true,
+  // })
+  // @Get()
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_ALL,
+    uuid: process.env.PROJECT_ID,
   })
-  @Get()
-  findAll(@AppId() appId: string, @Query() dto: GetTriggersDto): any {
-    return this.triggerService.getAll(appId, dto);
+  findAll(payload: GetTriggersDto): any {
+    return this.triggerService.getAll(payload);
   }
 
-  @Get(':repeatKey')
-  getOne(@Param('repeatKey') repeatKey: string) {
+  // @Get(':repeatKey')
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_ONE,
+    uuid: process.env.PROJECT_ID,
+  })
+  getOne(repeatKey: string) {
     return this.triggerService.getOne(repeatKey);
   }
 
-  @ApiHeader({
-    name: 'app-id',
-    description: 'Application ID',
-    required: true,
+  // @ApiHeader({
+  //   name: 'app-id',
+  //   description: 'Application ID',
+  //   required: true,
+  // })
+  // @Get(':location')
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_BY_LOCATION,
+    uuid: process.env.PROJECT_ID,
   })
-  @Get(':location')
-  getByLocation(@AppId() appId: string, @Param('location') location: string) {
-    return this.triggerService.findByLocation(appId, location);
+  getByLocation(payload): Promise<any> {
+    return this.triggerService.findByLocation(payload);
   }
-  @Patch(':uuid/activate')
-  activateTrigger(@Param('uuid') uuid: string, @Body() dto: UpdateTriggerDto) {
+  // @Patch(':uuid/activate')
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.ACTIVATE,
+    uuid: process.env.PROJECT_ID,
+  })
+  activateTrigger(payload) {
+    const { uuid, ...dto } = payload;
     return this.triggerService.activateTrigger(uuid, dto);
   }
 
-  @Delete(':repeatKey')
-  remove(@Param('repeatKey') repeatKey: string) {
+  // @Delete(':repeatKey')
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.REMOVE,
+    uuid: process.env.PROJECT_ID,
+  })
+  remove(payload) {
+    const { repeatKey } = payload;
     return this.triggerService.remove(repeatKey);
   }
 }

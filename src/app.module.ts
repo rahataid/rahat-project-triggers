@@ -3,7 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RumsanAppModule } from '@rumsan/app';
 import { CategoryModule } from './category/category.module';
-import { PrismaModule } from '@rumsan/prisma';
+import { PrismaModule, PrismaService } from '@rumsan/prisma';
 import { PhasesModule } from './phases/phases.module';
 import { TriggerModule } from './trigger/trigger.module';
 import { ActivityModule } from './activity/activity.module';
@@ -57,6 +57,6 @@ import { MS_TRIGGER_CLIENTS } from './constant';
     ListenersModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, PrismaService],
 })
 export class AppModule {}

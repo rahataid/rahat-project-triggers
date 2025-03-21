@@ -16,6 +16,12 @@ export class CreatePhaseDto {
   name: string;
 
   @ApiProperty({
+    example: '',
+  })
+  @IsString()
+  appId: string;
+
+  @ApiProperty({
     example: 0,
   })
   @IsNumber()

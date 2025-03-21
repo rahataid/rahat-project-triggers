@@ -17,6 +17,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { GetPhaseDto } from './dto';
+import { create } from 'domain';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 export declare const MS_TIMEOUT = 500000;
@@ -33,26 +35,32 @@ export class PhasesService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
   ) {}
 
-  create(appId: string, dto: CreatePhaseDto) {
-    return this.prisma.phase.create({
-      data: {
-        ...dto,
-        name: dto.name as Phases,
-        app: appId,
-      },
-    });
+  async create(payload: CreatePhaseDto) {
+    const { appId, name, ...rest } = payload;
+    console.log(payload);
+    try {
+      return this.prisma.phase.create({
+        data: {
+          app: appId as string,
+          name: name as Phases,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
   }
 
-  findAll(appId: string, dto: PaginationDto) {
-    const orderBy: Record<string, 'asc' | 'desc'> = {};
-    orderBy[dto.sort] = dto.order;
+  findAll(payload: GetPhaseDto) {
+    const { appId, ...dto } = payload;
     return paginate(
       this.prisma.phase,
       {
         where: {
           app: appId,
         },
-        orderBy,
+        orderBy: {
+          createdAt: 'desc',
+        },
       },
       {
         page: dto.page,
@@ -177,8 +185,6 @@ export class PhasesService {
         },
       });
     }
-
-    // todo :: beneficiaryService should  be called by microservice
 
     if (phaseDetails.canTriggerPayout) {
       return firstValueFrom(
@@ -343,26 +349,6 @@ export class PhasesService {
     });
 
     return updatedPhase;
-  }
-  createBatches(total: number, batchSize: number, start = 1) {
-    const batches: { size: number; start: number; end: number }[] = [];
-    let elementsRemaining = total; // Track remaining elements to batch
-
-    while (elementsRemaining > 0) {
-      const end = start + Math.min(batchSize, elementsRemaining) - 1;
-      const currentBatchSize = end - start + 1;
-
-      batches.push({
-        size: currentBatchSize,
-        start: start,
-        end: end,
-      });
-
-      elementsRemaining -= currentBatchSize; // Subtract batched elements
-      start = end + 1; // Move start to the next element
-    }
-
-    return batches;
   }
 
   async findByLocation(appId: string, location: string) {

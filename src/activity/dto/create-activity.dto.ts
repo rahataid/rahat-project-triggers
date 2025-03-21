@@ -11,6 +11,14 @@ import {
 
 export class CreateActivityDto {
   @ApiProperty({
+    example: 'abc123-defg-uus44-ggkl1',
+    description: 'activity uuid',
+  })
+  @IsOptional()
+  @IsString()
+  uuid?: string;
+
+  @ApiProperty({
     example: 'Activity title',
     description: 'The title of the activity',
   })
@@ -142,4 +150,11 @@ export class CreateActivityDto {
   @IsString()
   @IsOptional()
   differenceInTriggerAndActivityCompletion?: string;
+
+  @ApiProperty({
+    example: '',
+    description: 'app id',
+  })
+  @IsString()
+  appId: string;
 }
