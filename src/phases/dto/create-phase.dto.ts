@@ -2,24 +2,29 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsNotEmpty,
+  IsDateString,
   IsNumber,
   IsOptional,
+  IsEnum,
   IsString,
 } from 'class-validator';
+import { Phases, DataSource } from '@prisma/client';
 
 export class CreatePhaseDto {
   @ApiProperty({
-    example: 'PREPAREDNESS',
+    example: Phases.PREPAREDNESS,
+  })
+  @IsEnum(Phases)
+  @IsNotEmpty()
+  name: Phases;
+
+  @ApiProperty({
+    example: '2025-03-24T09:18:45.858Z',
   })
   @IsString()
   @IsNotEmpty()
-  name: string;
-
-  @ApiProperty({
-    example: '',
-  })
-  @IsString()
-  appId: string;
+  @IsDateString()
+  activeYear: string;
 
   @ApiProperty({
     example: 0,
@@ -67,6 +72,12 @@ export class CreatePhaseDto {
     type: String,
   })
   @IsString()
-  @IsOptional()
-  location?: string;
+  river_basin: string;
+
+  @ApiProperty({
+    type: DataSource.DHM,
+  })
+  @IsEnum(DataSource)
+  @IsString()
+  source: DataSource;
 }

@@ -3,27 +3,28 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { CreatePhaseDto } from './dto/create-phase.dto';
 import { UpdatePhaseDto } from './dto/update-phase.dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
-import { ActivityStatus, DataSource, Phases } from '@prisma/client';
-import { PaginationDto } from 'src/common/dto';
+import { ActivityStatus, DataSource } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { Queue } from 'bull';
 import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { GetPhaseDto } from './dto';
-import { create } from 'domain';
+
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 export declare const MS_TIMEOUT = 500000;
 @Injectable()
 export class PhasesService {
+  logger = new Logger(PhasesService.name);
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => TriggerService))
@@ -36,27 +37,67 @@ export class PhasesService {
   ) {}
 
   async create(payload: CreatePhaseDto) {
-    const { appId, name, ...rest } = payload;
-    console.log(payload);
+    const { name, source, river_basin, ...rest } = payload;
+
+    this.logger.log(
+      `Creating new phase with ${name} source: ${source} river_basin: ${river_basin}`,
+    );
+
     try {
-      return this.prisma.phase.create({
+      return await this.prisma.phase.create({
         data: {
-          app: appId as string,
-          name: name as Phases,
+          name,
+          source: {
+            connectOrCreate: {
+              // <---- This will work like upsert, if the source is not found it will create a new one
+              create: {
+                source: source,
+                riverBasin: river_basin,
+              },
+              where: {
+                source_riverBasin: {
+                  source: source,
+                  riverBasin: river_basin,
+                },
+              },
+            },
+          },
+          ...rest,
         },
       });
     } catch (error) {
-      console.log(error);
+      this.logger.error('Error while creatiing new Phase', error);
+      throw new RpcException(error);
     }
   }
 
   findAll(payload: GetPhaseDto) {
-    const { appId, ...dto } = payload;
+    const { activeYear, name, river_basin, source, ...dto } = payload;
+
+    // Created a conditions array to filter the data based on the query params
+    const conditions = [
+      name && { name: name },
+      (source || river_basin) && {
+        source: {
+          ...(source && { source: source }),
+          ...(river_basin && {
+            riverBasin: {
+              contains: river_basin,
+              mode: 'insensitive',
+            },
+          }),
+        },
+      },
+      activeYear && {
+        activeYear: activeYear,
+      },
+    ];
+
     return paginate(
       this.prisma.phase,
       {
         where: {
-          app: appId,
+          AND: conditions,
         },
         orderBy: {
           createdAt: 'desc',
@@ -69,194 +110,251 @@ export class PhasesService {
     );
   }
 
-  findOne(uuid: string) {
-    return this.prisma.phase.findUnique({
-      where: { uuid },
-    });
+  async findOne(uuid: string) {
+    try {
+      this.logger.log(`Fetching phase with uuid: ${uuid}`);
+      return await this.prisma.phase.findUnique({
+        where: { uuid },
+        include: {
+          source: true,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Error while fetching phase', error);
+      throw new RpcException(error);
+    }
   }
 
-  update(uuid: string, dto: UpdatePhaseDto) {
-    return this.prisma.phase.update({
-      where: { uuid },
-      data: {
-        ...dto,
-        name: dto.name as Phases,
-      },
-    });
+  async update(uuid: string, dto: UpdatePhaseDto) {
+    const { sourceId, ...rest } = dto;
+    try {
+      return await this.prisma.phase.update({
+        where: { uuid },
+        data: {
+          ...rest,
+          name: dto.name,
+          source: {
+            connect: {
+              uuid: sourceId,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      this.logger.error('Error while updating phase', error);
+      throw new RpcException(error);
+    }
   }
 
   async getOne(uuid: string) {
-    const phase = await this.prisma.phase.findUnique({
-      where: {
-        uuid,
-      },
-      include: {
-        Trigger: {
-          where: {
-            isDeleted: false,
-          },
-          include: {
-            phase: true,
-          },
-          orderBy: {
-            updatedAt: 'desc',
-          },
+    try {
+      const phase = await this.prisma.phase.findUnique({
+        where: {
+          uuid,
         },
-        Activity: true,
-      },
-    });
+        include: {
+          Trigger: {
+            where: {
+              isDeleted: false,
+            },
+            include: {
+              phase: true,
+            },
+            orderBy: {
+              updatedAt: 'desc',
+            },
+          },
+          source: true,
+          Activity: true,
+        },
+      });
 
-    const totalMandatoryTriggers = await this.prisma.trigger.count({
-      where: {
-        phaseId: phase.uuid,
-        isMandatory: true,
-        isDeleted: false,
-      },
-    });
-    const totalOptionalTriggers = await this.prisma.trigger.count({
-      where: {
-        phaseId: phase.uuid,
-        isMandatory: false,
-        isDeleted: false,
-      },
-    });
+      const totalMandatoryTriggers = await this.prisma.trigger.count({
+        where: {
+          phaseId: phase.uuid,
+          isMandatory: true,
+          isDeleted: false,
+        },
+      });
+      const totalOptionalTriggers = await this.prisma.trigger.count({
+        where: {
+          phaseId: phase.uuid,
+          isMandatory: false,
+          isDeleted: false,
+        },
+      });
 
-    const triggerRequirements = {
-      mandatoryTriggers: {
-        totalTriggers: totalMandatoryTriggers,
-        requiredTriggers: phase.requiredMandatoryTriggers,
-        receivedTriggers: phase.receivedMandatoryTriggers,
-      },
-      optionalTriggers: {
-        totalTriggers: totalOptionalTriggers,
-        requiredTriggers: phase.requiredOptionalTriggers,
-        receivedTriggers: phase.receivedOptionalTriggers,
-      },
-    };
+      const triggerRequirements = {
+        mandatoryTriggers: {
+          totalTriggers: totalMandatoryTriggers,
+          requiredTriggers: phase.requiredMandatoryTriggers,
+          receivedTriggers: phase.receivedMandatoryTriggers,
+        },
+        optionalTriggers: {
+          totalTriggers: totalOptionalTriggers,
+          requiredTriggers: phase.requiredOptionalTriggers,
+          receivedTriggers: phase.receivedOptionalTriggers,
+        },
+      };
 
-    return { ...phase, triggerRequirements };
+      return { ...phase, triggerRequirements };
+    } catch (error) {
+      this.logger.error('Error while fetching phase', error);
+      throw new RpcException(error);
+    }
   }
 
   async activatePhase(uuid: string) {
-    const phaseDetails = await this.prisma.phase.findUnique({
-      where: {
-        uuid: uuid,
-      },
-      include: {
-        Activity: {
-          where: {
-            isAutomated: true,
-            status: {
-              not: ActivityStatus.COMPLETED,
-            },
-            isDeleted: false,
-          },
-        },
-      },
-    });
-
-    const phaseActivities = phaseDetails.Activity;
-    for (const activity of phaseActivities) {
-      const activityComms = JSON.parse(
-        JSON.stringify(activity.activityCommunication),
-      );
-      for (const comm of activityComms) {
-        this.client
-          .send(
-            {
-              cmd: JOBS.ACTIVITIES.COMMUNICATION.TRIGGER_CAMPAIGN,
-              location: phaseDetails?.location,
-            },
-            {
-              communicationId: comm?.communicationId,
-            },
-          )
-          .subscribe({
-            next: (response) => console.log('Success:', response),
-            error: (err) => console.error('Microservice Error:', err),
-          });
-      }
-      await this.prisma.activity.update({
+    try {
+      const phaseDetails = await this.prisma.phase.findUnique({
         where: {
-          uuid: activity.uuid,
+          uuid: uuid,
         },
-        data: {
-          status: ActivityStatus.COMPLETED,
+        include: {
+          source: true,
+          Activity: {
+            where: {
+              isAutomated: true,
+              status: {
+                not: ActivityStatus.COMPLETED,
+              },
+              isDeleted: false,
+            },
+          },
         },
       });
-    }
 
-    if (phaseDetails.canTriggerPayout) {
-      return firstValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.PAYOUT.ASSIGN_TOKEN,
-            location: phaseDetails?.location,
+      const phaseActivities = phaseDetails.Activity;
+      // TODO: need to refactor this logic
+      for (const activity of phaseActivities) {
+        const activityComms = JSON.parse(
+          JSON.stringify(activity.activityCommunication),
+        );
+        for (const comm of activityComms) {
+          this.client
+            .send(
+              {
+                cmd: JOBS.ACTIVITIES.COMMUNICATION.TRIGGER_CAMPAIGN,
+                location: phaseDetails?.source.riverBasin,
+              },
+              {
+                communicationId: comm?.communicationId,
+              },
+            )
+            .subscribe({
+              next: (response) => console.log('Success:', response),
+              error: (err) => console.error('Microservice Error:', err),
+            });
+        }
+        await this.prisma.activity.update({
+          where: {
+            uuid: activity.uuid,
           },
-          {},
-        ),
+          data: {
+            status: ActivityStatus.COMPLETED,
+          },
+        });
+      }
+
+      this.logger.log(
+        `${phaseActivities.length} activities completed for phase ${uuid}`,
       );
+
+      if (phaseDetails.canTriggerPayout) {
+        this.logger.log(
+          `Phase ${phaseDetails.uuid} has active payout so, assigning token to ${phaseDetails.source.riverBasin}`,
+        );
+        return firstValueFrom(
+          this.client.send(
+            {
+              cmd: JOBS.PAYOUT.ASSIGN_TOKEN,
+              location: phaseDetails?.source.riverBasin,
+            },
+            {},
+          ),
+        );
+      }
+      const updatedPhase = await this.prisma.phase.update({
+        where: {
+          uuid: uuid,
+        },
+        data: {
+          isActive: true,
+          activatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Phase ${uuid} activated successfully`);
+
+      // event to calculate reporting
+      this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
+        phaseId: phaseDetails.uuid,
+      });
+
+      return updatedPhase;
+    } catch (error) {
+      this.logger.error('Error while activating phase', error);
+      throw new RpcException(error);
     }
-    const updatedPhase = await this.prisma.phase.update({
-      where: {
-        uuid: uuid,
-      },
-      data: {
-        isActive: true,
-        activatedAt: new Date(),
-      },
-    });
-
-    // event to calculate reporting
-    this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
-      phaseId: phaseDetails.uuid,
-    });
-
-    return updatedPhase;
   }
 
   async addTriggersToPhases(payload) {
-    const { uuid, triggers, triggerRequirements } = payload;
-    const phase = await this.prisma.phase.findUnique({
-      where: {
-        uuid: uuid,
-      },
-    });
-    if (!phase) throw new BadRequestException('Phase not found.');
-    if (phase.isActive)
-      throw new BadRequestException('Cannot add triggers to an active phase.');
+    try {
+      const { uuid, triggers, triggerRequirements } = payload;
 
-    for (const trigger of triggers) {
-      const tg = await this.prisma.trigger.findUnique({
-        where: { repeatKey: trigger.repeatKey },
+      const phase = await this.prisma.phase.findUnique({
+        where: {
+          uuid: uuid,
+        },
       });
 
-      await this.prisma.trigger.update({
+      if (!phase) {
+        this.logger.warn(`Phase with uuid ${uuid} not found`);
+        throw new RpcException(`Phase with uuid ${uuid} not found`);
+      }
+
+      if (phase.isActive) {
+        this.logger.warn('Cannot add triggers to an active phase.');
+        throw new BadRequestException(
+          'Cannot add triggers to an active phase.',
+        );
+      }
+
+      for (const trigger of triggers) {
+        const tg = await this.prisma.trigger.findUnique({
+          where: { repeatKey: trigger.repeatKey },
+        });
+
+        await this.prisma.trigger.update({
+          where: {
+            uuid: tg.uuid,
+          },
+          data: {
+            isMandatory: trigger.isMandatory,
+            phaseId: phase.uuid,
+          },
+        });
+      }
+      const updatedPhase = await this.prisma.phase.update({
         where: {
-          uuid: tg.uuid,
+          uuid: phase.uuid,
         },
         data: {
-          isMandatory: trigger.isMandatory,
-          phaseId: phase.uuid,
+          requiredMandatoryTriggers:
+            triggerRequirements.mandatoryTriggers.requiredTriggers,
+          requiredOptionalTriggers:
+            triggerRequirements.optionalTriggers.requiredTriggers,
         },
       });
-    }
-    const updatedPhase = await this.prisma.phase.update({
-      where: {
-        uuid: phase.uuid,
-      },
-      data: {
-        requiredMandatoryTriggers:
-          triggerRequirements.mandatoryTriggers.requiredTriggers,
-        requiredOptionalTriggers:
-          triggerRequirements.optionalTriggers.requiredTriggers,
-      },
-    });
 
-    return updatedPhase;
+      return updatedPhase;
+    } catch (error) {
+      this.logger.error('Error while adding triggers to phase', error);
+      throw new RpcException(error);
+    }
   }
 
-  async revertPhase(appId, payload) {
+  async revertPhase(appId: string, phaseId: string) {
     const activitiesCompletedBeforePhaseActivated =
       await this.prisma.activity.findMany({
         where: {
@@ -284,12 +382,12 @@ export class PhasesService {
       });
     }
 
-    const { phaseId } = payload;
     const phase = await this.prisma.phase.findUnique({
       where: {
         uuid: phaseId,
       },
       include: {
+        source: true,
         Trigger: {
           where: {
             isDeleted: false,
@@ -298,25 +396,27 @@ export class PhasesService {
       },
     });
 
-    if (!phase) throw new BadRequestException('Phase not found.');
+    if (!phase) {
+      this.logger.log(`Phase with uuid ${phaseId} not found`);
+      throw new RpcException('Phase not found.');
+    }
 
-    if (!phase.Trigger.length || !phase.isActive || !phase.canRevert)
-      throw new BadRequestException('Phase cannot be reverted.');
+    if (!phase.Trigger.length || !phase.isActive || !phase.canRevert) {
+      this.logger.log(`Phase with uuid ${phaseId} cannot be reverted`);
+      throw new RpcException('Phase cannot be reverted.');
+    }
 
     for (const trigger of phase.Trigger) {
       const { repeatKey } = trigger;
-      if (trigger.dataSource === DataSource.MANUAL) {
+      if (phase.source.source === DataSource.MANUAL) {
         await this.triggerService.create(appId, {
           title: trigger.title,
-          dataSource: trigger.dataSource,
           isMandatory: trigger.isMandatory,
           phaseId: trigger.phaseId,
         });
       } else {
         await this.triggerService.create(appId, {
           title: trigger.title,
-          dataSource: trigger.dataSource,
-          location: trigger.location,
           triggerStatement: JSON.parse(
             JSON.stringify(trigger.triggerStatement),
           ),
@@ -351,15 +451,25 @@ export class PhasesService {
     return updatedPhase;
   }
 
-  async findByLocation(appId: string, location: string) {
-    return this.prisma.phase.findMany({
-      where: {
-        app: appId,
-        location: {
-          contains: location,
-          mode: 'insensitive',
+  async findByLocation(river_basin: string, activeYear?: string) {
+    try {
+      this.logger.log(
+        `Fetching phase by location ${river_basin} activeYear: ${activeYear}`,
+      );
+      return await this.prisma.phase.findMany({
+        where: {
+          ...(activeYear && { activeYear }),
+          source: {
+            riverBasin: {
+              contains: river_basin,
+              mode: 'insensitive',
+            },
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      this.logger.error('Error while fetching phase by location', error);
+      throw new RpcException(error);
+    }
   }
 }
