@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-babai.ts"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -18,7 +21,20 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "clean": "rm -rf node_modules &&  rm -rf pnpm-lock.yaml && rm -rf dist"
+    "clean": "rm -rf node_modules &&  rm -rf pnpm-lock.yaml && rm -rf dist",
+    "migrate:clean": "rm -rf prisma/migrations && pnpm migrate:dev",
+    "migrate:dev": "prisma migrate dev --preview-feature",
+    "migrate:dev:create": "prisma migrate dev --create-only --preview-feature",
+    "migrate:reset": "prisma migrate reset --preview-feature",
+    "migrate:deploy": "prisma migrate deploy --preview-feature",
+    "migrate:status": "prisma migrate status --preview-feature",
+    "migrate:resolve": "prisma migrate resolve --preview-feature",
+    "seed:babai": "ts-node ./prisma/seed-babai.ts",
+    "seed:karnali": "ts-node ./prisma/seed-karnali.ts",
+    "seed:all": "ts-node prisma/seed.ts",
+    "prisma:studio": "prisma studio",
+    "prisma:generate": "prisma generate",
+    "prisma:generate:watch": "prisma generate --watch"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.0",
