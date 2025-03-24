@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   binaryTargets = ["native", "linux-musl"]
@@ -34,41 +28,35 @@ enum ActivityStatus {
   DELAYED
 }
 
-model Application {
-  cuid        String                 @id @default(cuid())
-  name        String
-  publicKey   String
-  description String?
-  environment ApplicationEnvironment
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  updatedBy String    @default("system")
-  deletedAt DateTime?
-
-  @@map("tbl_applications")
-}
-
 enum Phases {
   PREPAREDNESS
   READINESS
   ACTIVATION
 }
 
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-  UNKNOWN
+model Source {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+  source String 
+  riverBasin String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt()
+  
+  SourcesData SourcesData[]
+  DailyMonitoring DailyMonitoring[]
+  Phase Phase[]
+
+  @@map("tbl_sources")
+  @@unique([source, riverBasin])
 }
 
 model SourcesData {
-  id   Int    @id @default(autoincrement())
-  uuid String @unique @default(uuid())
+  id         Int    @id @default(autoincrement())
 
-  source   String?
-  location String?
-  info     Json    @db.JsonB()
+  sourceId   Int
+  source     Source @relation(fields: [sourceId], references: [id])
+
+  info       Json    @db.JsonB()
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt()
@@ -78,16 +66,15 @@ model SourcesData {
 
 model DailyMonitoring {
   id   Int    @id @default(autoincrement())
-  uuid String @unique @default(uuid())
-  app  String
 
   dataEntryBy String
-  source      String?
-  location    String?
   info        Json    @db.JsonB()
 
-  createdBy String?
+  sourceId   Int
+  source     Source @relation(fields: [sourceId], references: [id])
+
   isDeleted Boolean   @default(false)
+  createdBy String?
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt()
 
@@ -97,10 +84,9 @@ model DailyMonitoring {
 model Phase {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
-  app  String
+  name                      Phases  
+  activeYear                DateTime
 
-  name                      Phases  @unique
-  location                  String?
   requiredMandatoryTriggers Int?    @default(0)
   requiredOptionalTriggers  Int?    @default(0)
 
@@ -110,13 +96,17 @@ model Phase {
   canRevert        Boolean @default(false)
   canTriggerPayout Boolean @default(false)
   isActive         Boolean @default(false)
+  sourceId         String
 
   activatedAt DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime?  @updatedAt()
+
+  source      Source     @relation(fields: [sourceId], references: [uuid])
   Trigger     Trigger[]
   Activity    Activity[]
 
+  @@unique([sourceId, activeYear, name])
   @@map("tbl_phases")
 }
 
@@ -126,12 +116,9 @@ model Trigger {
   app  String
 
   repeatKey        String     @unique
-  title            String?
-  dataSource       DataSource
-  location         String?
   repeatEvery      String?
-  triggerStatement Json?      @db.JsonB()
 
+  triggerStatement Json?      @db.JsonB()
   triggerDocuments Json?   @db.JsonB()
   notes            String?
 
@@ -156,14 +143,29 @@ model ActivityCategory {
   uuid String @unique @default(uuid())
   app  String
 
-  name      String  @unique
+  name      String  
   isDeleted Boolean @default(false)
 
   createdAt DateTime   @default(now())
   updatedAt DateTime?  @updatedAt()
   Activity  Activity[]
 
+  @@unique([app, name])
   @@map("tbl_activity_categories")
+}
+
+model ActivityManager {
+  id       String     @unique
+  name     String
+  email    String
+  phone    String
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime?  @updatedAt()
+
+  Activity  Activity[]
+
+  @@map("tbl_activity_managers")
 }
 
 model Activity {
@@ -174,12 +176,13 @@ model Activity {
   title          String
   leadTime       String
   responsibility String
-  source         String
 
   phase      Phase?            @relation(fields: [phaseId], references: [uuid])
   phaseId    String
   category   ActivityCategory? @relation(fields: [categoryId], references: [uuid])
   categoryId String
+  managerId  String?
+  manager    ActivityManager?  @relation(fields: [managerId], references: [id])
 
   description String?
   notes       String?
@@ -202,4 +205,19 @@ model Activity {
   updatedAt DateTime? @updatedAt()
 
   @@map("tbl_activities")
+}
+
+model Application {
+  cuid        String                 @id @default(cuid())
+  name        String
+  publicKey   String
+  description String?
+  environment ApplicationEnvironment
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  updatedBy String    @default("system")
+  deletedAt DateTime?
+
+  @@map("tbl_applications")
 }
