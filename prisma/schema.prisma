@@ -44,7 +44,7 @@ enum SettingDataType {
 model Source {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
-  source String 
+  source DataSource
   riverBasin String
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt()
