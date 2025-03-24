@@ -34,6 +34,13 @@ enum Phases {
   ACTIVATION
 }
 
+enum SettingDataType {
+  STRING
+  NUMBER
+  BOOLEAN
+  OBJECT
+}
+
 model Source {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
@@ -220,4 +227,16 @@ model Application {
   deletedAt DateTime?
 
   @@map("tbl_applications")
+}
+
+// ++++++++++++++++++ START: @rumsan/settings +++++++++++++++++++++++++++
+model Setting {
+  name           String          @id @unique
+  value          Json
+  dataType       SettingDataType
+  requiredFields String[]
+  isReadOnly     Boolean         @default(false)
+  isPrivate      Boolean         @default(true)
+
+  @@map("tbl_settings")
 }
