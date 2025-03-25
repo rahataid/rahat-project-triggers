@@ -35,22 +35,6 @@ export class CreateTriggerDto {
   title?: string;
 
   @ApiProperty({
-    example: 'API',
-    description: 'The data source associated with the trigger',
-  })
-  @IsEnum(DataSource)
-  @IsNotEmpty()
-  dataSource: DataSource;
-
-  @ApiProperty({
-    example: 'New York',
-    description: 'The location related to the trigger',
-  })
-  @IsString()
-  @IsOptional()
-  location?: string;
-
-  @ApiProperty({
     example: 'Every day',
     description: 'The repeat frequency of the trigger',
   })

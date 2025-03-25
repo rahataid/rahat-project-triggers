@@ -23,10 +23,8 @@ export class TriggerService {
     @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
   ) {}
+
   create(appId: string, dto: CreateTriggerDto) {
-    if (!this.isValidDataSource(dto.dataSource)) {
-      throw new BadRequestException('Please provide a valid data source!');
-    }
     if (dto.dataSource === DataSource.MANUAL) {
       return this.createManualTrigger(appId, dto);
     }
