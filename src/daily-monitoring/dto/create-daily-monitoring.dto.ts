@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { DataSource } from '@prisma/client';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 export class CreateDailyMonitoringDto {
   @ApiProperty({
     example: '',
@@ -21,17 +22,16 @@ export class CreateDailyMonitoringDto {
     example: 'Sensor A',
     description: 'The source of the monitoring data',
   })
+  @IsEnum(DataSource)
   @IsString()
-  @IsOptional()
-  source?: string;
+  source: DataSource;
 
   @ApiProperty({
     example: 'Warehouse 1',
     description: 'The location where the data was collected',
   })
   @IsString()
-  @IsOptional()
-  location?: string;
+  riverBasin: string;
 
   @ApiProperty({
     example: [{ temperature: 22.5 }, { humidity: 60 }],

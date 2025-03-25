@@ -13,7 +13,7 @@ export class ListDailyMonitoringDto extends PartialType(PaginationDto) {
 
   @ApiProperty()
   @IsOptional()
-  location?: string;
+  riverBasin?: string;
 
   @ApiProperty()
   @IsOptional()
