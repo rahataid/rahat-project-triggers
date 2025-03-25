@@ -73,9 +73,11 @@ model SourcesData {
 
 model DailyMonitoring {
   id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
 
   dataEntryBy String
   info        Json    @db.JsonB()
+  app         String?
 
   sourceId   Int
   source     Source @relation(fields: [sourceId], references: [id])
