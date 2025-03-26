@@ -150,3 +150,14 @@ export class CreateActivityDto {
   @IsString()
   appId: string;
 }
+
+export class ManagerDto {
+  @ApiProperty({
+    example: 'user-id',
+    description: 'The ID of the user who completed the activity',
+  })
+  @IsString()
+  @IsOptional()
+  managerId?: string;
+
+}

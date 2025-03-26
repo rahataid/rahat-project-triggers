@@ -75,9 +75,9 @@ export class PhasesService {
     const { activeYear, name, river_basin, source, ...dto } = payload;
 
     // Created a conditions array to filter the data based on the query params
-    const conditions = [
-      name && { name: name },
-      (source || river_basin) && {
+    const conditions = {
+      ...(name && { name: name }),
+      ...((source || river_basin) && {
         source: {
           ...(source && { source: source }),
           ...(river_basin && {
@@ -87,17 +87,20 @@ export class PhasesService {
             },
           }),
         },
-      },
-      activeYear && {
+      }),
+      ...(activeYear && {
         activeYear: activeYear,
-      },
-    ];
+      }),
+    };
 
     return paginate(
       this.prisma.phase,
       {
         where: {
-          AND: conditions,
+          ...conditions,
+        },
+        include: {
+          source: true,
         },
         orderBy: {
           createdAt: 'desc',
