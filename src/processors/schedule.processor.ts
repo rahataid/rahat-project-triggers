@@ -7,10 +7,10 @@ import { Job } from 'bull';
 // import { DhmService } from '../datasource/dhm.service';
 // import { GlofasService } from '../datasource/glofas.service';
 import { DataSource } from '@prisma/client';
-import { DhmService } from 'src/sources-data/dhm.service';
-import { GlofasService } from 'src/sources-data/glofas.service';
 import { BQUEUE, JOBS } from 'src/constant';
-import { CreateTriggerDto } from 'src/trigger/dto';
+import { DhmService } from 'src/sources-data/dhm.service';
+import { AddTriggerStatementDto } from 'src/sources-data/dto';
+import { GlofasService } from 'src/sources-data/glofas.service';
 
 @Processor(BQUEUE.SCHEDULE)
 export class ScheduleProcessor {
@@ -22,7 +22,7 @@ export class ScheduleProcessor {
   ) {}
 
   @Process(JOBS.SCHEDULE.ADD)
-  async processAddSchedule(job: Job<CreateTriggerDto>) {
+  async processAddSchedule(job: Job<AddTriggerStatementDto>) {
     // console.log('job', job.data);
 
     switch (job.data.dataSource) {

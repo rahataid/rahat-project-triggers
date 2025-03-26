@@ -1,21 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { DataSource } from '@prisma/client';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 export class CreateSourcesDataDto {
   @ApiProperty({
-    example: 'source-name',
-    description: 'The source name or identifier',
+    example: 'GROUNDWATER',
+    description:
+      'The source name or identifier (must match an existing DataSource enum value)',
+    enum: DataSource,
   })
-  @IsString()
+  @IsEnum(DataSource)
   @IsOptional()
-  source?: string;
+  source?: DataSource;
 
   @ApiProperty({
-    example: 'location-name',
-    description: 'The location associated with the source',
+    example: 'riverBasin',
+    description: 'The river basin associated with the source',
   })
   @IsString()
   @IsOptional()
-  location?: string;
+  riverBasin?: string;
 
   @ApiProperty({
     example: [{ key: 'value' }],

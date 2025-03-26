@@ -41,11 +41,11 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dhmSettings = SettingsService.get('DATASOURCE.DHM');
       // const dhmSettings = DATASOURCE.DHM;
 
-      const location = dhmSettings['LOCATION'];
+      const riverBasin = dhmSettings['LOCATION'];
       const dhmURL = dhmSettings['URL'];
       const waterLevelResponse = await this.dhmService.getRiverStationData(
         dhmURL,
-        location,
+        riverBasin,
       );
 
       const waterLevelData = this.dhmService.sortByDate(
@@ -53,12 +53,14 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       );
 
       if (waterLevelData.length === 0) {
-        this.logger.log(`DHM:${location}: Water level data is not available.`);
+        this.logger.log(
+          `DHM:${riverBasin}: Water level data is not available.`,
+        );
         return;
       }
 
       const recentWaterLevel = waterLevelData[0];
-      return this.dhmService.saveWaterLevelsData(location, recentWaterLevel);
+      return this.dhmService.saveWaterLevelsData(riverBasin, recentWaterLevel);
     } catch (err) {
       this.logger.error('DHM Err:', err.message);
     }
@@ -74,10 +76,10 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         GlofasStationInfo,
         'TIMESTRING'
       >;
-      const location = glofasSettings['LOCATION'];
+      const riverBasin = glofasSettings['LOCATION'];
 
       const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
-        location,
+        riverBasin,
         dateString,
       );
 
@@ -96,7 +98,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
 
       return this.sourceService.create({
         source: 'GLOFAS',
-        location: location,
+        riverBasin: riverBasin,
         info: { ...glofasData, forecastDate: dateString },
       });
     } catch (err) {

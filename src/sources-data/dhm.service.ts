@@ -2,14 +2,15 @@ import { HttpService } from '@nestjs/axios';
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from '@prisma/client';
 import { PaginatorTypes, PrismaService, paginator } from '@rumsan/prisma';
+import { SettingsService } from '@rumsan/settings';
 import { Queue } from 'bull';
 import { DateTime } from 'luxon';
-import { AbstractSource } from './sources-data-abstract';
 import { BQUEUE, JOBS } from 'src/constant';
-import { CreateTriggerDto } from 'src/trigger/dto';
-import { DhmDataObject } from './dto';
-import { SettingsService } from '@rumsan/settings';
+import { AddTriggerStatementDto, DhmDataObject } from './dto';
+import { AbstractSource } from './sources-data-abstract';
+import { SourcesDataService } from './sources-data.service';
 import { PaginationDto } from 'src/common/dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 20 });
@@ -20,29 +21,38 @@ export class DhmService implements AbstractSource {
 
   constructor(
     private readonly httpService: HttpService,
+    private readonly sourceDataService: SourcesDataService,
     private readonly configService: ConfigService,
     private prisma: PrismaService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
   ) {}
 
-  async criteriaCheck(payload: CreateTriggerDto) {
+  async criteriaCheck(payload: AddTriggerStatementDto) {
+    const {
+      uuid,
+      dataSource,
+      riverBasin,
+      isMandatory,
+      phaseId,
+      triggerStatement,
+    } = payload;
+
     const triggerData = await this.prisma.trigger.findUnique({
       where: {
-        uuid: payload.uuid,
+        uuid: uuid,
       },
     });
     // do not process if it is already triggered
     if (triggerData.isTriggered) return;
 
-    const dataSource = payload.dataSource;
-    const location = payload.location;
-
     this.logger.log(`${dataSource}: monitoring`);
 
     const recentData = await this.prisma.sourcesData.findFirst({
       where: {
-        location,
-        source: dataSource,
+        source: {
+          riverBasin,
+          source: dataSource,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -50,7 +60,7 @@ export class DhmService implements AbstractSource {
     });
 
     if (!recentData) {
-      this.logger.error(`${dataSource}:${location} : data not available`);
+      this.logger.error(`${dataSource}:${riverBasin} : data not available`);
       return;
     }
 
@@ -65,18 +75,20 @@ export class DhmService implements AbstractSource {
 
     const waterLevelReached = this.compareWaterLevels(
       currentLevel,
-      payload.triggerStatement?.waterLevel,
+      triggerStatement?.waterLevel,
     );
 
     if (waterLevelReached === false) {
-      this.logger.log(`${dataSource}: ${location}: Water is in a safe level.`);
+      this.logger.log(
+        `${dataSource}: ${riverBasin}: Water is in a safe level.`,
+      );
       return;
     }
 
-    if (payload.isMandatory) {
+    if (isMandatory) {
       await this.prisma.phase.update({
         where: {
-          uuid: payload.phaseId,
+          uuid: phaseId,
         },
         data: {
           receivedMandatoryTriggers: {
@@ -86,10 +98,10 @@ export class DhmService implements AbstractSource {
       });
     }
 
-    if (!payload.isMandatory) {
+    if (!isMandatory) {
       await this.prisma.phase.update({
         where: {
-          uuid: payload.phaseId,
+          uuid: phaseId,
         },
         data: {
           receivedOptionalTriggers: {
@@ -101,7 +113,7 @@ export class DhmService implements AbstractSource {
 
     await this.prisma.trigger.update({
       where: {
-        uuid: payload.uuid,
+        uuid: uuid,
       },
       data: {
         isTriggered: true,
@@ -131,24 +143,18 @@ export class DhmService implements AbstractSource {
     return stations.data;
   }
 
-  async getWaterLevels(payload: any) {
-    console.log(payload);
+  async getWaterLevels(payload: PaginationDto) {
     const { page, perPage } = payload;
-
     const dhmSettings = SettingsService.get('DATASOURCE.DHM');
-    const location = this.configService.get('LOCATION');
-    // try {
-    //   const k = await this.prisma.trigger.findMany();
-    //   return 'l';
-    // } catch (error) {
-    //   console.log(error);
-    // }
+    const location = dhmSettings['LOCATION'];
     return paginate(
       this.prisma.sourcesData,
       {
         where: {
-          source: 'DHM',
-          location: 'Karnali at Chisapani',
+          source: {
+            source: DataSource.DHM,
+            location,
+          },
         },
         orderBy: {
           createdAt: 'desc',
@@ -207,12 +213,14 @@ export class DhmService implements AbstractSource {
         new Date(b.waterLevelOn).valueOf() - new Date(a.waterLevelOn).valueOf(),
     );
   }
-  async saveWaterLevelsData(location: string, payload: DhmDataObject) {
+  async saveWaterLevelsData(riverBasin: string, payload: DhmDataObject) {
     try {
       const recordExists = await this.prisma.sourcesData.findFirst({
         where: {
-          source: 'DHM',
-          location: location,
+          source: {
+            source: 'DHM',
+            riverBasin,
+          },
           info: {
             path: ['waterLevelOn'],
             equals: payload.waterLevelOn,
@@ -220,13 +228,18 @@ export class DhmService implements AbstractSource {
         },
       });
       if (!recordExists) {
-        await this.prisma.sourcesData.create({
-          data: {
-            source: 'DHM',
-            location: location,
-            info: JSON.parse(JSON.stringify(payload)),
-          },
+        await this.sourceDataService.create({
+          source: DataSource.GLOFAS,
+          riverBasin: riverBasin,
+          info: JSON.parse(JSON.stringify(payload)),
         });
+        // await this.prisma.sourcesData.create({
+        //   data: {
+        //     source: 'DHM',
+        //     location: location,
+        //     info: JSON.parse(JSON.stringify(payload)),
+        //   },
+        // });
       }
     } catch (err) {
       this.logger.error(err);

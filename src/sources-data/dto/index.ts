@@ -1,5 +1,6 @@
 export * from './create-sources-data.dto';
 export * from './update-sources-data.dto';
+export * from './add-trigger-statement.dto';
 
 type PointForecast = {
   header: string;
