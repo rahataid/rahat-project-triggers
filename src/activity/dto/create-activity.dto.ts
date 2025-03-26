@@ -11,7 +11,7 @@ import {
 
 export class CreateActivityDto {
   @ApiProperty({
-    example: 'abc123-defg-uus44-ggkl1',
+    example: 'abc123-defg-uus45-ggkl1',
     description: 'activity uuid',
   })
   @IsOptional()
@@ -41,14 +41,6 @@ export class CreateActivityDto {
   @IsString()
   @IsNotEmpty()
   responsibility: string;
-
-  @ApiProperty({
-    example: 'source',
-    description: 'The source of the activity',
-  })
-  @IsString()
-  @IsNotEmpty()
-  source: string;
 
   @ApiProperty({
     example: '32813a9e-fb6a-450a-b811-b0f4280e0f2b',
