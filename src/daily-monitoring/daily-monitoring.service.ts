@@ -58,7 +58,7 @@ export class DailyMonitoringService {
           ...(dataEntryBy && {
             dataEntryBy: { contains: dataEntryBy, mode: 'insensitive' },
           }),
-          ...(location && {
+          ...(riverBasin && {
             source: {
               riverBasin: {
                 contains: riverBasin,

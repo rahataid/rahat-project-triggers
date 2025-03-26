@@ -19,6 +19,7 @@ import { DataSource } from '@prisma/client';
 import { BQUEUE, EVENTS, JOBS } from 'src/constant';
 import { AbstractSource } from './sources-data-abstract';
 import { SourcesDataService } from './sources-data.service';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class GlofasService implements AbstractSource {
@@ -219,20 +220,27 @@ export class GlofasService implements AbstractSource {
   }
 
   async getLatestWaterLevels() {
-    const glofasSettings = SettingsService.get(
-      'DATASOURCE.GLOFAS',
-    ) as GlofasStationInfo;
-    return this.prisma.sourcesData.findFirst({
-      where: {
-        source: {
-          source: DataSource.GLOFAS,
-          riverBasin: glofasSettings.LOCATION,
+    this.logger.log('Getting latest water levels from Glofas');
+    try {
+      const glofasSettings = SettingsService.get(
+        'DATASOURCE.GLOFAS',
+      ) as GlofasStationInfo;
+
+      return await this.prisma.sourcesData.findFirst({
+        where: {
+          source: {
+            source: DataSource.GLOFAS,
+            riverBasin: glofasSettings.LOCATION,
+          },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException(error);
+    }
   }
 
   checkProbability(

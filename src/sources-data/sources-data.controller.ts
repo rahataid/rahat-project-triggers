@@ -51,11 +51,7 @@ export class SourcesDataController {
     cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM,
   })
   async getDhmWaterLevels(payload: PaginationDto): Promise<any> {
-    try {
-      return this.dhmService.getWaterLevels(payload);
-    } catch (error) {
-      console.log(error);
-    }
+    return this.dhmService.getWaterLevels(payload);
   }
 
   @MessagePattern({

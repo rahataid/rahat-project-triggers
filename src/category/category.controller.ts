@@ -41,7 +41,6 @@ export class CategoryController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.CATEGORIES.ADD,
-    uuid: process.env.PROJECT_ID,
   })
   async add(payload: CreateCategoryDto) {
     const { appId, ...rest } = payload;
@@ -50,7 +49,6 @@ export class CategoryController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.CATEGORIES.GET_ALL,
-    uuid: process.env.PROJECT_ID,
   })
   async getAll(payload: ListCategoryDto): Promise<any> {
     return this.categoryService.findAll(payload);
@@ -58,7 +56,6 @@ export class CategoryController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.CATEGORIES.REMOVE,
-    uuid: process.env.PROJECT_ID,
   })
   async remove(payload: { uuid: string }) {
     return this.categoryService.remove(payload);
