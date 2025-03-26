@@ -1,13 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataSource } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsEnum,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class CreateTriggerDto {
   @ApiProperty({
@@ -118,5 +112,6 @@ export class CreateTriggerDto {
       'This should only be passed when need to create a manual trigger',
   })
   @IsOptional()
-  dataSource: DataSource;
+  @IsEnum(DataSource)
+  dataSource?: DataSource;
 }

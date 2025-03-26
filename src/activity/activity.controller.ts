@@ -40,7 +40,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.ADD,
-    uuid: process.env.PROJECT_ID,
   })
   async add(payload: CreateActivityDto) {
     return this.activityService.add(payload);
@@ -48,7 +47,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ALL,
-    uuid: process.env.PROJECT_ID,
   })
   async getAll(payload: GetActivityDto): Promise<any> {
     return this.activityService.getAll(payload);
@@ -56,14 +54,12 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.LIST_PROJECT_SPECIFIC,
-    uuid: process.env.PROJECT_ID,
   })
   async listProjectSpecific(payload: GetActivityDto): Promise<any> {
     return this.activityService.listProjectSpecific(payload);
   }
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_HAVING_COMMS,
-    uuid: process.env.PROJECT_ID,
   })
   async getHavingComms(payload: GetActivityDto): Promise<any> {
     return this.activityService.getHavingComms(payload);
@@ -71,7 +67,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ONE,
-    uuid: process.env.PROJECT_ID,
   })
   async getOne(payload: { uuid: string }) {
     return await this.activityService.getOne(payload);
@@ -79,7 +74,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.REMOVE,
-    uuid: process.env.PROJECT_ID,
   })
   async remove(payload: any) {
     return this.activityService.remove(payload);
@@ -99,7 +93,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.SESSION_LOGS,
-    uuid: process.env.PROJECT_ID,
   })
   async communicationLogs(payload: {
     communicationId: string;
@@ -121,7 +114,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.UPDATE_STATUS,
-    uuid: process.env.PROJECT_ID,
   })
   async updateStatus(payload: {
     uuid: string;
@@ -135,7 +127,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.UPDATE,
-    uuid: process.env.PROJECT_ID,
   })
   async update(payload: UpdateActivityDto) {
     return this.activityService.update(payload);
@@ -143,7 +134,6 @@ export class ActivityController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS,
-    uuid: process.env.PROJECT_ID,
   })
   async getCommsStats() {
     return this.activityService.getCommsStats();

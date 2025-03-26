@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { ActivityStatus } from '@prisma/client';
@@ -9,10 +9,12 @@ import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
 import { firstValueFrom } from 'rxjs';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import { randomUUID } from 'crypto';
+
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
 export class ActivityService {
+  logger = new Logger(ActivityService.name);
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
@@ -63,6 +65,7 @@ export class ActivityService {
   // }
 
   async add(payload: CreateActivityDto) {
+    this.logger.log('Adding new activity');
     try {
       const {
         activityCommunication,
@@ -73,7 +76,6 @@ export class ActivityService {
         description,
         phaseId,
         responsibility,
-        source,
         activityDocuments,
         appId,
         activityPayout,
@@ -100,7 +102,6 @@ export class ActivityService {
           description,
           leadTime,
           responsibility,
-          source,
           isAutomated,
           category: {
             connect: { uuid: categoryId },
@@ -123,7 +124,8 @@ export class ActivityService {
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {});
       return newActivity;
     } catch (err) {
-      console.log(err);
+      this.logger.error('Something went wrong while adding activity', err);
+      throw new RpcException(err?.message || 'Something went wrong');
     }
   }
 
@@ -139,86 +141,97 @@ export class ActivityService {
     //   },
     // });
 
-    const { activityCommunication: aComm, ...activityData } =
-      await this.prisma.activity.findUnique({
-        where: {
-          uuid: uuid,
-        },
-        include: {
-          category: true,
-          phase: true,
-        },
-      });
+    this.logger.log(`Fetching activity with uuid: ${uuid}`);
+    try {
+      const { activityCommunication: aComm, ...activityData } =
+        await this.prisma.activity.findUnique({
+          where: {
+            uuid: uuid,
+          },
+          include: {
+            category: true,
+            phase: {
+              include: {
+                source: true,
+              },
+            },
+          },
+        });
 
-    const activityCommunication = [];
-    const activityPayout = [];
+      const activityCommunication = [];
+      const activityPayout = [];
 
-    if (Array.isArray(aComm) && aComm.length) {
-      for (const comm of aComm) {
-        const communication = JSON.parse(
-          JSON.stringify(comm),
-        ) as ActivityCommunicationData & {
-          transportId: string;
-          sessionId: string;
-        };
+      if (Array.isArray(aComm) && aComm.length) {
+        for (const comm of aComm) {
+          const communication = JSON.parse(
+            JSON.stringify(comm),
+          ) as ActivityCommunicationData & {
+            transportId: string;
+            sessionId: string;
+          };
 
-        let sessionStatus = SessionStatus.NEW;
-        if (communication.sessionId) {
-          const sessionDetails = await firstValueFrom(
+          let sessionStatus = SessionStatus.NEW;
+          if (communication.sessionId) {
+            const sessionDetails = await firstValueFrom(
+              this.client.send(
+                {
+                  cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
+                  uuid: process.env.PROJECT_ID,
+                },
+                {
+                  sessionId: communication.sessionId,
+                },
+              ),
+            );
+            sessionStatus = sessionDetails.status;
+          }
+          // const transport = await this.commsClient.transport.get(
+          //   communication.transportId,
+          // );
+
+          const transport = await firstValueFrom(
             this.client.send(
               {
-                cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
+                cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_DETAILS,
                 uuid: process.env.PROJECT_ID,
               },
               {
-                sessionId: communication.sessionId,
+                transportId: communication.transportId,
               },
             ),
           );
-          sessionStatus = sessionDetails.status;
+          const transportName = transport.data.name;
+
+          const { group, groupName } = await this.getGroupDetails(
+            communication.groupType,
+            communication.groupId,
+          );
+
+          activityCommunication.push({
+            ...communication,
+            groupName: groupName,
+            transportName: transportName,
+            sessionStatus,
+            ...(communication.sessionId && {
+              sessionId: communication.sessionId,
+            }),
+          });
         }
-        // const transport = await this.commsClient.transport.get(
-        //   communication.transportId,
-        // );
-
-        const transport = await firstValueFrom(
-          this.client.send(
-            {
-              cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_DETAILS,
-              uuid: process.env.PROJECT_ID,
-            },
-            {
-              transportId: communication.transportId,
-            },
-          ),
-        );
-        const transportName = transport.data.name;
-
-        const { group, groupName } = await this.getGroupDetails(
-          communication.groupType,
-          communication.groupId,
-        );
-
-        activityCommunication.push({
-          ...communication,
-          groupName: groupName,
-          transportName: transportName,
-          sessionStatus,
-          ...(communication.sessionId && {
-            sessionId: communication.sessionId,
-          }),
-        });
       }
-    }
 
-    return {
-      ...activityData,
-      activityCommunication,
-      activityPayout,
-    };
+      return {
+        ...activityData,
+        activityCommunication,
+        activityPayout,
+      };
+    } catch (error) {
+      this.logger.error('Something went wrong while fetching activity', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async getAll(payload: GetActivityDto) {
+    this.logger.log('Fetching all activities');
     const {
       page,
       perPage,
@@ -227,115 +240,173 @@ export class ActivityService {
       phase,
       isComplete,
       isApproved,
-      responsibility,
+      responsibility, // <---- Responsibility is Activity Manager
       status,
     } = payload;
+    try {
+      const query = {
+        where: {
+          isDeleted: false,
+          ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...(category && { categoryId: category }),
+          ...(phase && { phaseId: phase }),
+          ...(isComplete && { isComplete: isComplete }),
+          ...(isApproved && { isApproved: isApproved }),
+          ...(responsibility && {
+            manager: {
+              name: {
+                contains: responsibility,
+                mode: 'insensitive',
+              },
+            },
+          }),
+          ...(status && { status: status }),
+        },
+        include: {
+          category: true,
+          phase: {
+            include: {
+              source: true,
+            },
+          },
+          manager: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      };
 
-    const query = {
-      where: {
-        isDeleted: false,
-        ...(title && { title: { contains: title, mode: 'insensitive' } }),
-        ...(category && { categoryId: category }),
-        ...(phase && { phaseId: phase }),
-        ...(isComplete && { isComplete: isComplete }),
-        ...(isApproved && { isApproved: isApproved }),
-        ...(responsibility && {
-          responsibility: { contains: responsibility, mode: 'insensitive' },
-        }),
-        ...(status && { status: status }),
-      },
-      include: {
-        category: true,
-        phase: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    };
-
-    return paginate(this.prisma.activity, query, {
-      page,
-      perPage,
-    });
+      return paginate(this.prisma.activity, query, {
+        page,
+        perPage,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Something went wrong while fetching activities',
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async listProjectSpecific(payload: GetActivityDto) {
-    const {
-      page,
-      perPage,
-      title,
-      category,
-      phase,
-      isComplete,
-      isApproved,
-      responsibility,
-      status,
-      appId,
-    } = payload;
+    try {
+      const {
+        page,
+        perPage,
+        title,
+        category,
+        phase,
+        isComplete,
+        isApproved,
+        responsibility,
+        status,
+        appId,
+      } = payload;
+      this.logger.log(`Fetching all activities for project ${appId}`);
 
-    const query = {
-      where: {
-        app: appId,
-        isDeleted: false,
-        ...(title && { title: { contains: title, mode: 'insensitive' } }),
-        ...(category && { categoryId: category }),
-        ...(phase && { phaseId: phase }),
-        ...(isComplete && { isComplete: isComplete }),
-        ...(isApproved && { isApproved: isApproved }),
-        ...(responsibility && {
-          responsibility: { contains: responsibility, mode: 'insensitive' },
-        }),
-        ...(status && { status: status }),
-      },
-      include: {
-        category: true,
-        phase: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    };
+      const query = {
+        where: {
+          app: appId,
+          isDeleted: false,
+          ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...(category && { categoryId: category }),
+          ...(phase && { phaseId: phase }),
+          ...(isComplete && { isComplete: isComplete }),
+          ...(isApproved && { isApproved: isApproved }),
+          ...(responsibility && {
+            manager: {
+              name: {
+                contains: responsibility,
+                mode: 'insensitive',
+              },
+            },
+          }),
+          ...(status && { status: status }),
+        },
+        include: {
+          category: true,
+          phase: {
+            include: {
+              source: true,
+            },
+          },
+          manager: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      };
 
-    return paginate(this.prisma.activity, query, {
-      page,
-      perPage,
-    });
+      return paginate(this.prisma.activity, query, {
+        page,
+        perPage,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Something went wrong while fetching activities',
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
+
   async getHavingComms(payload: GetActivityDto) {
-    const { page, perPage } = payload;
+    this.logger.log('Fetching activities having communications');
+    try {
+      const { page, perPage } = payload;
 
-    const query = {
-      where: {
-        isDeleted: false,
-        activityCommunication: null,
-      },
-      include: {
-        phase: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    };
+      const query = {
+        where: {
+          isDeleted: false,
+          activityCommunication: null,
+        },
+        include: {
+          phase: {
+            include: {
+              source: true,
+            },
+          },
+          manager: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      };
 
-    return paginate(this.prisma.activity, query, {
-      page,
-      perPage,
-    });
+      return paginate(this.prisma.activity, query, {
+        page,
+        perPage,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error while fetching activities having communications`,
+        error,
+      );
+
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async remove(payload: any) {
-    const deletedActivity = await this.prisma.activity.update({
-      where: {
-        uuid: payload.uuid,
-      },
-      data: {
-        isDeleted: true,
-      },
-    });
+    this.logger.log(`Deleting activity with uuid: ${payload.uuid}`);
+    try {
+      const deletedActivity = await this.prisma.activity.update({
+        where: {
+          uuid: payload.uuid,
+        },
+        data: {
+          isDeleted: true,
+        },
+      });
 
-    this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
+      this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
 
-    return deletedActivity;
+      return deletedActivity;
+    } catch (error) {
+      this.logger.error('Error while deleting activity', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async updateStatus(payload: {
@@ -345,161 +416,188 @@ export class ActivityService {
     activityDocuments: Record<string, string>;
     user: any;
   }) {
-    const { status, uuid, notes, activityDocuments, user } = payload;
+    this.logger.log(`Updating activity status with uuid: ${payload.uuid}`);
+    try {
+      const { status, uuid, notes, activityDocuments, user } = payload;
 
-    const activity = await this.prisma.activity.findUnique({
-      where: {
-        uuid: uuid,
-      },
-    });
+      const activity = await this.prisma.activity.findUnique({
+        where: {
+          uuid: uuid,
+        },
+      });
 
-    const docs = activityDocuments?.length
-      ? activityDocuments
-      : activity?.activityDocuments || [];
+      const docs = activityDocuments?.length
+        ? activityDocuments
+        : activity?.activityDocuments || [];
 
-    if (status === 'COMPLETED') {
-      this.eventEmitter.emit(EVENTS.ACTIVITY_COMPLETED, {});
-    }
+      if (status === 'COMPLETED') {
+        this.eventEmitter.emit(EVENTS.ACTIVITY_COMPLETED, {});
+      }
 
-    const updatedActivity = await this.prisma.activity.update({
-      where: {
-        uuid: uuid,
-      },
-      data: {
-        status: status,
-        notes: notes,
-        activityDocuments: JSON.parse(JSON.stringify(docs)),
-        ...(status === 'COMPLETED' && { completedBy: user?.name }),
-        ...(status === 'COMPLETED' && { completedAt: new Date() }),
-      },
-      include: {
-        phase: true,
-      },
-    });
-
-    if (
-      updatedActivity?.status === 'COMPLETED' &&
-      !updatedActivity?.differenceInTriggerAndActivityCompletion &&
-      updatedActivity?.phase?.activatedAt
-    ) {
-      const timeDifference = getTriggerAndActivityCompletionTimeDifference(
-        updatedActivity.phase.activatedAt,
-        updatedActivity.completedAt,
-      );
-
-      const finalUpdate = await this.prisma.activity.update({
+      const updatedActivity = await this.prisma.activity.update({
         where: {
           uuid: uuid,
         },
         data: {
-          differenceInTriggerAndActivityCompletion: timeDifference,
+          status: status,
+          notes: notes,
+          activityDocuments: JSON.parse(JSON.stringify(docs)),
+          ...(status === 'COMPLETED' && { completedBy: user?.name }),
+          ...(status === 'COMPLETED' && { completedAt: new Date() }),
+        },
+        include: {
+          phase: true,
         },
       });
-      return finalUpdate;
-    }
 
-    return updatedActivity;
+      if (
+        updatedActivity?.status === 'COMPLETED' &&
+        !updatedActivity?.differenceInTriggerAndActivityCompletion &&
+        updatedActivity?.phase?.activatedAt
+      ) {
+        const timeDifference = getTriggerAndActivityCompletionTimeDifference(
+          updatedActivity.phase.activatedAt,
+          updatedActivity.completedAt,
+        );
+
+        const finalUpdate = await this.prisma.activity.update({
+          where: {
+            uuid: uuid,
+          },
+          data: {
+            differenceInTriggerAndActivityCompletion: timeDifference,
+          },
+        });
+        return finalUpdate;
+      }
+
+      return updatedActivity;
+    } catch (error) {
+      this.logger.log('Error while updating activity status', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async update(payload: UpdateActivityDto) {
-    const {
-      uuid,
-      activityCommunication,
-      isAutomated,
-      title,
-      source,
-      responsibility,
-      phaseId,
-      leadTime,
-      description,
-      categoryId,
-      activityDocuments,
-    } = payload;
-    const activity = await this.prisma.activity.findUnique({
-      where: {
-        uuid: uuid,
-      },
-    });
-    if (!activity) throw new RpcException('Activity not found.');
+    this.logger.log(`Updating activity with uuid: ${payload.uuid}`);
+    try {
+      const {
+        uuid,
+        activityCommunication,
+        isAutomated,
+        title,
+        phaseId,
+        leadTime,
+        description,
+        categoryId,
+        activityDocuments,
+        managerId,
+      } = payload;
 
-    const updateActivityCommunicationPayload = [];
-    const updateActivityDocuments = activityDocuments?.length
-      ? JSON.parse(JSON.stringify(activityDocuments))
-      : [];
+      const activity = await this.prisma.activity.findUnique({
+        where: {
+          uuid: uuid,
+        },
+      });
 
-    if (activityCommunication?.length) {
-      for (const comms of activityCommunication as any) {
-        if (comms?.communicationId) {
-          updateActivityCommunicationPayload.push(comms);
-        } else {
-          const communicationId = randomUUID();
-          updateActivityCommunicationPayload.push({
-            ...comms,
-            communicationId,
-          });
+      if (!activity) {
+        this.logger.warn('Activity not found');
+        throw new RpcException('Activity not found.');
+      }
+
+      const updateActivityCommunicationPayload = [];
+      const updateActivityDocuments = activityDocuments?.length
+        ? JSON.parse(JSON.stringify(activityDocuments))
+        : [];
+
+      if (activityCommunication?.length) {
+        for (const comms of activityCommunication as any) {
+          if (comms?.communicationId) {
+            updateActivityCommunicationPayload.push(comms);
+          } else {
+            const communicationId = randomUUID();
+            updateActivityCommunicationPayload.push({
+              ...comms,
+              communicationId,
+            });
+          }
         }
       }
+      return await this.prisma.activity.update({
+        where: {
+          uuid: uuid,
+        },
+        data: {
+          title: title || activity.title,
+          description: description || activity.description,
+          leadTime: leadTime || activity.leadTime,
+          isAutomated: isAutomated,
+          manager: {
+            connect: {
+              id: managerId || activity.managerId,
+            },
+          },
+          phase: {
+            connect: {
+              uuid: phaseId || activity.phaseId,
+            },
+          },
+          category: {
+            connect: {
+              uuid: categoryId || activity.categoryId,
+            },
+          },
+          activityCommunication: updateActivityCommunicationPayload,
+          activityDocuments: updateActivityDocuments || activityDocuments,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Error while updating activity', error);
+      throw new RpcException(error?.message || 'Something went wrong');
     }
-    return await this.prisma.activity.update({
-      where: {
-        uuid: uuid,
-      },
-      data: {
-        title: title || activity.title,
-        description: description || activity.description,
-        source: source || activity.source,
-        responsibility: responsibility || activity.responsibility,
-        leadTime: leadTime || activity.leadTime,
-        isAutomated: isAutomated,
-        phase: {
-          connect: {
-            uuid: phaseId || activity.phaseId,
-          },
-        },
-        category: {
-          connect: {
-            uuid: categoryId || activity.categoryId,
-          },
-        },
-        activityCommunication: updateActivityCommunicationPayload,
-        activityDocuments: updateActivityDocuments || activityDocuments,
-        updatedAt: new Date(),
-      },
-    });
   }
 
   async getSessionLogs(payload: {
     communicationId: string;
     activityId: string;
   }) {
-    const { communicationId, activityId } = payload;
-
-    const { selectedCommunication } =
-      await this.getActivityCommunicationDetails(communicationId, activityId);
-
-    const { groupName } = await this.getGroupDetails(
-      selectedCommunication.groupType,
-      selectedCommunication.groupId,
+    this.logger.log(
+      `Getting session logs for communication ${payload.communicationId}`,
     );
+    try {
+      const { communicationId, activityId } = payload;
 
-    const sessionDetails = await firstValueFrom(
-      this.client.send(
-        {
-          cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
-          uuid: process.env.PROJECT_ID,
-        },
-        {
-          sessionId: selectedCommunication.sessionId,
-        },
-      ),
-    );
-    const { addresses, ...rest } = sessionDetails;
+      const { selectedCommunication } =
+        await this.getActivityCommunicationDetails(communicationId, activityId);
 
-    return {
-      sessionDetails: rest,
-      communicationDetail: selectedCommunication,
-      groupName,
-    };
+      const { groupName } = await this.getGroupDetails(
+        selectedCommunication.groupType,
+        selectedCommunication.groupId,
+      );
+
+      const sessionDetails = await firstValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
+            uuid: process.env.PROJECT_ID,
+          },
+          {
+            sessionId: selectedCommunication.sessionId,
+          },
+        ),
+      );
+      const { addresses, ...rest } = sessionDetails;
+
+      return {
+        sessionDetails: rest,
+        communicationDetail: selectedCommunication,
+        groupName,
+      };
+    } catch (error) {
+      this.logger.error('Error while fetching session logs', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async retryFailedBroadcast(payload: {
@@ -524,106 +622,133 @@ export class ActivityService {
     communicationId: string,
     activityId: string,
   ) {
-    const activity = await this.prisma.activity.findUnique({
-      where: {
-        uuid: activityId,
-      },
-    });
-    if (!activity) throw new RpcException('Activity communication not found.');
-    const { activityCommunication } = activity;
+    this.logger.log(`Fetching activity communication details of ${activityId}`);
 
-    const parsedCommunications = JSON.parse(
-      JSON.stringify(activityCommunication),
-    ) as Array<{
-      groupId: string;
-      message:
-        | string
-        | {
-            mediaURL: string;
-            fileName: string;
-          };
-      groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
-      transportId: string;
-      communicationId: string;
-      sessionId?: string;
-    }>;
+    try {
+      const activity = await this.prisma.activity.findUnique({
+        where: {
+          uuid: activityId,
+        },
+      });
+      if (!activity) {
+        this.logger.warn('Activity Communication not found');
 
-    const selectedCommunication = parsedCommunications.find(
-      (c) => c?.communicationId === communicationId,
-    );
+        throw new RpcException('Activity communication not found.');
+      }
+      const { activityCommunication } = activity;
 
-    if (!Object.keys(selectedCommunication).length)
-      throw new RpcException('Selected communication not found.');
+      const parsedCommunications = JSON.parse(
+        JSON.stringify(activityCommunication),
+      ) as Array<{
+        groupId: string;
+        message:
+          | string
+          | {
+              mediaURL: string;
+              fileName: string;
+            };
+        groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
+        transportId: string;
+        communicationId: string;
+        sessionId?: string;
+      }>;
 
-    return { selectedCommunication, activity };
+      const selectedCommunication = parsedCommunications.find(
+        (c) => c?.communicationId === communicationId,
+      );
+
+      if (!Object.keys(selectedCommunication).length) {
+        throw new RpcException('Selected communication not found.');
+      }
+
+      return { selectedCommunication, activity };
+    } catch (error) {
+      this.logger.error(
+        'Error while fetching activity communication details',
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   async getGroupDetails(
     groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
     groupId: string,
   ) {
-    let group: any;
-    let groupName: string;
-    if (groupType === 'STAKEHOLDERS') {
-      group = await firstValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.STAKEHOLDERS.GET_ONE_GROUP,
-            uuid: process.env.PROJECT_ID,
-          },
-          { uuid: groupId },
-        ),
-      );
-      groupName = group.name;
-    } else if (groupType === 'BENEFICIARY') {
-      group = await firstValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.BENEFICIARY.GET_ONE_GROUP,
-            uuid: process.env.PROJECT_ID,
-          },
-          { uuid: groupId },
-        ),
-      );
-      groupName = group.name;
-    } else {
-      throw new Error('Invalid group type');
-    }
-    if (!group) {
-      throw new Error('No response from microservice');
-    }
+    this.logger.log(`Fetching group details of ${groupType} ${groupId}`);
+    try {
+      let group: any;
+      let groupName: string;
+      if (groupType === 'STAKEHOLDERS') {
+        group = await firstValueFrom(
+          this.client.send(
+            {
+              cmd: JOBS.STAKEHOLDERS.GET_ONE_GROUP,
+              uuid: process.env.PROJECT_ID,
+            },
+            { uuid: groupId },
+          ),
+        );
+        groupName = group.name;
+      } else if (groupType === 'BENEFICIARY') {
+        group = await firstValueFrom(
+          this.client.send(
+            {
+              cmd: JOBS.BENEFICIARY.GET_ONE_GROUP,
+              uuid: process.env.PROJECT_ID,
+            },
+            { uuid: groupId },
+          ),
+        );
+        groupName = group.name;
+      } else {
+        throw new Error('Invalid group type');
+      }
+      if (!group) {
+        throw new Error('No response from microservice');
+      }
 
-    console.log(`Group (${groupType}):`, group);
-    return { group, groupName };
+      return { group, groupName };
+    } catch (error) {
+      this.logger.error('Error while fetching group details', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
+
   async getCommsStats() {
-    const activitiesHavingComms = await this.prisma.activity.findMany({
-      where: {
-        isDeleted: false,
-        activityCommunication: { not: { equals: [] } },
-      },
-      select: {
-        uuid: true,
-        activityCommunication: true,
-        title: true,
-      },
-    });
+    this.logger.log('Fetching communication stats');
+    try {
+      const activitiesHavingComms = await this.prisma.activity.findMany({
+        where: {
+          isDeleted: false,
+          activityCommunication: { not: { equals: [] } },
+        },
+        select: {
+          uuid: true,
+          activityCommunication: true,
+          title: true,
+        },
+      });
 
-    let totalCommsProject = 0;
+      let totalCommsProject = 0;
 
-    for (const activity of activitiesHavingComms) {
-      for (const comm of JSON.parse(
-        JSON.stringify(activity.activityCommunication),
-      )) {
-        if (comm?.sessionId) {
-          totalCommsProject++;
+      for (const activity of activitiesHavingComms) {
+        for (const comm of JSON.parse(
+          JSON.stringify(activity.activityCommunication),
+        )) {
+          if (comm?.sessionId) {
+            totalCommsProject++;
+          }
         }
       }
-    }
 
-    return {
-      totalCommsProject,
-    };
+      return {
+        totalCommsProject,
+      };
+    } catch (error) {
+      this.logger.error('Error while fetching communication stats', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 
   // async triggerCommunication(payload: {
