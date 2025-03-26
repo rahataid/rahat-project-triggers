@@ -185,7 +185,6 @@ model Activity {
 
   title          String
   leadTime       String
-  responsibility String
 
   phase      Phase?            @relation(fields: [phaseId], references: [uuid])
   phaseId    String
