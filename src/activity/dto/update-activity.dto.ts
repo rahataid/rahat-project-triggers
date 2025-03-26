@@ -2,6 +2,7 @@ import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { CreateActivityDto } from './create-activity.dto';
 import {
   IsNotEmpty,
+  IsOptional,
   IsString,
 } from 'class-validator/types/decorator/decorators';
 
@@ -12,5 +13,6 @@ export class UpdateActivityDto extends PartialType(CreateActivityDto) {
   })
   @IsString()
   @IsNotEmpty()
-  managerId: string;
+  @IsOptional()
+  managerId?: string;
 }
