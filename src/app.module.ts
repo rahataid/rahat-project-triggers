@@ -17,6 +17,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ListenersModule } from './listeners/listeners.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MS_TRIGGER_CLIENTS } from './constant';
+import { SettingsModule } from '@rumsan/settings';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { MS_TRIGGER_CLIENTS } from './constant';
     PhasesModule,
     TriggerModule,
     ActivityModule,
+    SettingsModule,
     SourcesDataModule,
     DailyMonitoringModule,
     ScheduleModule.forRoot(),
