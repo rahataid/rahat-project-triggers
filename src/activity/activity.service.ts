@@ -75,7 +75,7 @@ export class ActivityService {
         categoryId,
         description,
         phaseId,
-        responsibility, // < ----- We need responsibility object like name, email from rahat platfrom
+        manager, // < ----- We need responsibility object like name, email from rahat platfrom
         activityDocuments,
         appId,
         activityPayout,
@@ -101,8 +101,22 @@ export class ActivityService {
           title,
           description,
           leadTime,
-          responsibility,
           isAutomated,
+          ...(manager && {
+            manager: {
+              connectOrCreate: {
+                where: {
+                  id: manager.id,
+                },
+                create: {
+                  id: manager.id,
+                  name: manager.name,
+                  email: manager.email,
+                  phone: manager.phone,
+                },
+              },
+            },
+          }),
           category: {
             connect: { uuid: categoryId },
           },
@@ -118,6 +132,9 @@ export class ActivityService {
 
           activityDocuments: JSON.parse(JSON.stringify(docs)),
           app: appId,
+        },
+        include: {
+          manager: true,
         },
       });
 
@@ -155,6 +172,7 @@ export class ActivityService {
                 source: true,
               },
             },
+            manager: true,
           },
         });
 
@@ -490,9 +508,9 @@ export class ActivityService {
         phaseId,
         leadTime,
         description,
+        manager,
         categoryId,
         activityDocuments,
-        managerId,
       } = payload;
 
       const activity = await this.prisma.activity.findUnique({
@@ -524,6 +542,7 @@ export class ActivityService {
           }
         }
       }
+
       return await this.prisma.activity.update({
         where: {
           uuid: uuid,
@@ -533,11 +552,19 @@ export class ActivityService {
           description: description || activity.description,
           leadTime: leadTime || activity.leadTime,
           isAutomated: isAutomated,
-          manager: {
-            connect: {
-              id: managerId || activity.managerId,
+          ...(manager && {
+            manager: {
+              connect: {
+                id: manager.id,
+              },
+              create: {
+                id: manager.id,
+                name: manager.name,
+                email: manager.email,
+                phone: manager.phone,
+              },
             },
-          },
+          }),
           phase: {
             connect: {
               uuid: phaseId || activity.phaseId,

@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { ActivityService } from './activity.service';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
 import { ActivityStatus } from '@prisma/client';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
@@ -41,41 +41,41 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.ADD,
   })
-  async add(payload: CreateActivityDto) {
+  async add(@Payload() payload: CreateActivityDto) {
     return this.activityService.add(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ALL,
   })
-  async getAll(payload: GetActivityDto): Promise<any> {
+  async getAll(@Payload() payload: GetActivityDto): Promise<any> {
     return this.activityService.getAll(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.LIST_PROJECT_SPECIFIC,
   })
-  async listProjectSpecific(payload: GetActivityDto): Promise<any> {
+  async listProjectSpecific(@Payload() payload: GetActivityDto): Promise<any> {
     return this.activityService.listProjectSpecific(payload);
   }
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_HAVING_COMMS,
   })
-  async getHavingComms(payload: GetActivityDto): Promise<any> {
+  async getHavingComms(@Payload() payload: GetActivityDto): Promise<any> {
     return this.activityService.getHavingComms(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ONE,
   })
-  async getOne(payload: { uuid: string }) {
+  async getOne(@Payload() payload: { uuid: string }) {
     return await this.activityService.getOne(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.REMOVE,
   })
-  async remove(payload: any) {
+  async remove(@Payload() payload: { uuid: string }) {
     return this.activityService.remove(payload);
   }
 
@@ -94,10 +94,9 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.SESSION_LOGS,
   })
-  async communicationLogs(payload: {
-    communicationId: string;
-    activityId: string;
-  }) {
+  async communicationLogs(
+    @Payload() payload: { communicationId: string; activityId: string },
+  ) {
     return this.activityService.getSessionLogs(payload);
   }
 
@@ -115,20 +114,23 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.UPDATE_STATUS,
   })
-  async updateStatus(payload: {
-    uuid: string;
-    status: ActivityStatus;
-    notes: string;
-    activityDocuments: Record<string, string>;
-    user: any;
-  }) {
+  async updateStatus(
+    @Payload()
+    payload: {
+      uuid: string;
+      status: ActivityStatus;
+      notes: string;
+      activityDocuments: Record<string, string>;
+      user: any;
+    },
+  ) {
     return this.activityService.updateStatus(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.UPDATE,
   })
-  async update(payload: UpdateActivityDto) {
+  async update(@Payload() payload: UpdateActivityDto) {
     return this.activityService.update(payload);
   }
 

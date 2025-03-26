@@ -3,11 +3,45 @@ import { ActivityStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+
+export class ActivityManagerDto {
+  @ApiProperty({
+    example: 'user-id',
+    description: 'The ID of the user who is responsibile the activity',
+  })
+  @IsString()
+  id?: string;
+
+  @ApiProperty({
+    example: 'Name of manager',
+    description: 'The name of the user who is responsible for the activity',
+  })
+  @IsString()
+  name: string;
+
+  @ApiProperty({
+    example: 'example@gmail.com',
+    description: 'The email of the user who is responsible for the activity',
+  })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({
+    example: '9812345678',
+    description:
+      'The contact number of the user who is responsible for the activity',
+  })
+  @IsString()
+  phone: string;
+}
 
 export class CreateActivityDto {
   @ApiProperty({
@@ -149,15 +183,16 @@ export class CreateActivityDto {
   })
   @IsString()
   appId: string;
-}
 
-export class ManagerDto {
+  // Manager Dto
   @ApiProperty({
-    example: 'user-id',
-    description: 'The ID of the user who completed the activity',
+    description: 'The manager responsible for the activity (optional)',
+    required: false,
+    nullable: true,
   })
-  @IsString()
   @IsOptional()
-  managerId?: string;
-
+  @ValidateIf((o) => o.manager !== null)
+  @ValidateNested()
+  @Type(() => ActivityManagerDto)
+  manager?: ActivityManagerDto | null;
 }
