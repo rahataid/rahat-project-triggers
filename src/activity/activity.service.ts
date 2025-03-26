@@ -75,7 +75,7 @@ export class ActivityService {
         categoryId,
         description,
         phaseId,
-        responsibility,
+        responsibility, // < ----- We need responsibility object like name, email from rahat platfrom
         activityDocuments,
         appId,
         activityPayout,
@@ -231,7 +231,8 @@ export class ActivityService {
   }
 
   async getAll(payload: GetActivityDto) {
-    this.logger.log('Fetching all activities');
+    this.logger.log('Fetching all activities', payload);
+
     const {
       page,
       perPage,

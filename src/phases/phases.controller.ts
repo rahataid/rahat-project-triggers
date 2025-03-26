@@ -18,7 +18,7 @@ export class PhasesController {
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ALL,
   })
   async getAll(payload: any): Promise<any> {
-    return this.phasesService.findAll(payload);
+    return await this.phasesService.findAll(payload);
   }
 
   @MessagePattern({

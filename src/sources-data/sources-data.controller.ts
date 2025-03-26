@@ -4,12 +4,10 @@ import { PaginationDto } from 'src/common/dto';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { DhmService } from './dhm.service';
 import { GlofasService } from './glofas.service';
-import { SourcesDataService } from './sources-data.service';
 
 @Controller('sources-data')
 export class SourcesDataController {
   constructor(
-    private readonly sourcesDataService: SourcesDataService,
     private readonly dhmService: DhmService,
     private readonly glofasService: GlofasService,
   ) {}
@@ -44,7 +42,6 @@ export class SourcesDataController {
   // }
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.RIVER_STATIONS.GET_DHM,
-    uuid: process.env.PROJECT_ID,
   })
   async getDhmStations() {
     return this.dhmService.getRiverStations();
@@ -52,7 +49,6 @@ export class SourcesDataController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM,
-    uuid: process.env.PROJECT_ID,
   })
   async getDhmWaterLevels(payload: PaginationDto): Promise<any> {
     try {
@@ -64,7 +60,6 @@ export class SourcesDataController {
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GLOFAS,
-    uuid: process.env.PROJECT_ID,
   })
   async getGlofasWaterLevels() {
     return this.glofasService.getLatestWaterLevels();
