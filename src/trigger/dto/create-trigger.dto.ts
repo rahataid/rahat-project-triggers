@@ -111,4 +111,12 @@ export class CreateTriggerDto {
   @Type(() => Date)
   @IsOptional()
   triggeredAt?: Date;
+
+  @ApiProperty({
+    example: DataSource.MANUAL,
+    description:
+      'This should only be passed when need to create a manual trigger',
+  })
+  @IsOptional()
+  dataSource: DataSource;
 }

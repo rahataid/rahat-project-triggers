@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import {
@@ -10,81 +10,133 @@ const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
 export class DailyMonitoringService {
+  logger = new Logger(DailyMonitoringService.name);
   constructor(private prisma: PrismaService) {}
-  create(dto: CreateDailyMonitoringDto) {
-    const { appId, ...rest } = dto;
 
-    return this.prisma.dailyMonitoring.create({
-      data: {
-        ...rest,
-        app: appId,
-      },
-    });
+  async create(dto: CreateDailyMonitoringDto) {
+    this.logger.log('Creating daily monitoring data');
+    try {
+      const { appId, source, riverBasin, ...rest } = dto;
+
+      return await this.prisma.dailyMonitoring.create({
+        data: {
+          ...rest,
+          app: appId,
+          source: {
+            connectOrCreate: {
+              where: {
+                source_riverBasin: {
+                  source: source,
+                  riverBasin: riverBasin,
+                },
+              },
+              create: {
+                source: source,
+                riverBasin: riverBasin,
+              },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException('Failed to create daily monitoring data');
+    }
   }
 
   findAll(payload: ListDailyMonitoringDto) {
-    const { page, perPage, dataEntryBy, location, createdAt, appId } = payload;
+    this.logger.log('Fetching all daily monitoring data');
 
-    const query = {
-      where: {
-        isDeleted: false,
-        app: appId,
-        ...(dataEntryBy && {
-          dataEntryBy: { contains: dataEntryBy, mode: 'insensitive' },
-        }),
-        ...(location && {
-          location: { contains: location, mode: 'insensitive' },
-        }),
-        ...(createdAt && {
-          createdAt: {
-            gte: createdAt,
-          },
-        }),
-      },
-    };
+    try {
+      const { page, perPage, dataEntryBy, riverBasin, createdAt, appId } =
+        payload;
 
-    return paginate(this.prisma.dailyMonitoring, query, {
-      page,
-      perPage,
-    });
+      const query = {
+        where: {
+          isDeleted: false,
+          app: appId,
+          ...(dataEntryBy && {
+            dataEntryBy: { contains: dataEntryBy, mode: 'insensitive' },
+          }),
+          ...(location && {
+            source: {
+              riverBasin: {
+                contains: riverBasin,
+                mode: 'insensitive',
+              },
+            },
+          }),
+          ...(createdAt && {
+            createdAt: {
+              gte: createdAt,
+            },
+          }),
+        },
+      };
+
+      return paginate(this.prisma.dailyMonitoring, query, {
+        page,
+        perPage,
+      });
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException('Failed to fetch daily monitoring data');
+    }
   }
 
   async findOne(payload: { uuid: string }) {
-    const { uuid } = payload;
-    const result = await this.prisma.dailyMonitoring.findUnique({
-      where: {
-        uuid: uuid,
-        isDeleted: false,
-      },
-    });
-    const latest = result.id;
-    const manyData = await this.prisma.dailyMonitoring.findMany({
-      where: {
-        id: {
-          gte: latest - 2,
-          lte: latest,
+    this.logger.log(
+      `Fetching daily monitoring data with uuid: ${payload.uuid}`,
+    );
+    try {
+      const { uuid } = payload;
+      const result = await this.prisma.dailyMonitoring.findUnique({
+        where: {
+          uuid: uuid,
+          isDeleted: false,
         },
-        location: result.location,
-        isDeleted: false,
-      },
-    });
+        include: {
+          source: true,
+        },
+      });
 
-    const { info: monitoringData, ...rest } = result;
+      const latest = result.id;
+      const manyData = await this.prisma.dailyMonitoring.findMany({
+        where: {
+          id: {
+            gte: latest - 2,
+            lte: latest,
+          },
+          source: {
+            riverBasin: result.source.riverBasin,
+          },
+          isDeleted: false,
+        },
+      });
 
-    return {
-      singleData: {
-        ...rest,
-        monitoringData,
-      },
-      multipleData: manyData,
-    };
+      const { info: monitoringData, ...rest } = result;
+
+      return {
+        singleData: {
+          ...rest,
+          monitoringData,
+        },
+        multipleData: manyData,
+      };
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException('Failed to fetch daily monitoring data');
+    }
   }
 
   async update(payload: UpdateDailyMonitoringDto) {
-    const { uuid, dataEntryBy, location, info } = payload;
+    const { uuid, dataEntryBy, riverBasin, source, info } = payload;
     const existing = await this.prisma.dailyMonitoring.findUnique({
       where: {
         uuid: uuid,
+      },
+      include: {
+        source: true,
       },
     });
 
@@ -98,7 +150,24 @@ export class DailyMonitoringService {
       },
       data: {
         dataEntryBy: dataEntryBy || existingData.dataEntryBy,
-        location: location || existingData.location,
+        // Will update location if riverBasin and source is provided else will keep the existing location
+        ...(riverBasin &&
+          source && {
+            source: {
+              connectOrCreate: {
+                where: {
+                  source_riverBasin: {
+                    source: source,
+                    riverBasin: riverBasin,
+                  },
+                },
+                create: {
+                  source: source,
+                  riverBasin: riverBasin,
+                },
+              },
+            },
+          }),
         info: JSON.parse(JSON.stringify(info)) || existingData,
         updatedAt: new Date(),
       },
@@ -108,14 +177,22 @@ export class DailyMonitoringService {
   }
 
   async remove(payload: { uuid: string }) {
-    const { uuid } = payload;
-    return await this.prisma.dailyMonitoring.update({
-      where: {
-        uuid: uuid,
-      },
-      data: {
-        isDeleted: true,
-      },
-    });
+    this.logger.log(
+      `Deleting daily monitoring data with uuid: ${payload.uuid}`,
+    );
+    try {
+      const { uuid } = payload;
+      return await this.prisma.dailyMonitoring.update({
+        where: {
+          uuid: uuid,
+        },
+        data: {
+          isDeleted: true,
+        },
+      });
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException('Failed to delete daily monitoring data');
+    }
   }
 }
