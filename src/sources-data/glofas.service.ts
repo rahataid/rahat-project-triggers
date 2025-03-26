@@ -5,15 +5,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@rumsan/prisma';
 import { SettingsService } from '@rumsan/settings';
 import { Queue } from 'bull';
-import { CreateTriggerDto } from 'src/trigger/dto';
 // import { BQUEUE, EVENTS, JOBS } from '../constants';
 // import { AbstractSource } from './datasource.abstract';
 // import { GlofasDataObject, GlofasStationInfo } from './dto';
-import { GlofasDataObject, GlofasStationInfo } from './dto';
+import {
+  AddTriggerStatementDto,
+  GlofasDataObject,
+  GlofasStationInfo,
+} from './dto';
 
-import { AbstractSource } from './sources-data-abstract';
-import { BQUEUE, EVENTS, JOBS } from 'src/constant';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DataSource } from '@prisma/client';
+import { BQUEUE, EVENTS, JOBS } from 'src/constant';
+import { AbstractSource } from './sources-data-abstract';
+import { SourcesDataService } from './sources-data.service';
 
 @Injectable()
 export class GlofasService implements AbstractSource {
@@ -22,11 +27,12 @@ export class GlofasService implements AbstractSource {
   constructor(
     private readonly httpService: HttpService,
     private prisma: PrismaService,
+    private readonly sourceDataService: SourcesDataService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
   ) {}
 
-  async criteriaCheck(payload: CreateTriggerDto) {
+  async criteriaCheck(payload: AddTriggerStatementDto) {
     const triggerData = await this.prisma.trigger.findUnique({
       where: {
         uuid: payload.uuid,
@@ -45,15 +51,18 @@ export class GlofasService implements AbstractSource {
     }
 
     const dataSource = payload.dataSource;
-    const location = payload.location;
+    const riverBasin = payload.riverBasin;
+
     const probability = Number(payload.triggerStatement?.probability);
 
     this.logger.log(`${dataSource}: monitoring`);
 
     const recentData = await this.prisma.sourcesData.findFirst({
       where: {
-        location,
-        source: dataSource,
+        source: {
+          riverBasin: riverBasin,
+          source: dataSource,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -61,7 +70,7 @@ export class GlofasService implements AbstractSource {
     });
 
     if (!recentData) {
-      this.logger.error(`${dataSource}:${location} : data not available`);
+      this.logger.error(`${dataSource}:${riverBasin} : data not available`);
       return;
     }
 
@@ -175,12 +184,14 @@ export class GlofasService implements AbstractSource {
     return (await this.httpService.axiosRef.get(glofasURL.href)).data;
   }
 
-  async saveGlofasStationData(location: string, payload: GlofasDataObject) {
+  async saveGlofasStationData(riverBasin: string, payload: GlofasDataObject) {
     try {
       const recordExists = await this.prisma.sourcesData.findFirst({
         where: {
-          source: 'GLOFAS',
-          location: location,
+          source: {
+            source: DataSource.GLOFAS,
+            riverBasin: riverBasin,
+          },
           info: {
             path: ['forecastDate'],
             equals: payload.forecastDate,
@@ -189,12 +200,17 @@ export class GlofasService implements AbstractSource {
       });
 
       if (!recordExists) {
-        await this.prisma.sourcesData.create({
-          data: {
-            source: 'GLOFAS',
-            location: location,
-            info: JSON.parse(JSON.stringify(payload)),
-          },
+        // await this.prisma.sourcesData.create({
+        //   data: {
+        //     source: 'GLOFAS',
+        //     riverBasin: riverBasin,
+        //     info: JSON.parse(JSON.stringify(payload)),
+        //   },
+        // });
+        await this.sourceDataService.create({
+          source: DataSource.GLOFAS,
+          riverBasin: riverBasin,
+          info: JSON.parse(JSON.stringify(payload)),
         });
       }
     } catch (err) {
@@ -208,8 +224,10 @@ export class GlofasService implements AbstractSource {
     ) as GlofasStationInfo;
     return this.prisma.sourcesData.findFirst({
       where: {
-        source: 'GLOFAS',
-        location: glofasSettings.LOCATION,
+        source: {
+          source: DataSource.GLOFAS,
+          riverBasin: glofasSettings.LOCATION,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -239,11 +257,13 @@ export class GlofasService implements AbstractSource {
     return rangeArray;
   }
 
-  async findGlofasDataByDate(location: string, forecastDate: string) {
+  async findGlofasDataByDate(riverBasin: string, forecastDate: string) {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
-        source: 'GLOFAS',
-        location: location,
+        source: {
+          source: DataSource.GLOFAS,
+          riverBasin: riverBasin,
+        },
         info: {
           path: ['forecastDate'],
           equals: forecastDate,
