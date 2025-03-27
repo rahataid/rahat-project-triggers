@@ -22,5 +22,6 @@ COPY --chown=node:node --from=devDeps /opt/app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /opt/app/node_modules/.pnpm/@prisma+client* ./node_modules/.pnpm/
 COPY --chown=node:node --from=builder /opt/app/prisma ./prisma
 COPY --chown=node:node --from=builder /opt/app/dist ./dist
+COPY --chown=node:node --from=builder /opt/app/package.json ./package.json
 # RUN pnpx prisma generate
 CMD ["node", "dist/main.js"]
