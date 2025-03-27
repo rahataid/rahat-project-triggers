@@ -12,6 +12,7 @@ import { AddTriggerStatementDto, DhmDataObject } from './dto';
 import { AbstractSource } from './sources-data-abstract';
 import { SourcesDataService } from './sources-data.service';
 import { PaginationDto } from 'src/common/dto';
+import { RpcException } from '@nestjs/microservices';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 20 });
 
@@ -137,34 +138,50 @@ export class DhmService implements AbstractSource {
   }
 
   async getRiverStations() {
-    const dataSourceURL = this.configService.get('DHM');
-    const riverStationsURL = `${dataSourceURL}/river-stations/?latest=true`;
-    const stations = await this.getData(riverStationsURL);
-    return stations.data;
+    this.logger.log('Fetching river stations from DHM');
+    try {
+      // TODO: Need to add DHM variable in environment variable
+      const dataSourceURL = this.configService.get('DHM');
+      const riverStationsURL = `${dataSourceURL}/river-stations/?latest=true`;
+      console.log(
+        '🚀 ~ DhmService ~ getRiverStations ~ riverStationsURL:',
+        riverStationsURL,
+      );
+      const stations = await this.getData(riverStationsURL);
+      return stations.data;
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException('Failed to fetch river stations');
+    }
   }
 
   async getWaterLevels(payload: PaginationDto) {
-    const { page, perPage } = payload;
-    const dhmSettings = SettingsService.get('DATASOURCE.DHM');
-    const location = dhmSettings['LOCATION'];
-    return paginate(
-      this.prisma.sourcesData,
-      {
-        where: {
-          source: {
-            source: DataSource.DHM,
-            location,
+    this.logger.log('Fetching water levels from DHM');
+    try {
+      const { page, perPage } = payload;
+      const dhmSettings = SettingsService.get('DATASOURCE.DHM');
+      const location = dhmSettings['LOCATION'];
+      return paginate(
+        this.prisma.sourcesData,
+        {
+          where: {
+            source: {
+              source: DataSource.DHM,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         },
-        orderBy: {
-          createdAt: 'desc',
+        {
+          page,
+          perPage,
         },
-      },
-      {
-        page,
-        perPage,
-      },
-    );
+      );
+    } catch (error) {
+      this.logger.error(`Error while getting water levels: ${error}`);
+      throw new RpcException('Failed to fetch water levels');
+    }
   }
 
   async getRiverStationData(url: string, location: string): Promise<any> {
@@ -189,7 +206,7 @@ export class DhmService implements AbstractSource {
   }
 
   async getData(url: string): Promise<any> {
-    return this.httpService.axiosRef.get(url);
+    return await this.httpService.axiosRef.get(url);
   }
 
   getIntervals() {
