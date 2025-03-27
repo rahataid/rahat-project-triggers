@@ -49,18 +49,45 @@ export class TriggerService {
     }
   }
 
-  getAll(payload: GetTriggersDto) {
-    this.logger.log(`Getting all triggers for app: ${payload.appId}`);
+  async getAll(payload: GetTriggersDto) {
+    this.logger.log(`Getting all triggers for app`, payload);
     try {
-      const { appId, ...dto } = payload;
+      let { appId, riverBasin, source, phaseId, ...dto } = payload;
+
+      // if we get appid, will search for the source and riverBesin related to that app and featch triggers based on that.
+      if ((!source || !riverBasin) && appId) {
+        const phase = await this.prisma.phase.findFirst({
+          where: {
+            Activity: {
+              some: {
+                app: appId,
+              },
+            },
+          },
+          include: {
+            source: true,
+          },
+        });
+
+        source = phase?.source.source;
+        riverBasin = phase?.source.riverBasin;
+      }
 
       return paginate(
         this.prisma.trigger,
         {
           where: {
             isDeleted: false,
-            ...(dto.phaseId && { phaseId: dto.phaseId }),
-            app: appId,
+            ...(phaseId && { phaseId: phaseId }),
+            ...(source &&
+              riverBasin && {
+                phase: {
+                  source: {
+                    source: source,
+                    riverBasin: riverBasin,
+                  },
+                },
+              }),
           },
           include: {
             phase: {
@@ -123,7 +150,6 @@ export class TriggerService {
       const createData = {
         repeatKey: repeatKey,
         uuid: uuid,
-        app: appId,
         ...dto,
       };
       return this.prisma.trigger.create({
@@ -411,7 +437,7 @@ export class TriggerService {
 
   async findByLocation(payload) {
     try {
-      const { appId, location, ...dto } = payload;
+      const { riverBasin, ...dto } = payload;
       return paginate(
         this.prisma.trigger,
         {
@@ -421,7 +447,16 @@ export class TriggerService {
               contains: location,
               mode: 'insensitive',
             },
-            app: appId,
+            ...(riverBasin && {
+              phase: {
+                source: {
+                  riverBasin: {
+                    contains: riverBasin,
+                    mode: 'insensitive',
+                  },
+                },
+              },
+            }),
           },
           include: {
             phase: {

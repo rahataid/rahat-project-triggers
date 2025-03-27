@@ -122,7 +122,6 @@ model Phase {
 model Trigger {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
-  app  String
 
   repeatKey        String     @unique
   repeatEvery      String?
