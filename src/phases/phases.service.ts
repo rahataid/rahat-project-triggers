@@ -37,7 +37,18 @@ export class PhasesService {
   ) {}
 
   async create(payload: CreatePhaseDto) {
-    const { name, source, river_basin, ...rest } = payload;
+    const {
+      name,
+      source,
+      river_basin,
+      activeYear,
+      canRevert,
+      canTriggerPayout,
+      receivedMandatoryTriggers,
+      receivedOptionalTriggers,
+      requiredMandatoryTriggers,
+      requiredOptionalTriggers,
+    } = payload;
 
     this.logger.log(
       `Creating new phase with ${name} source: ${source} river_basin: ${river_basin}`,
@@ -62,7 +73,13 @@ export class PhasesService {
               },
             },
           },
-          ...rest,
+          activeYear,
+          canRevert,
+          canTriggerPayout,
+          receivedMandatoryTriggers,
+          receivedOptionalTriggers,
+          requiredMandatoryTriggers,
+          requiredOptionalTriggers,
         },
       });
     } catch (error) {
@@ -72,7 +89,7 @@ export class PhasesService {
   }
 
   findAll(payload: GetPhaseDto) {
-    const { activeYear, name, river_basin, source, ...dto } = payload;
+    const { activeYear, name, river_basin, source,  ...dto } = payload;
 
     // Created a conditions array to filter the data based on the query params
     const conditions = {
