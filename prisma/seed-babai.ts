@@ -32,7 +32,24 @@ const main = async () => {
       isPrivate: false,
     });
   } catch (error) {
-    console.error(`Error seeding settings: ${error}`);
+    await settings.create({
+      name: 'DATASOURCE',
+      value: {
+        DHM: {
+          location: 'Babai at Chepang',
+          url: 'https://bipadportal.gov.np/api/v1',
+        },
+        GLOFAS: {
+          location: 'Babai at Chepang',
+          url: 'https://ows.globalfloods.eu/glofas-ows/ows.py',
+          bbox: '9066450.71499904,3117815.425733483,9405627.288509797,3456991.999244238',
+          i: '89', //coordinate for station
+          j: '409',
+        },
+      },
+      isPrivate: false,
+    });
+    console.log(`New DATASOURCE created fro babai`);
   }
 };
 
