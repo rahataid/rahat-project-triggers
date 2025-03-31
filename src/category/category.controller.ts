@@ -7,7 +7,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 
 @Controller('category')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) { }
+  constructor(private readonly categoryService: CategoryService) {}
 
   // @ApiHeader({
   //   name: 'app-id',
@@ -43,6 +43,7 @@ export class CategoryController {
     cmd: MS_TRIGGERS_JOBS.CATEGORIES.ADD,
   })
   async add(payload: CreateCategoryDto) {
+    console.log('payload');
     const { appId, ...rest } = payload;
     return this.categoryService.create(appId, rest);
   }

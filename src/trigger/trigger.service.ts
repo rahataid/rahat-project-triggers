@@ -8,6 +8,7 @@ import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
+import { data } from 'cheerio/dist/commonjs/api/attributes';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -32,13 +33,13 @@ export class TriggerService {
         return this.createManualTrigger(appId, dto);
       }
     */
-
       const sanitizedPayload = {
         title: dto.title,
         triggerStatement: dto.triggerStatement,
         phaseId: dto.phaseId,
         isMandatory: dto.isMandatory,
-        app: appId,
+        dataSource: dto.dataSource,
+        riverBasin: dto.riverBasin,
         repeatEvery: '30000',
       };
 
@@ -49,6 +50,28 @@ export class TriggerService {
     }
   }
 
+  async bulkCreate(payload) {
+    try {
+      const k = await Promise.all(
+        payload.map(async (item) => {
+          const sanitizedPayload = {
+            title: item.title,
+            triggerStatement: item.triggerStatement,
+            phaseId: item.phaseId,
+            isMandatory: item.isMandatory,
+            dataSource: item.dataSource,
+            riverBasin: item.riverBasin,
+            repeatEvery: '30000',
+          };
+
+          return await this.scheduleJob(sanitizedPayload);
+        }),
+      );
+      return k;
+    } catch (error) {
+      console.log(error);
+    }
+  }
   async getAll(payload: GetTriggersDto) {
     this.logger.log(`Getting all triggers for app`, payload);
     try {
@@ -262,11 +285,14 @@ export class TriggerService {
   }
 
   private async scheduleJob(payload: any) {
+    this.logger.log(
+      `Scheduling trigger with payload: ${JSON.stringify(payload)}`,
+    );
     try {
       const uuid = randomUUID();
-
+      const { app, ...rest } = payload;
       const jobPayload = {
-        ...payload,
+        ...rest,
         uuid,
       };
 
@@ -288,18 +314,19 @@ export class TriggerService {
         },
       );
       const repeatableKey = repeatable.opts.repeat.key;
-
+      const { phaseId, ...restJob } = jobPayload;
       const createData = {
         repeatKey: repeatableKey,
-        uuid: uuid,
-        isDeleted: false,
-        ...payload,
-      };
-
-      await this.prisma.trigger.create({
-        data: {
-          ...createData,
+        phase: {
+          connect: {
+            uuid: phaseId,
+          },
         },
+        ...restJob,
+        isDeleted: false,
+      };
+      await this.prisma.trigger.create({
+        data: createData,
       });
 
       return createData;
