@@ -161,6 +161,7 @@ export class DhmService implements AbstractSource {
       const { page, perPage } = payload;
       const dhmSettings = SettingsService.get('DATASOURCE.DHM');
       const location = dhmSettings['LOCATION'];
+      console.log(location);
       return paginate(
         this.prisma.sourcesData,
         {
