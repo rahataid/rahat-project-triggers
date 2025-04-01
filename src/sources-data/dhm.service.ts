@@ -2,19 +2,15 @@ import { HttpService } from '@nestjs/axios';
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DataSource } from '@prisma/client';
-import { PaginatorTypes, PrismaService, paginator } from '@rumsan/prisma';
-import { SettingsService } from '@rumsan/settings';
+import { DataSource, SourceType } from '@prisma/client';
+import { PrismaService } from '@rumsan/prisma';
 import { Queue } from 'bull';
 import { DateTime } from 'luxon';
 import { BQUEUE, JOBS } from 'src/constant';
 import { AddTriggerStatementDto, DhmDataObject } from './dto';
 import { AbstractSource } from './sources-data-abstract';
-import { SourcesDataService } from './sources-data.service';
-import { PaginationDto } from 'src/common/dto';
 import { RpcException } from '@nestjs/microservices';
-
-const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 20 });
+import { RainfallStationData, RiverStationData } from 'src/types/data-source';
 
 @Injectable()
 export class DhmService implements AbstractSource {
@@ -22,7 +18,6 @@ export class DhmService implements AbstractSource {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly sourceDataService: SourcesDataService,
     private readonly configService: ConfigService,
     private prisma: PrismaService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
@@ -155,35 +150,6 @@ export class DhmService implements AbstractSource {
     }
   }
 
-  async getWaterLevels(payload: PaginationDto) {
-    this.logger.log('Fetching water levels from DHM');
-    try {
-      const { page, perPage } = payload;
-      const dhmSettings = SettingsService.get('DATASOURCE.DHM');
-      const location = dhmSettings['LOCATION'];
-      return paginate(
-        this.prisma.sourcesData,
-        {
-          where: {
-            source: {
-              source: DataSource.DHM,
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
-        {
-          page,
-          perPage,
-        },
-      );
-    } catch (error) {
-      this.logger.error(`Error while getting water levels: ${error}`);
-      throw new RpcException('Failed to fetch water levels');
-    }
-  }
-
   async getRiverStationData(url: string, location: string): Promise<any> {
     const riverURL = new URL(`${url}/river`);
     const title = location;
@@ -230,36 +196,58 @@ export class DhmService implements AbstractSource {
         new Date(b.waterLevelOn).valueOf() - new Date(a.waterLevelOn).valueOf(),
     );
   }
-  async saveWaterLevelsData(riverBasin: string, payload: DhmDataObject) {
+
+  async saveDataInDhm(
+    type: SourceType,
+    riverBasin: string,
+    payload: RiverStationData | RainfallStationData,
+  ) {
     try {
-      const recordExists = await this.prisma.sourcesData.findFirst({
-        where: {
-          source: {
-            source: 'DHM',
-            riverBasin,
+      return await this.prisma.$transaction(async (tx) => {
+        const existingRecord = await tx.sourcesData.findFirst({
+          where: {
+            type,
+            source: {
+              riverBasin,
+              source: DataSource.DHM,
+            },
           },
-          info: {
-            path: ['waterLevelOn'],
-            equals: payload.waterLevelOn,
-          },
-        },
-      });
-      if (!recordExists) {
-        await this.sourceDataService.create({
-          source: DataSource.GLOFAS,
-          riverBasin: riverBasin,
-          info: JSON.parse(JSON.stringify(payload)),
         });
-        // await this.prisma.sourcesData.create({
-        //   data: {
-        //     source: 'DHM',
-        //     location: location,
-        //     info: JSON.parse(JSON.stringify(payload)),
-        //   },
-        // });
-      }
+
+        if (existingRecord) {
+          return await tx.sourcesData.update({
+            where: { id: existingRecord.id },
+            data: {
+              info: JSON.parse(JSON.stringify(payload)),
+              updatedAt: new Date(),
+            },
+          });
+        } else {
+          return await tx.sourcesData.create({
+            data: {
+              type,
+              info: JSON.parse(JSON.stringify(payload)),
+              source: {
+                connectOrCreate: {
+                  where: {
+                    source_riverBasin: {
+                      source: DataSource.DHM,
+                      riverBasin,
+                    },
+                  },
+                  create: {
+                    source: DataSource.DHM,
+                    riverBasin,
+                  },
+                },
+              },
+            },
+          });
+        }
+      });
     } catch (err) {
-      this.logger.error(err);
+      this.logger.error(`Error saving data for ${riverBasin}:`, err);
+      throw err;
     }
   }
 }

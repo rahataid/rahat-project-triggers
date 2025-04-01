@@ -15,7 +15,7 @@ import {
 } from './dto';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DataSource } from '@prisma/client';
+import { DataSource, SourceType } from '@prisma/client';
 import { BQUEUE, EVENTS, JOBS } from 'src/constant';
 import { AbstractSource } from './sources-data-abstract';
 import { SourcesDataService } from './sources-data.service';
@@ -211,6 +211,7 @@ export class GlofasService implements AbstractSource {
         await this.sourceDataService.create({
           source: DataSource.GLOFAS,
           riverBasin: riverBasin,
+          type: SourceType.WATER_LEVEL,
           info: JSON.parse(JSON.stringify(payload)),
         });
       }
