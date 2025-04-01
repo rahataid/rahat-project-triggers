@@ -29,8 +29,6 @@
     "migrate:deploy": "prisma migrate deploy --preview-feature",
     "migrate:status": "prisma migrate status --preview-feature",
     "migrate:resolve": "prisma migrate resolve --preview-feature",
-    "seed:babai": "ts-node ./prisma/seed-babai.ts",
-    "seed:karnali": "ts-node ./prisma/seed-karnali.ts",
     "seed:all": "ts-node prisma/seed.ts",
     "prisma:studio": "prisma studio",
     "prisma:generate": "prisma generate",

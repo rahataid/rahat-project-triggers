@@ -5,6 +5,8 @@ import { PaginationDto } from 'src/common/dto';
 // import { DateTime } from 'luxon';
 import { HttpService } from '@nestjs/axios';
 import { RpcException } from '@nestjs/microservices';
+import { GetSouceDataDto } from './dto/get-source-data';
+import { SourceType } from '@prisma/client';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 @Injectable()
 export class SourcesDataService {
@@ -14,15 +16,15 @@ export class SourcesDataService {
     private readonly httpService: HttpService,
   ) {}
   async create(dto: CreateSourcesDataDto) {
-    const { info, source, riverBasin } = dto;
+    const { info, source, riverBasin, type } = dto;
     this.logger.log(
       `Creating new sourcedata with source: ${source} river_basin: ${riverBasin}`,
     );
     try {
       return this.prisma.sourcesData.create({
         data: {
-          info: info,
-
+          info,
+          type,
           source: {
             connectOrCreate: {
               where: {
@@ -112,6 +114,81 @@ export class SourcesDataService {
     } catch (error) {
       this.logger.error('Error while updating source data info', error);
       throw new RpcException(error);
+    }
+  }
+
+  async getSourceFromAppId(appId: string) {
+    const dataSource = await this.prisma.source.findFirst({
+      where: {
+        Phase: {
+          some: {
+            Activity: {
+              some: {
+                app: appId,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return dataSource;
+  }
+
+  async getLevels(payload: GetSouceDataDto, type: SourceType) {
+    const { page, perPage, appId } = payload;
+
+    if (!payload.source && !payload.riverBasin) {
+      const source = await this.getSourceFromAppId(appId);
+      payload.source = source?.source;
+      payload.riverBasin = source?.riverBasin;
+    }
+    return paginate(
+      this.prisma.sourcesData,
+      {
+        where: {
+          type,
+          source: {
+            source: payload.source,
+            riverBasin: payload.riverBasin,
+          },
+        },
+        include: {
+          source: {
+            select: {
+              riverBasin: true,
+              source: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
+      {
+        page,
+        perPage,
+      },
+    );
+  }
+
+  async getWaterLevels(payload: GetSouceDataDto) {
+    this.logger.log('Fetching water levels');
+    try {
+      return await this.getLevels(payload, SourceType.WATER_LEVEL);
+    } catch (error) {
+      this.logger.error(`Error while getting water levels: ${error}`);
+      throw new RpcException('Failed to fetch water levels');
+    }
+  }
+
+  async getRainfallLevels(payload: GetSouceDataDto) {
+    this.logger.log('Fetching rainfall data');
+    try {
+      return await this.getLevels(payload, SourceType.RAINFALL);
+    } catch (error) {
+      this.logger.error(`Error while getting rainfall data: ${error}`);
+      throw new RpcException('Failed to fetch rainfall data');
     }
   }
 }

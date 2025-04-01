@@ -2,10 +2,30 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { SourcesDataService } from './sources-data.service';
 import { Cron } from '@nestjs/schedule';
 import { SettingsService } from '@rumsan/settings';
-import { getFormattedDate, parseGlofasData } from 'src/common';
+import {
+  buildQueryParams,
+  getFormattedDate,
+  parseGlofasData,
+} from 'src/common';
 import { GlofasStationInfo } from './dto';
 import { DhmService } from './dhm.service';
 import { GlofasService } from './glofas.service';
+import { HttpService } from '@nestjs/axios';
+import {
+  hydrologyObservationUrl,
+  rainfallStationUrl,
+  riverStationUrl,
+} from 'src/constant/datasourceUrls';
+import * as https from 'https';
+import {
+  RiverStationItem,
+  RiverWaterHistoryItem,
+  RiverStationData,
+  RainfallStationItem,
+  RainfallStationData,
+} from 'src/types/data-source';
+import { DataSource, SourceType } from '@prisma/client';
+import { DataSourceValue } from 'src/types/settings';
 
 // const DATASOURCE = {
 //   DHM: {
@@ -20,6 +40,9 @@ import { GlofasService } from './glofas.service';
 //     LOCATION: 'Karnali at Chisapani',
 //   },
 // };
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
 @Injectable()
 export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ScheduleSourcesDataService.name);
@@ -28,18 +51,23 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     private readonly sourceService: SourcesDataService,
     private readonly dhmService: DhmService,
     private readonly glofasService: GlofasService,
+    private readonly httpService: HttpService,
   ) {}
   onApplicationBootstrap() {
-    this.synchronizeDHM();
-    this.synchronizeGlofas();
+    this.syncRiverWaterData();
+    this.syncRainfallData();
   }
-  @Cron('*/5 * * * *') // every 5 min
+
+  /*
+   * @deprecated
+   * This method is deprecated and will be removed in future versions.
+   */
+  // @Cron('*/5 * * * *') // every 5 min
   async synchronizeDHM() {
     try {
       this.logger.log('DHM: syncing every hour');
 
       const dhmSettings = SettingsService.get('DATASOURCE.DHM');
-      // const dhmSettings = DATASOURCE.DHM;
 
       const riverBasin = dhmSettings['LOCATION'];
       const dhmURL = dhmSettings['URL'];
@@ -60,12 +88,174 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       }
 
       const recentWaterLevel = waterLevelData[0];
-      return this.dhmService.saveWaterLevelsData(riverBasin, recentWaterLevel);
+      // return this.dhmService.saveWaterLevelsData(riverBasin, recentWaterLevel);
     } catch (err) {
       this.logger.error('DHM Err:', err.message);
     }
   }
-  @Cron('0 * * * *')
+
+  @Cron('*/15 * * * *')
+  async syncRiverWaterData() {
+    this.logger.log('Syncing river water data');
+    try {
+      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
+      const dhmSettings = dataSource[DataSource.DHM];
+      dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
+        const riverWatchQueryParam = buildQueryParams(SERIESID);
+        const stationData = await this.fetchRiverStation(SERIESID);
+
+        if (!stationData || !riverWatchQueryParam) {
+          this.logger.warn(
+            `Missing station data or query params for ${LOCATION}`,
+          );
+          return;
+        }
+
+        const {
+          data: { data },
+        } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
+          params: riverWatchQueryParam,
+        })) as { data: { data: RiverWaterHistoryItem[] } };
+
+        if (!data || data.length === 0) {
+          this.logger.warn(`No history data returned for ${LOCATION}`);
+          return;
+        }
+
+        const waterLevelData: RiverStationData = {
+          ...stationData,
+          history: data,
+        };
+
+        try {
+          const res = await this.dhmService.saveDataInDhm(
+            SourceType.WATER_LEVEL,
+            LOCATION,
+            waterLevelData,
+          );
+
+          if (res) {
+            this.logger.log(
+              `Water level data saved successfully for ${LOCATION}`,
+            );
+          } else {
+            this.logger.warn(`Failed to save water level data for ${LOCATION}`);
+          }
+        } catch (dbError) {
+          this.logger.error(
+            `Database error for ${LOCATION}: ${dbError.message}`,
+            dbError,
+          );
+        }
+      });
+    } catch (error) {
+      this.logger.error('Error in syncRiverWaterData:', error);
+    }
+  }
+
+  @Cron('*/15 * * * *')
+  async syncRainfallData() {
+    this.logger.log('Syncing rainfall data');
+    try {
+      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
+      const dhmSettings = dataSource[DataSource.DHM];
+
+      dhmSettings.forEach(async ({ RAINFALL: { LOCATION, SERIESID } }) => {
+        const rainfallQueryParams = buildQueryParams(SERIESID);
+        const stationData = await this.fetchRainfallStation(SERIESID);
+
+        if (!stationData || !rainfallQueryParams) {
+          this.logger.warn(
+            `Missing station data or query params for ${LOCATION}`,
+          );
+          return;
+        }
+
+        const rainfallHistory = await this.httpService.axiosRef.get(
+          hydrologyObservationUrl,
+          {
+            params: rainfallQueryParams,
+          },
+        );
+
+        const rainfallData: RainfallStationData = {
+          ...stationData,
+          history: rainfallHistory.data.data,
+        };
+
+        try {
+          const res = await this.dhmService.saveDataInDhm(
+            SourceType.RAINFALL,
+            LOCATION,
+            rainfallData,
+          );
+          if (res) {
+            this.logger.log(`Rainfall data saved successfully for ${LOCATION}`);
+          } else {
+            this.logger.warn(
+              `Failed to Rainfall water level data for ${LOCATION}`,
+            );
+          }
+        } catch (dbError) {
+          this.logger.error(
+            `Database error for ${LOCATION}: ${dbError.message}`,
+            dbError,
+          );
+        }
+      });
+    } catch (error) {
+      this.logger.warn('Error fetching rainfall data:', error);
+    }
+  }
+
+  async fetchRainfallStation(
+    seriesId: number,
+  ): Promise<RainfallStationItem | null> {
+    try {
+      const {
+        data: { data },
+      } = (await this.httpService.axiosRef.get(rainfallStationUrl, {
+        httpsAgent: httpsAgent,
+      })) as { data: { data: RainfallStationItem[][] } };
+
+      const targettedData = data[0].find((item) => item.series_id == seriesId);
+
+      if (!targettedData) {
+        this.logger.warn(`No rainfall station found for series ID ${seriesId}`);
+        return null;
+      }
+
+      return targettedData;
+    } catch (error) {
+      this.logger.warn('Error fetching rainfall station:', error);
+      throw error;
+    }
+  }
+
+  async fetchRiverStation(seriesId: number): Promise<RiverStationItem | null> {
+    try {
+      const {
+        data: { data: riverStation },
+      } = (await this.httpService.axiosRef.get(riverStationUrl, {
+        httpsAgent: httpsAgent,
+      })) as { data: { data: RiverStationItem[] } };
+
+      const targettedData = riverStation.find(
+        (item) => item.series_id === seriesId,
+      );
+
+      if (!targettedData) {
+        this.logger.warn(`No river station found for series ID ${seriesId}`);
+        return null;
+      }
+
+      return targettedData;
+    } catch (error) {
+      this.logger.warn('Error fetching river station:', error);
+      throw error;
+    }
+  }
+
   async synchronizeGlofas() {
     try {
       this.logger.log('GLOFAS: syncing once every hour');
@@ -99,6 +289,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       return this.sourceService.create({
         source: 'GLOFAS',
         riverBasin: riverBasin,
+        type: SourceType.RAINFALL,
         info: { ...glofasData, forecastDate: dateString },
       });
     } catch (err) {

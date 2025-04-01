@@ -15,6 +15,11 @@ enum ApplicationEnvironment {
   TEST
 }
 
+enum SourceType {
+  RAINFALL
+  WATER_LEVEL
+}
+
 enum DataSource {
   DHM
   GLOFAS
@@ -60,6 +65,7 @@ model Source {
 model SourcesData {
   id         Int    @id @default(autoincrement())
 
+  type       SourceType   
   sourceId   Int
   source     Source @relation(fields: [sourceId], references: [id])
 
