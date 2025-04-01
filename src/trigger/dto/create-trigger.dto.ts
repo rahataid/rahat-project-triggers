@@ -1,7 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataSource } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 export class CreateTriggerDto {
   @ApiProperty({
@@ -114,4 +121,24 @@ export class CreateTriggerDto {
   @IsOptional()
   @IsEnum(DataSource)
   dataSource?: DataSource;
+
+  @ApiProperty({
+    example: 'Amazon Basin',
+    description: 'The location for the trigger statement',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  riverBasin?: string;
+}
+
+export class BulkCreateTriggerDto {
+  @ApiProperty({
+    type: [CreateTriggerDto],
+    description: 'An array of triggers to be created',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerDto)
+  triggers: CreateTriggerDto[];
 }
