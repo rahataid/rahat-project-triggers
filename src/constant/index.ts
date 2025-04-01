@@ -72,6 +72,10 @@ export const MS_TRIGGERS_JOBS = {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
     GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
   },
+  RAINFALL_LEVELS: {
+    GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
+    GET_GLOFAS: 'ms.jobs.rainfallLevels.getGlofas',
+  },
   ACTIVITIES: {
     GET_ONE: 'ms.jobs.activities.getOne',
     GET_ALL: 'ms.jobs.activities.getAll',

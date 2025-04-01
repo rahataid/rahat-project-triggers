@@ -154,3 +154,12 @@ export const getTriggerAndActivityCompletionTimeDifference = (
 
   return isCompletedEarlier ? `-${result}` : result;
 };
+
+export function buildQueryParams(seriesId: number, from = null, to = null) {
+  const currentDate = new Date().toISOString().split('T')[0];
+  return {
+    series_id: seriesId,
+    date_from: from || currentDate,
+    date_to: to || currentDate,
+  };
+}
