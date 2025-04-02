@@ -1,14 +1,14 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { CreateTriggerDto, GetTriggersDto, UpdateTriggerDto } from './dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
-import { DataSource } from '@prisma/client';
+import { DataSource, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
-import { data } from 'cheerio/dist/commonjs/api/attributes';
+import { v4 as uuidv4 } from 'uuid';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -23,16 +23,21 @@ export class TriggerService {
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
   ) {}
 
-  create(appId: string, dto: CreateTriggerDto) {
+  async create(appId: string, dto: CreateTriggerDto) {
     this.logger.log(`Creating trigger for app: ${appId}`);
     try {
       /*
       We don't need to create a trigger sperately if source is manual, because,
       we are creating a trigger in the phase itself. and phase is linked with datasource
-      if (dto.dataSource === DataSource.MANUAL) {
-        return this.createManualTrigger(appId, dto);
+      */
+
+      if (dto.triggerStatement?.type.toLocaleUpperCase() === 'MANUAL') {
+        this.logger.log(
+          `User requested MANUAL Trigger, So creating manul trigger`,
+        );
+        delete dto.triggerDocuments?.type;
+        return await this.createManualTrigger(appId, dto);
       }
-    */
       const sanitizedPayload = {
         title: dto.title,
         triggerStatement: dto.triggerStatement,
@@ -54,6 +59,14 @@ export class TriggerService {
     try {
       const k = await Promise.all(
         payload.map(async (item) => {
+          if (item.triggerStatement?.type.toLocaleUpperCase() === 'MANUAL') {
+            this.logger.log(
+              `User requested MANUAL Trigger, So creating manul trigger`,
+            );
+            delete item.triggerStatement?.type;
+            return await this.createManualTrigger(payload.appId, item);
+          }
+
           const sanitizedPayload = {
             title: item.title,
             triggerStatement: item.triggerStatement,
@@ -161,22 +174,65 @@ export class TriggerService {
     );
   }
 
-  createManualTrigger(appId: string, dto: CreateTriggerDto) {
+  async createManualTrigger(appId: string, dto: CreateTriggerDto) {
     this.logger.log(`Creating manual trigger for app: ${appId}`);
     try {
-      const uuid = randomUUID();
+      let { phaseId, ...rest } = dto;
+      // find phase
+      const phase = await this.phasesService.getOne(phaseId);
 
-      const repeatKey = randomUUID();
+      if (!phase) {
+        this.logger.error(`Phase with id: ${phaseId} not found.`);
+        throw new RpcException(`Phase with id: ${phaseId} not found.`);
+      }
 
-      // const { activities, ...restData } = payload
+      if (phase.source.source !== DataSource.MANUAL) {
+        // From ui, we only need phase id for name, river Basin.
+        this.logger.log(
+          `Provided phase is not a manual phase. So creating a new one`,
+        );
 
-      const createData = {
-        repeatKey: repeatKey,
-        uuid: uuid,
-        ...dto,
+        let newPhase;
+
+        // Check manual particular phase exist in the river basin
+        const doesManualPhaseExist = await this.phasesService.getPhaseBySource(
+          DataSource.MANUAL,
+          phase.source.riverBasin,
+          phase.name,
+        );
+
+        if (doesManualPhaseExist) {
+          this.logger.log(`Manual phase already exists`);
+          newPhase = doesManualPhaseExist;
+        } else {
+          // Create new manual phase for the river basin
+          newPhase = await this.phasesService.create({
+            river_basin: phase.source.riverBasin,
+            source: 'MANUAL',
+            name: phase.name,
+            activeYear: phase.activeYear.toISOString(),
+          });
+          this.logger.log(`Creating a new manual phase`);
+        }
+
+        phaseId = newPhase.uuid;
+      }
+
+      // const uuid = randomUUID();
+
+      const payload = {
+        ...rest,
+        phase: {
+          connect: {
+            uuid: phaseId,
+          },
+        },
+        isDeleted: false,
+        repeatKey: randomUUID(),
       };
-      return this.prisma.trigger.create({
-        data: createData,
+
+      return await this.prisma.trigger.create({
+        data: payload,
       });
     } catch (error) {
       this.logger.error(error);
@@ -343,7 +399,8 @@ export class TriggerService {
 
       const trigger = await this.prisma.trigger.findUnique({
         where: {
-          repeatKey: payload?.repeatKey,
+          ...(payload?.repeatKey && { repeatKey: payload?.repeatKey }),
+          ...(uuid && { uuid: uuid }),
         },
         include: {
           phase: {

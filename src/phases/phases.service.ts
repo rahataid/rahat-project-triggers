@@ -18,6 +18,7 @@ import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { GetPhaseDto } from './dto';
+import { Prisma } from '@prisma/client';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -88,8 +89,8 @@ export class PhasesService {
     }
   }
 
-  findAll(payload: GetPhaseDto) {
-    const { activeYear, name, river_basin, source,  ...dto } = payload;
+  async findAll(payload: GetPhaseDto) {
+    const { activeYear, name, river_basin, source, ...dto } = payload;
 
     // Created a conditions array to filter the data based on the query params
     const conditions = {
@@ -220,6 +221,37 @@ export class PhasesService {
       return { ...phase, triggerRequirements };
     } catch (error) {
       this.logger.error('Error while fetching phase', error);
+      throw new RpcException(error);
+    }
+  }
+
+  async getPhaseBySource(
+    source: DataSource,
+    riverBasin: string,
+    phase: string,
+    activeYear?: string,
+  ) {
+    try {
+      this.logger.log(
+        `Fetching phase by source ${source} riverBasin: ${riverBasin}`,
+      );
+      return await this.prisma.phase.findFirst({
+        where: {
+          source: {
+            source: source,
+            riverBasin: riverBasin,
+          },
+          ...(activeYear && { activeYear: activeYear }),
+        },
+        include: {
+          source: true,
+        },
+        orderBy: {
+          activeYear: 'desc',
+        },
+      });
+    } catch (error) {
+      this.logger.error('Error while fetching phase by source', error);
       throw new RpcException(error);
     }
   }
