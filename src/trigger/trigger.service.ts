@@ -147,10 +147,11 @@ export class TriggerService {
     }
   }
 
-  async getOne(repeatKey: string) {
+  async getOne(payload: any) {
+    const { repeatKey } = payload;
     this.logger.log(`Getting trigger with repeatKey: ${repeatKey}`);
     try {
-      return this.prisma.trigger.findUnique({
+      return await this.prisma.trigger.findUnique({
         where: {
           repeatKey: repeatKey,
         },
@@ -163,7 +164,7 @@ export class TriggerService {
         },
       });
     } catch (error) {
-      this.logger.error(error);
+      this.logger.error(error.message);
       throw new RpcException(error.message);
     }
   }
@@ -217,8 +218,6 @@ export class TriggerService {
 
         phaseId = newPhase.uuid;
       }
-
-      // const uuid = randomUUID();
 
       const payload = {
         ...rest,

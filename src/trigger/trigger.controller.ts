@@ -32,8 +32,8 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_ONE,
   })
-  getOne(repeatKey: string) {
-    return this.triggerService.getOne(repeatKey);
+  getOne(payload: any) {
+    return this.triggerService.getOne(payload);
   }
 
   @MessagePattern({
