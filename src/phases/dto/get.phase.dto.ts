@@ -36,3 +36,24 @@ export class GetPhaseDto extends PartialType(PaginationDto) {
   @IsOptional()
   name?: Phases;
 }
+
+export class GetPhaseByName {
+  @ApiProperty({
+    example: Phases.PREPAREDNESS,
+  })
+  @IsEnum(Phases)
+  @IsNotEmpty()
+  phase?: Phases;
+
+  @ApiProperty({
+    example: 'Karnali',
+  })
+  @IsString()
+  uuid?: string;
+
+  @ApiProperty({
+    example: 'sfs-sfs-sfs-sfs-sfs',
+  })
+  @IsString()
+  appId?: string;
+}

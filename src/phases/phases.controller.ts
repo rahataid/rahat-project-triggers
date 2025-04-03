@@ -1,10 +1,12 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { PhasesService } from './phases.service';
+import { GetPhaseByName } from './dto';
 
 @Controller('phases')
 export class PhasesController {
+  logger = new Logger(PhasesController.name);
   constructor(private readonly phasesService: PhasesService) {}
 
   @MessagePattern({
@@ -24,9 +26,9 @@ export class PhasesController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ONE,
   })
-  async getOne(payload: any) {
-    const { uuid } = payload;
-    return this.phasesService.getOne(uuid);
+  async getOne(payload: GetPhaseByName) {
+    this.logger.log(`Getting phase with: ${JSON.stringify(payload)}`);
+    return this.phasesService.getOneByDetail(payload);
   }
 
   @MessagePattern({

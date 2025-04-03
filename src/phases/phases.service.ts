@@ -17,7 +17,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import { GetPhaseDto } from './dto';
+import { GetPhaseByName, GetPhaseDto } from './dto';
 import { Prisma } from '@prisma/client';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
@@ -168,6 +168,7 @@ export class PhasesService {
   }
 
   async getOne(uuid: string) {
+    this.logger.log(`Fetching phase with uuid: ${uuid}`);
     try {
       const phase = await this.prisma.phase.findUnique({
         where: {
@@ -223,6 +224,138 @@ export class PhasesService {
       this.logger.error('Error while fetching phase', error);
       throw new RpcException(error);
     }
+  }
+
+  async getOneByDetail(payload: GetPhaseByName) {
+    const { appId, phase, uuid } = payload;
+    let phaseDetails = null;
+
+    if (!uuid) {
+      phaseDetails = await this.prisma.phase.findFirst({
+        where: {
+          name: phase,
+          Activity: {
+            some: {
+              app: appId,
+            },
+          },
+        },
+        include: {
+          source: true,
+        },
+      });
+    } else {
+      phaseDetails = await this.prisma.phase.findUnique({
+        where: {
+          uuid,
+        },
+        include: {
+          source: true,
+        },
+      });
+    }
+
+    if (!phaseDetails) {
+      this.logger.warn(`Phase with uuid ${uuid} not found`);
+      throw new RpcException(`Phase with uuid ${uuid} not found`);
+    }
+
+    const riverBasin = phaseDetails.source.riverBasin;
+    const currentPhase = phaseDetails.name;
+
+    // grab all the phases for the river basin
+    // grab all the triggers for the river basin
+    // then calculate the total mandatory triggers
+    // in mandary, caculate how many triggers are triggered
+    // then calculate the total optional triggers
+    // in optional, caculate how many triggers are triggered
+    // then return the result
+
+    const triggers = await this.prisma.trigger.findMany({
+      where: {
+        phase: {
+          name: currentPhase,
+          source: {
+            riverBasin: riverBasin,
+          },
+        },
+        isDeleted: false,
+      },
+    });
+    const totalTriggers = await this.prisma.trigger.count({
+      where: {
+        phase: {
+          name: currentPhase,
+          source: {
+            riverBasin: riverBasin,
+          },
+        },
+        isDeleted: false,
+      },
+    });
+
+    const totalMandatoryTriggers = await this.prisma.trigger.count({
+      where: {
+        phase: {
+          name: currentPhase,
+          source: {
+            riverBasin: riverBasin,
+          },
+        },
+        isMandatory: true,
+        isDeleted: false,
+      },
+    });
+
+    const totalMandatoryTriggersTriggered = await this.prisma.trigger.count({
+      where: {
+        phase: {
+          name: currentPhase,
+          source: {
+            riverBasin: riverBasin,
+          },
+        },
+        isMandatory: true,
+        isTriggered: true,
+        isDeleted: false,
+      },
+    });
+
+    const totalOptionalTriggers = await this.prisma.trigger.count({
+      where: {
+        phase: {
+          name: currentPhase,
+          source: {
+            riverBasin: riverBasin,
+          },
+        },
+        isMandatory: true,
+        isDeleted: false,
+      },
+    });
+
+    const totalOptionalTriggersTriggered = await this.prisma.trigger.count({
+      where: {
+        phase: {
+          name: currentPhase,
+          source: {
+            riverBasin: riverBasin,
+          },
+        },
+        isMandatory: true,
+        isTriggered: true,
+        isDeleted: false,
+      },
+    });
+    return {
+      ...phaseDetails,
+      triggers,
+      totalTriggers,
+      totalMandatoryTriggers,
+      totalMandatoryTriggersTriggered,
+      totalOptionalTriggers,
+      totalOptionalTriggersTriggered,
+    };
   }
 
   async getPhaseBySource(
