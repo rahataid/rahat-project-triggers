@@ -1,14 +1,13 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { CreateTriggerDto, GetTriggersDto, UpdateTriggerDto } from './dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
-import { DataSource, Prisma } from '@prisma/client';
+import { DataSource } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
-import { v4 as uuidv4 } from 'uuid';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -431,7 +430,7 @@ export class TriggerService {
 
       const updatedTrigger = await this.prisma.trigger.update({
         where: {
-          uuid,
+          uuid: trigger.uuid,
         },
         data: {
           isTriggered: true,
