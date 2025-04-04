@@ -6,7 +6,7 @@ export interface ActivityCommunicationData {
   audioURL?: { mediaURL: string; fileName: string };
 }
 
-export declare enum SessionStatus {
+export enum SessionStatus {
   NEW = 'NEW',
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',

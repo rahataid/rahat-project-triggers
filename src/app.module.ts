@@ -18,6 +18,7 @@ import { ListenersModule } from './listeners/listeners.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MS_TRIGGER_CLIENTS } from './constant';
 import { SettingsModule } from '@rumsan/settings';
+import { CommsModule } from './comms/comms.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SettingsModule } from '@rumsan/settings';
     DailyMonitoringModule,
     ScheduleModule.forRoot(),
     ListenersModule,
+    CommsModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
