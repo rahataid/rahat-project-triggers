@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEnum,
@@ -45,4 +46,18 @@ export class GetActivityDto {
   @IsOptional()
   @IsEnum(['NOT_STARTED', 'WORK_IN_PROGRESS', 'COMPLETED', 'DELAYED'])
   status?: 'NOT_STARTED' | 'WORK_IN_PROGRESS' | 'COMPLETED' | 'DELAYED';
+
+  @ApiProperty({
+    example: 'karnali',
+  })
+  @IsString()
+  @IsOptional()
+  riverBasin?: string;
+
+  @ApiProperty({
+    example: '2025',
+  })
+  @IsString()
+  @IsOptional()
+  activeYear?: string;
 }

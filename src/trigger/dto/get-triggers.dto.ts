@@ -36,4 +36,12 @@ export class GetTriggersDto extends PartialType(PaginationDto) {
   @IsString()
   @IsOptional()
   riverBasin: string;
+
+  @ApiProperty({
+    example: '2024',
+    description: 'The year of the project',
+  })
+  @IsString()
+  @IsOptional()
+  activeYear: string;
 }

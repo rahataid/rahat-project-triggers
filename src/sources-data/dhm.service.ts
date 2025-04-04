@@ -47,7 +47,6 @@ export class DhmService implements AbstractSource {
       where: {
         source: {
           riverBasin,
-          source: dataSource,
         },
       },
       orderBy: {
@@ -209,7 +208,6 @@ export class DhmService implements AbstractSource {
             type,
             source: {
               riverBasin,
-              source: DataSource.DHM,
             },
           },
         });
@@ -230,13 +228,10 @@ export class DhmService implements AbstractSource {
               source: {
                 connectOrCreate: {
                   where: {
-                    source_riverBasin: {
-                      source: DataSource.DHM,
-                      riverBasin,
-                    },
+                    riverBasin,
                   },
                   create: {
-                    source: DataSource.DHM,
+                    source: [DataSource.DHM],
                     riverBasin,
                   },
                 },

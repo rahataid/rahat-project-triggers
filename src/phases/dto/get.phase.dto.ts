@@ -52,6 +52,20 @@ export class GetPhaseByName {
   uuid?: string;
 
   @ApiProperty({
+    example: 'karnali',
+  })
+  @IsString()
+  @IsOptional()
+  riverBasin?: string;
+
+  @ApiProperty({
+    example: '2025',
+  })
+  @IsString()
+  @IsOptional()
+  activeYear?: string;
+
+  @ApiProperty({
     example: 'sfs-sfs-sfs-sfs-sfs',
   })
   @IsString()

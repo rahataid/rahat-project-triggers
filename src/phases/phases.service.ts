@@ -18,7 +18,6 @@ import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { GetPhaseByName, GetPhaseDto } from './dto';
-import { Prisma } from '@prisma/client';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -55,6 +54,11 @@ export class PhasesService {
       `Creating new phase with ${name} source: ${source} river_basin: ${river_basin}`,
     );
 
+    if (!activeYear) {
+      this.logger.error('Missing active year in payload');
+      throw new BadRequestException('Active year is required');
+    }
+
     try {
       return await this.prisma.phase.create({
         data: {
@@ -63,14 +67,11 @@ export class PhasesService {
             connectOrCreate: {
               // <---- This will work like upsert, if the source is not found it will create a new one
               create: {
-                source: source,
+                source: [source],
                 riverBasin: river_basin,
               },
               where: {
-                source_riverBasin: {
-                  source: source,
-                  riverBasin: river_basin,
-                },
+                riverBasin: river_basin,
               },
             },
           },
@@ -95,9 +96,8 @@ export class PhasesService {
     // Created a conditions array to filter the data based on the query params
     const conditions = {
       ...(name && { name: name }),
-      ...((source || river_basin) && {
+      ...(river_basin && {
         source: {
-          ...(source && { source: source }),
           ...(river_basin && {
             riverBasin: {
               contains: river_basin,
@@ -111,7 +111,7 @@ export class PhasesService {
       }),
     };
 
-    return paginate(
+    const paginatedData = await paginate(
       this.prisma.phase,
       {
         where: {
@@ -129,6 +129,78 @@ export class PhasesService {
         perPage: dto.perPage,
       },
     );
+
+    const newData = await Promise.all(
+      paginatedData?.data.map(async (phase: any) => {
+        const phaseStats = await this.generatePhaseTriggersStats(phase.uuid);
+        return {
+          ...phase,
+          phaseStats,
+        };
+      }),
+    );
+
+    return {
+      ...paginatedData,
+      data: newData,
+    };
+  }
+
+  async generatePhaseTriggersStats(phaseId: string) {
+    try {
+      const totalMandatoryTriggers = await this.prisma.trigger.count({
+        where: {
+          phaseId: phaseId,
+          isMandatory: true,
+          isDeleted: false,
+        },
+      });
+
+      const totalMandatoryTriggersTriggered = await this.prisma.trigger.count({
+        where: {
+          phaseId: phaseId,
+          isMandatory: true,
+          isTriggered: true,
+          isDeleted: false,
+        },
+      });
+
+      const totalOptionalTriggers = await this.prisma.trigger.count({
+        where: {
+          phaseId: phaseId,
+          isMandatory: false,
+          isDeleted: false,
+        },
+      });
+
+      const totalOptionalTriggersTriggered = await this.prisma.trigger.count({
+        where: {
+          phaseId: phaseId,
+          isMandatory: false,
+          isTriggered: true,
+          isDeleted: false,
+        },
+      });
+
+      const triggers = await this.prisma.trigger.findMany({
+        where: {
+          phaseId: phaseId,
+          isDeleted: false,
+        },
+      });
+
+      return {
+        triggers,
+        totalTriggers: triggers.length,
+        totalMandatoryTriggers,
+        totalMandatoryTriggersTriggered,
+        totalOptionalTriggers,
+        totalOptionalTriggersTriggered,
+      };
+    } catch (error) {
+      this.logger.warn('Error while generating phase triggers stats', error);
+      throw new RpcException(error);
+    }
   }
 
   async findOne(uuid: string) {
@@ -227,13 +299,20 @@ export class PhasesService {
   }
 
   async getOneByDetail(payload: GetPhaseByName) {
-    const { appId, phase, uuid } = payload;
+    const { appId, phase, uuid, activeYear, riverBasin } = payload;
     let phaseDetails = null;
 
     if (!uuid) {
+      if (!activeYear || !riverBasin) {
+        this.logger.warn('Active year and river basin are required');
+        throw new RpcException('Active year and river basin are required');
+      }
+
       phaseDetails = await this.prisma.phase.findFirst({
         where: {
           name: phase,
+          riverBasin,
+          activeYear,
           Activity: {
             some: {
               app: appId,
@@ -260,48 +339,16 @@ export class PhasesService {
       throw new RpcException(`Phase with uuid ${uuid} not found`);
     }
 
-    const riverBasin = phaseDetails.source.riverBasin;
-    const currentPhase = phaseDetails.name;
-
-    // grab all the phases for the river basin
-    // grab all the triggers for the river basin
-    // then calculate the total mandatory triggers
-    // in mandary, caculate how many triggers are triggered
-    // then calculate the total optional triggers
-    // in optional, caculate how many triggers are triggered
-    // then return the result
-
     const triggers = await this.prisma.trigger.findMany({
       where: {
-        phase: {
-          name: currentPhase,
-          source: {
-            riverBasin: riverBasin,
-          },
-        },
-        isDeleted: false,
-      },
-    });
-    const totalTriggers = await this.prisma.trigger.count({
-      where: {
-        phase: {
-          name: currentPhase,
-          source: {
-            riverBasin: riverBasin,
-          },
-        },
+        phaseId: phaseDetails.uuid,
         isDeleted: false,
       },
     });
 
     const totalMandatoryTriggers = await this.prisma.trigger.count({
       where: {
-        phase: {
-          name: currentPhase,
-          source: {
-            riverBasin: riverBasin,
-          },
-        },
+        phaseId: phaseDetails.uuid,
         isMandatory: true,
         isDeleted: false,
       },
@@ -309,12 +356,7 @@ export class PhasesService {
 
     const totalMandatoryTriggersTriggered = await this.prisma.trigger.count({
       where: {
-        phase: {
-          name: currentPhase,
-          source: {
-            riverBasin: riverBasin,
-          },
-        },
+        phaseId: phaseDetails.uuid,
         isMandatory: true,
         isTriggered: true,
         isDeleted: false,
@@ -323,34 +365,24 @@ export class PhasesService {
 
     const totalOptionalTriggers = await this.prisma.trigger.count({
       where: {
-        phase: {
-          name: currentPhase,
-          source: {
-            riverBasin: riverBasin,
-          },
-        },
-        isMandatory: true,
+        isMandatory: false,
         isDeleted: false,
       },
     });
 
     const totalOptionalTriggersTriggered = await this.prisma.trigger.count({
       where: {
-        phase: {
-          name: currentPhase,
-          source: {
-            riverBasin: riverBasin,
-          },
-        },
-        isMandatory: true,
+        phaseId: phaseDetails.uuid,
+        isMandatory: false,
         isTriggered: true,
         isDeleted: false,
       },
     });
+
     return {
       ...phaseDetails,
       triggers,
-      totalTriggers,
+      totalTriggers: triggers.length,
       totalMandatoryTriggers,
       totalMandatoryTriggersTriggered,
       totalOptionalTriggers,
@@ -371,7 +403,6 @@ export class PhasesService {
       return await this.prisma.phase.findFirst({
         where: {
           source: {
-            source: source,
             riverBasin: riverBasin,
           },
           ...(activeYear && { activeYear: activeYear }),
@@ -593,11 +624,12 @@ export class PhasesService {
 
     for (const trigger of phase.Trigger) {
       const { repeatKey } = trigger;
-      if (phase.source.source === DataSource.MANUAL) {
+      if (trigger.source === DataSource.MANUAL) {
         await this.triggerService.create(appId, {
           title: trigger.title,
           isMandatory: trigger.isMandatory,
           phaseId: trigger.phaseId,
+          dataSource: trigger.source,
         });
       } else {
         await this.triggerService.create(appId, {
@@ -607,6 +639,7 @@ export class PhasesService {
           ),
           isMandatory: trigger.isMandatory,
           phaseId: trigger.phaseId,
+          dataSource: trigger.source,
         });
       }
 

@@ -47,19 +47,18 @@ enum SettingDataType {
 }
 
 model Source {
-  id   Int    @id @default(autoincrement())
-  uuid String @unique @default(uuid())
-  source DataSource
-  riverBasin String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt()
+  id         Int      @id @default(autoincrement())
+  uuid       String   @unique @default(uuid())
+  source     DataSource[]
+  riverBasin String   @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime? @updatedAt()
   
   SourcesData SourcesData[]
   DailyMonitoring DailyMonitoring[]
   Phase Phase[]
 
   @@map("tbl_sources")
-  @@unique([source, riverBasin])
 }
 
 model SourcesData {
@@ -100,7 +99,7 @@ model Phase {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
   name                      Phases  
-  activeYear                DateTime
+  activeYear                String
 
   requiredMandatoryTriggers Int?    @default(0)
   requiredOptionalTriggers  Int?    @default(0)
@@ -111,17 +110,17 @@ model Phase {
   canRevert        Boolean @default(false)
   canTriggerPayout Boolean @default(false)
   isActive         Boolean @default(false)
-  sourceId         String
+  riverBasin       String
 
   activatedAt DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime?  @updatedAt()
 
-  source      Source     @relation(fields: [sourceId], references: [uuid])
+  source      Source     @relation(fields: [riverBasin], references: [riverBasin])
   Trigger     Trigger[]
   Activity    Activity[]
 
-  @@unique([sourceId, activeYear, name])
+  @@unique([riverBasin, activeYear, name])
   @@map("tbl_phases")
 }
 
@@ -139,6 +138,7 @@ model Trigger {
 
   phase   Phase?  @relation(fields: [phaseId], references: [uuid])
   phaseId String?
+  source  DataSource?
 
   isMandatory Boolean @default(false)
   isTriggered Boolean @default(false)

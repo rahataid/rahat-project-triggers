@@ -25,14 +25,18 @@ export class DailyMonitoringService {
           source: {
             connectOrCreate: {
               where: {
-                source_riverBasin: {
-                  source: source,
-                  riverBasin: riverBasin,
+                riverBasin: riverBasin,
+                source: {
+                  hasSome: [source],
                 },
+                // source_riverBasin: {
+                //   // source: source,
+                //   riverBasin: riverBasin,
+                // },
               },
               create: {
-                source: source,
                 riverBasin: riverBasin,
+                source: [source],
               },
             },
           },
@@ -130,7 +134,7 @@ export class DailyMonitoringService {
   }
 
   async update(payload: UpdateDailyMonitoringDto) {
-    const { uuid, dataEntryBy, riverBasin, source, info } = payload;
+    const { uuid, dataEntryBy, riverBasin, info } = payload;
     const existing = await this.prisma.dailyMonitoring.findUnique({
       where: {
         uuid: uuid,
@@ -151,28 +155,22 @@ export class DailyMonitoringService {
       data: {
         dataEntryBy: dataEntryBy || existingData.dataEntryBy,
         // Will update location if riverBasin and source is provided else will keep the existing location
-        ...(riverBasin &&
-          source && {
-            source: {
-              connectOrCreate: {
-                where: {
-                  source_riverBasin: {
-                    source: source,
-                    riverBasin: riverBasin,
-                  },
-                },
-                create: {
-                  source: source,
-                  riverBasin: riverBasin,
-                },
+        ...(riverBasin && {
+          source: {
+            connectOrCreate: {
+              where: {
+                riverBasin: riverBasin,
+              },
+              create: {
+                riverBasin: riverBasin,
               },
             },
-          }),
+          },
+        }),
         info: JSON.parse(JSON.stringify(info)) || existingData,
         updatedAt: new Date(),
       },
     });
-
     return updatedMonitoringData;
   }
 
