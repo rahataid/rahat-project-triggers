@@ -42,12 +42,21 @@ export class TriggerController {
   getByLocation(payload): Promise<any> {
     return this.triggerService.findByLocation(payload);
   }
+
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ACTIVATE,
   })
   activateTrigger(payload) {
     const { uuid, ...dto } = payload;
     return this.triggerService.activateTrigger(uuid, dto);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE,
+  })
+  updateTrigger(payload) {
+    const { uuid, ...dto } = payload;
+    return this.triggerService.update(uuid, dto);
   }
 
   @MessagePattern({

@@ -52,6 +52,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.triggers.getOne',
     ADD: 'ms.jobs.triggers.add',
     REMOVE: 'ms.jobs.triggers.remove',
+    UPDATE: 'ms.jobs.triggers.update',
     ACTIVATE: 'ms.jobs.triggers.activate',
     GET_BY_LOCATION: 'ms.jobs.triggers.getByLocation',
   },

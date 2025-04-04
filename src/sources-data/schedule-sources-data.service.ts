@@ -101,33 +101,33 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
       dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
-        const riverWatchQueryParam = buildQueryParams(SERIESID);
-        const stationData = await this.fetchRiverStation(SERIESID);
-
-        if (!stationData || !riverWatchQueryParam) {
-          this.logger.warn(
-            `Missing station data or query params for ${LOCATION}`,
-          );
-          return;
-        }
-
-        const {
-          data: { data },
-        } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
-          params: riverWatchQueryParam,
-        })) as { data: { data: RiverWaterHistoryItem[] } };
-
-        if (!data || data.length === 0) {
-          this.logger.warn(`No history data returned for ${LOCATION}`);
-          return;
-        }
-
-        const waterLevelData: RiverStationData = {
-          ...stationData,
-          history: data,
-        };
-
         try {
+          const riverWatchQueryParam = buildQueryParams(SERIESID);
+          const stationData = await this.fetchRiverStation(SERIESID);
+
+          if (!stationData || !riverWatchQueryParam) {
+            this.logger.warn(
+              `Missing station data or query params for ${LOCATION}`,
+            );
+            return;
+          }
+
+          const {
+            data: { data },
+          } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
+            params: riverWatchQueryParam,
+          })) as { data: { data: RiverWaterHistoryItem[] } };
+
+          if (!data || data.length === 0) {
+            this.logger.warn(`No history data returned for ${LOCATION}`);
+            return;
+          }
+
+          const waterLevelData: RiverStationData = {
+            ...stationData,
+            history: data,
+          };
+
           const res = await this.dhmService.saveDataInDhm(
             SourceType.WATER_LEVEL,
             LOCATION,
@@ -149,7 +149,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         }
       });
     } catch (error) {
-      this.logger.error('Error in syncRiverWaterData:', error);
+      this.logger.error('Error in syncRiverWaterData:', error.message);
     }
   }
 
@@ -161,29 +161,29 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dhmSettings = dataSource[DataSource.DHM];
 
       dhmSettings.forEach(async ({ RAINFALL: { LOCATION, SERIESID } }) => {
-        const rainfallQueryParams = buildQueryParams(SERIESID);
-        const stationData = await this.fetchRainfallStation(SERIESID);
-
-        if (!stationData || !rainfallQueryParams) {
-          this.logger.warn(
-            `Missing station data or query params for ${LOCATION}`,
-          );
-          return;
-        }
-
-        const rainfallHistory = await this.httpService.axiosRef.get(
-          hydrologyObservationUrl,
-          {
-            params: rainfallQueryParams,
-          },
-        );
-
-        const rainfallData: RainfallStationData = {
-          ...stationData,
-          history: rainfallHistory.data.data,
-        };
-
         try {
+          const rainfallQueryParams = buildQueryParams(SERIESID);
+          const stationData = await this.fetchRainfallStation(SERIESID);
+
+          if (!stationData || !rainfallQueryParams) {
+            this.logger.warn(
+              `Missing station data or query params for ${LOCATION}`,
+            );
+            return;
+          }
+
+          const rainfallHistory = await this.httpService.axiosRef.get(
+            hydrologyObservationUrl,
+            {
+              params: rainfallQueryParams,
+            },
+          );
+
+          const rainfallData: RainfallStationData = {
+            ...stationData,
+            history: rainfallHistory.data.data,
+          };
+
           const res = await this.dhmService.saveDataInDhm(
             SourceType.RAINFALL,
             LOCATION,
@@ -204,7 +204,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         }
       });
     } catch (error) {
-      this.logger.warn('Error fetching rainfall data:', error);
+      this.logger.warn('Error fetching rainfall data:', error.message);
     }
   }
 

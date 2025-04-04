@@ -28,14 +28,11 @@ export class SourcesDataService {
           source: {
             connectOrCreate: {
               where: {
-                source_riverBasin: {
-                  source: source,
-                  riverBasin,
-                },
+                riverBasin: riverBasin,
               },
               create: {
-                source: source,
                 riverBasin,
+                source: [source],
               },
             },
           },
@@ -103,10 +100,7 @@ export class SourcesDataService {
           info: info,
           source: {
             connect: {
-              source_riverBasin: {
-                source: source,
-                riverBasin: riverBasin,
-              },
+              riverBasin: riverBasin,
             },
           },
         },
@@ -138,18 +132,12 @@ export class SourcesDataService {
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
     const { page, perPage, appId } = payload;
 
-    if (!payload.source && !payload.riverBasin) {
-      const source = await this.getSourceFromAppId(appId);
-      payload.source = source?.source;
-      payload.riverBasin = source?.riverBasin;
-    }
     return paginate(
       this.prisma.sourcesData,
       {
         where: {
           type,
           source: {
-            source: payload.source,
             riverBasin: payload.riverBasin,
           },
         },

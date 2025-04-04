@@ -7,7 +7,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
-import { RpcException } from '@nestjs/microservices';
+import { Payload, RpcException } from '@nestjs/microservices';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -84,28 +84,60 @@ export class TriggerService {
       console.log(error);
     }
   }
+
+  async update(uuid: string, payload: UpdateTriggerDto) {
+    this.logger.log(`Updating trigger with uuid: ${uuid}`);
+
+    try {
+      const trigger = await this.prisma.trigger.findUnique({
+        where: {
+          uuid: uuid,
+        },
+      });
+
+      if (!trigger) {
+        this.logger.warn('Trigger not found.');
+        throw new RpcException('Trigger not found.');
+      }
+
+      if (trigger.isTriggered) {
+        this.logger.warn(
+          'Trigger has already been activated. Connot update, Activated trigger.',
+        );
+        throw new RpcException('Trigger has already been activated.');
+      }
+
+      const fields = {
+        title: payload.title,
+        triggerStatement: payload.triggerStatement || trigger.triggerStatement,
+        notes: payload.notes ?? trigger.notes,
+        isMandatory: payload.isMandatory ?? trigger.isMandatory,
+      };
+
+      const updatedTrigger = await this.prisma.trigger.update({
+        where: {
+          uuid: uuid,
+        },
+        data: {
+          ...fields,
+        },
+      });
+
+      return updatedTrigger;
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException(error.message);
+    }
+  }
+
   async getAll(payload: GetTriggersDto) {
     this.logger.log(`Getting all triggers for app`, payload);
     try {
-      let { appId, riverBasin, source, phaseId, ...dto } = payload;
+      const { riverBasin, activeYear, ...dto } = payload;
 
-      // if we get appid, will search for the source and riverBesin related to that app and featch triggers based on that.
-      if ((!source || !riverBasin) && appId) {
-        const phase = await this.prisma.phase.findFirst({
-          where: {
-            Activity: {
-              some: {
-                app: appId,
-              },
-            },
-          },
-          include: {
-            source: true,
-          },
-        });
-
-        source = phase?.source.source;
-        riverBasin = phase?.source.riverBasin;
+      if (!riverBasin || !activeYear) {
+        this.logger.warn('riverBasin or activeYear not provided');
+        throw new RpcException('riverBasin or activeYear not provided');
       }
 
       return paginate(
@@ -113,16 +145,13 @@ export class TriggerService {
         {
           where: {
             isDeleted: false,
-            ...(phaseId && { phaseId: phaseId }),
-            ...(source &&
-              riverBasin && {
-                phase: {
-                  source: {
-                    source: source,
-                    riverBasin: riverBasin,
-                  },
-                },
-              }),
+            phase: {
+              activeYear,
+              riverBasin: {
+                contains: riverBasin,
+                mode: 'insensitive',
+              },
+            },
           },
           include: {
             phase: {
@@ -177,45 +206,13 @@ export class TriggerService {
   async createManualTrigger(appId: string, dto: CreateTriggerDto) {
     this.logger.log(`Creating manual trigger for app: ${appId}`);
     try {
-      let { phaseId, ...rest } = dto;
-      // find phase
+      const { phaseId, ...rest } = dto;
+      delete rest.dataSource;
       const phase = await this.phasesService.getOne(phaseId);
 
       if (!phase) {
         this.logger.error(`Phase with id: ${phaseId} not found.`);
         throw new RpcException(`Phase with id: ${phaseId} not found.`);
-      }
-
-      if (phase.source.source !== DataSource.MANUAL) {
-        // From ui, we only need phase id for name, river Basin.
-        this.logger.log(
-          `Provided phase is not a manual phase. So creating a new one`,
-        );
-
-        let newPhase;
-
-        // Check manual particular phase exist in the river basin
-        const doesManualPhaseExist = await this.phasesService.getPhaseBySource(
-          DataSource.MANUAL,
-          phase.source.riverBasin,
-          phase.name,
-        );
-
-        if (doesManualPhaseExist) {
-          this.logger.log(`Manual phase already exists`);
-          newPhase = doesManualPhaseExist;
-        } else {
-          // Create new manual phase for the river basin
-          newPhase = await this.phasesService.create({
-            river_basin: phase.source.riverBasin,
-            source: 'MANUAL',
-            name: phase.name,
-            activeYear: phase.activeYear.toISOString(),
-          });
-          this.logger.log(`Creating a new manual phase`);
-        }
-
-        phaseId = newPhase.uuid;
       }
 
       const payload = {
@@ -225,6 +222,7 @@ export class TriggerService {
             uuid: phaseId,
           },
         },
+        source: DataSource.MANUAL,
         isDeleted: false,
         repeatKey: randomUUID(),
       };
@@ -344,7 +342,8 @@ export class TriggerService {
     );
     try {
       const uuid = randomUUID();
-      const { app, ...rest } = payload;
+      const { app, dataSource, ...rest } = payload;
+
       const jobPayload = {
         ...rest,
         uuid,
@@ -369,14 +368,16 @@ export class TriggerService {
       );
       const repeatableKey = repeatable.opts.repeat.key;
       const { phaseId, ...restJob } = jobPayload;
+
       const createData = {
+        ...restJob,
         repeatKey: repeatableKey,
         phase: {
           connect: {
             uuid: phaseId,
           },
         },
-        ...restJob,
+        source: dataSource,
         isDeleted: false,
       };
       await this.prisma.trigger.create({
@@ -419,7 +420,7 @@ export class TriggerService {
         throw new RpcException('Trigger has already been activated.');
       }
 
-      if (trigger.phase.source.source !== DataSource.MANUAL) {
+      if (trigger.source !== DataSource.MANUAL) {
         this.logger.warn('Cannot activate an automated trigger.');
         throw new RpcException('Cannot activate an automated trigger.');
       }
@@ -525,10 +526,6 @@ export class TriggerService {
         {
           where: {
             isDeleted: false,
-            location: {
-              contains: location,
-              mode: 'insensitive',
-            },
             ...(riverBasin && {
               phase: {
                 source: {

@@ -118,9 +118,8 @@ export class CreateTriggerDto {
     description:
       'This should only be passed when need to create a manual trigger',
   })
-  @IsOptional()
   @IsEnum(DataSource)
-  dataSource?: DataSource;
+  dataSource: DataSource;
 
   @ApiProperty({
     example: 'Amazon Basin',

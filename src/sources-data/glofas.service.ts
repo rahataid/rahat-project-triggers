@@ -62,7 +62,6 @@ export class GlofasService implements AbstractSource {
       where: {
         source: {
           riverBasin: riverBasin,
-          source: dataSource,
         },
       },
       orderBy: {
@@ -190,7 +189,6 @@ export class GlofasService implements AbstractSource {
       const recordExists = await this.prisma.sourcesData.findFirst({
         where: {
           source: {
-            source: DataSource.GLOFAS,
             riverBasin: riverBasin,
           },
           info: {
@@ -209,7 +207,6 @@ export class GlofasService implements AbstractSource {
         //   },
         // });
         await this.sourceDataService.create({
-          source: DataSource.GLOFAS,
           riverBasin: riverBasin,
           type: SourceType.WATER_LEVEL,
           info: JSON.parse(JSON.stringify(payload)),
@@ -230,7 +227,6 @@ export class GlofasService implements AbstractSource {
       return await this.prisma.sourcesData.findFirst({
         where: {
           source: {
-            source: DataSource.GLOFAS,
             riverBasin: glofasSettings.LOCATION,
           },
         },
@@ -270,7 +266,6 @@ export class GlofasService implements AbstractSource {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
         source: {
-          source: DataSource.GLOFAS,
           riverBasin: riverBasin,
         },
         info: {

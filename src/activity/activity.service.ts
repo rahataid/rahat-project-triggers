@@ -261,10 +261,13 @@ export class ActivityService {
       isApproved,
       responsibility, // <---- Responsibility is Activity Manager
       status,
+      appId,
     } = payload;
+
     try {
       const query = {
         where: {
+          appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...(category && { categoryId: category }),
