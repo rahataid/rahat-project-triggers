@@ -68,7 +68,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ONE,
   })
-  async getOne(@Payload() payload: { uuid: string }) {
+  async getOne(@Payload() payload: { uuid: string; appId: string }) {
     return await this.activityService.getOne(payload);
   }
 
@@ -95,7 +95,12 @@ export class ActivityController {
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.SESSION_LOGS,
   })
   async communicationLogs(
-    @Payload() payload: { communicationId: string; activityId: string },
+    @Payload()
+    payload: {
+      communicationId: string;
+      activityId: string;
+      appId: string;
+    },
   ) {
     return this.activityService.getSessionLogs(payload);
   }

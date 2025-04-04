@@ -9,6 +9,7 @@ import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
 import { firstValueFrom } from 'rxjs';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import { randomUUID } from 'crypto';
+import { CommsClient } from 'src/comms/comms.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -19,6 +20,8 @@ export class ActivityService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
+    @Inject('COMMS_CLIENT')
+    private commsClient: CommsClient,
   ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
@@ -146,8 +149,8 @@ export class ActivityService {
     }
   }
 
-  async getOne(payload: { uuid: string }) {
-    const { uuid } = payload;
+  async getOne(payload: { uuid: string; appId: string }) {
+    const { uuid, appId } = payload;
     // return this.prisma.activity.findUnique({
     //   where: {
     //     uuid: uuid,
@@ -190,39 +193,23 @@ export class ActivityService {
 
           let sessionStatus = SessionStatus.NEW;
           if (communication.sessionId) {
-            const sessionDetails = await firstValueFrom(
-              this.client.send(
-                {
-                  cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
-                  uuid: process.env.PROJECT_ID,
-                },
-                {
-                  sessionId: communication.sessionId,
-                },
-              ),
+            const sessionDetails = await this.commsClient.session.get(
+              communication.sessionId,
             );
-            sessionStatus = sessionDetails.status;
+            sessionStatus = sessionDetails.data.status;
           }
           // const transport = await this.commsClient.transport.get(
           //   communication.transportId,
           // );
 
-          const transport = await firstValueFrom(
-            this.client.send(
-              {
-                cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_DETAILS,
-                uuid: process.env.PROJECT_ID,
-              },
-              {
-                transportId: communication.transportId,
-              },
-            ),
+          const transport = await this.commsClient.transport.get(
+            communication.transportId,
           );
           const transportName = transport.data.name;
-
           const { group, groupName } = await this.getGroupDetails(
             communication.groupType,
             communication.groupId,
+            appId,
           );
 
           activityCommunication.push({
@@ -592,6 +579,7 @@ export class ActivityService {
   async getSessionLogs(payload: {
     communicationId: string;
     activityId: string;
+    appId: string;
   }) {
     this.logger.log(
       `Getting session logs for communication ${payload.communicationId}`,
@@ -605,13 +593,14 @@ export class ActivityService {
       const { groupName } = await this.getGroupDetails(
         selectedCommunication.groupType,
         selectedCommunication.groupId,
+        payload.appId,
       );
 
       const sessionDetails = await firstValueFrom(
         this.client.send(
           {
             cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
-            uuid: process.env.PROJECT_ID,
+            uuid: payload.appId,
           },
           {
             sessionId: selectedCommunication.sessionId,
@@ -661,11 +650,12 @@ export class ActivityService {
           uuid: activityId,
         },
       });
+
       if (!activity) {
         this.logger.warn('Activity Communication not found');
-
         throw new RpcException('Activity communication not found.');
       }
+
       const { activityCommunication } = activity;
 
       const parsedCommunications = JSON.parse(
@@ -705,6 +695,7 @@ export class ActivityService {
   async getGroupDetails(
     groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
     groupId: string,
+    appId: string,
   ) {
     this.logger.log(`Fetching group details of ${groupType} ${groupId}`);
     try {
@@ -715,7 +706,7 @@ export class ActivityService {
           this.client.send(
             {
               cmd: JOBS.STAKEHOLDERS.GET_ONE_GROUP,
-              uuid: process.env.PROJECT_ID,
+              uuid: appId,
             },
             { uuid: groupId },
           ),
@@ -726,7 +717,7 @@ export class ActivityService {
           this.client.send(
             {
               cmd: JOBS.BENEFICIARY.GET_ONE_GROUP,
-              uuid: process.env.PROJECT_ID,
+              uuid: appId,
             },
             { uuid: groupId },
           ),
