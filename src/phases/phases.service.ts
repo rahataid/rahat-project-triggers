@@ -629,7 +629,7 @@ export class PhasesService {
           title: trigger.title,
           isMandatory: trigger.isMandatory,
           phaseId: trigger.phaseId,
-          dataSource: trigger.source,
+          source: trigger.source,
         });
       } else {
         await this.triggerService.create(appId, {
@@ -639,7 +639,7 @@ export class PhasesService {
           ),
           isMandatory: trigger.isMandatory,
           phaseId: trigger.phaseId,
-          dataSource: trigger.source,
+          source: trigger.source,
         });
       }
 

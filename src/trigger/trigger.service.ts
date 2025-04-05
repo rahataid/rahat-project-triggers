@@ -7,7 +7,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
-import { Payload, RpcException } from '@nestjs/microservices';
+import { RpcException } from '@nestjs/microservices';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -30,7 +30,7 @@ export class TriggerService {
       we are creating a trigger in the phase itself. and phase is linked with datasource
       */
 
-      if (dto.triggerStatement?.type.toLocaleUpperCase() === 'MANUAL') {
+      if (dto.source === 'MANUAL') {
         this.logger.log(
           `User requested MANUAL Trigger, So creating manul trigger`,
         );
@@ -42,7 +42,7 @@ export class TriggerService {
         triggerStatement: dto.triggerStatement,
         phaseId: dto.phaseId,
         isMandatory: dto.isMandatory,
-        dataSource: dto.dataSource,
+        dataSource: dto.source,
         riverBasin: dto.riverBasin,
         repeatEvery: '30000',
       };
@@ -58,11 +58,10 @@ export class TriggerService {
     try {
       const k = await Promise.all(
         payload.map(async (item) => {
-          if (item.triggerStatement?.type.toLocaleUpperCase() === 'MANUAL') {
+          if (item.source === 'MANUAL') {
             this.logger.log(
               `User requested MANUAL Trigger, So creating manul trigger`,
             );
-            delete item.triggerStatement?.type;
             return await this.createManualTrigger(payload.appId, item);
           }
 
@@ -71,7 +70,7 @@ export class TriggerService {
             triggerStatement: item.triggerStatement,
             phaseId: item.phaseId,
             isMandatory: item.isMandatory,
-            dataSource: item.dataSource,
+            source: item.source,
             riverBasin: item.riverBasin,
             repeatEvery: '30000',
           };
@@ -207,7 +206,6 @@ export class TriggerService {
     this.logger.log(`Creating manual trigger for app: ${appId}`);
     try {
       const { phaseId, ...rest } = dto;
-      delete rest.dataSource;
       const phase = await this.phasesService.getOne(phaseId);
 
       if (!phase) {
@@ -342,7 +340,7 @@ export class TriggerService {
     );
     try {
       const uuid = randomUUID();
-      const { app, dataSource, ...rest } = payload;
+      const { app, source, ...rest } = payload;
 
       const jobPayload = {
         ...rest,
@@ -377,7 +375,7 @@ export class TriggerService {
             uuid: phaseId,
           },
         },
-        source: dataSource,
+        source,
         isDeleted: false,
       };
       await this.prisma.trigger.create({
