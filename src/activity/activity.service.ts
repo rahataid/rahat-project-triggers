@@ -368,7 +368,9 @@ export class ActivityService {
       const query = {
         where: {
           isDeleted: false,
-          activityCommunication: null,
+          activityCommunication: {
+            not: null,
+          },
         },
         include: {
           phase: {
@@ -582,7 +584,7 @@ export class ActivityService {
     appId: string;
   }) {
     this.logger.log(
-      `Getting session logs for communication ${payload.communicationId}`,
+      `Getting session logs for communication ${JSON.stringify(payload)}`,
     );
     try {
       const { communicationId, activityId } = payload;
@@ -596,18 +598,16 @@ export class ActivityService {
         payload.appId,
       );
 
-      const sessionDetails = await firstValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_SESSION,
-            uuid: payload.appId,
-          },
-          {
-            sessionId: selectedCommunication.sessionId,
-          },
-        ),
+      const { data } = await this.commsClient.session.get(
+        selectedCommunication.sessionId,
       );
-      const { addresses, ...rest } = sessionDetails;
+
+      if (!data) {
+        this.logger.warn('Session not found');
+        throw new RpcException('Session not found.');
+      }
+
+      const { addresses, ...rest } = data;
 
       return {
         sessionDetails: rest,
@@ -677,6 +677,15 @@ export class ActivityService {
       const selectedCommunication = parsedCommunications.find(
         (c) => c?.communicationId === communicationId,
       );
+
+      if (!selectedCommunication) {
+        this.logger.warn(
+          "Selected Communication doesn't exist in current activity",
+        );
+        throw new RpcException(
+          "Selected Communication doesn't exist in current activity",
+        );
+      }
 
       if (!Object.keys(selectedCommunication).length) {
         throw new RpcException('Selected communication not found.');
