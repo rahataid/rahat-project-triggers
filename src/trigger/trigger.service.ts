@@ -108,7 +108,7 @@ export class TriggerService {
       }
 
       const fields = {
-        title: payload.title,
+        title: payload.title || trigger.title,
         triggerStatement: payload.triggerStatement || trigger.triggerStatement,
         notes: payload.notes ?? trigger.notes,
         isMandatory: payload.isMandatory ?? trigger.isMandatory,
