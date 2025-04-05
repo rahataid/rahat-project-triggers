@@ -254,7 +254,7 @@ export class ActivityService {
     try {
       const query = {
         where: {
-          appId,
+          app: appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...(category && { categoryId: category }),
