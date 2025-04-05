@@ -91,16 +91,16 @@ export class PhasesService {
   }
 
   async findAll(payload: GetPhaseDto) {
-    const { activeYear, name, river_basin, source, ...dto } = payload;
+    const { activeYear, name, riverBasin, source, ...dto } = payload;
 
     // Created a conditions array to filter the data based on the query params
     const conditions = {
       ...(name && { name: name }),
-      ...(river_basin && {
+      ...(riverBasin && {
         source: {
-          ...(river_basin && {
+          ...(riverBasin && {
             riverBasin: {
-              contains: river_basin,
+              contains: riverBasin,
               mode: 'insensitive',
             },
           }),

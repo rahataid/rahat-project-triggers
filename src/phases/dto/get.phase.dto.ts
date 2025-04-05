@@ -18,7 +18,7 @@ export class GetPhaseDto extends PartialType(PaginationDto) {
   })
   @IsString()
   @IsOptional()
-  river_basin?: string;
+  riverBasin?: string;
 
   @ApiProperty({
     type: DataSource.DHM,
