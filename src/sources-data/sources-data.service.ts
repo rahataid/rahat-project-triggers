@@ -5,12 +5,32 @@ import { PaginationDto } from 'src/common/dto';
 // import { DateTime } from 'luxon';
 import { HttpService } from '@nestjs/axios';
 import { RpcException } from '@nestjs/microservices';
-import { GetSouceDataDto } from './dto/get-source-data';
-import { SourceType } from '@prisma/client';
+import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
+import { DataSource, SourceType } from '@prisma/client';
+import {
+  RainfallStationData,
+  RainfallStationItem,
+  RiverStationData,
+  RiverStationItem,
+  RiverWaterHistoryItem,
+} from 'src/types/data-source';
+import {
+  hydrologyObservationUrl,
+  rainfallStationUrl,
+  riverStationUrl,
+} from 'src/constant/datasourceUrls';
+import * as https from 'https';
+import { buildQueryParams } from 'src/common';
+import { from } from 'rxjs';
+import { SettingsService } from '@rumsan/settings';
+import { DataSourceValue } from 'src/types/settings';
+
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
 export class SourcesDataService {
   logger = new Logger(SourcesDataService.name);
+  dhmService: any;
   constructor(
     private prisma: PrismaService,
     private readonly httpService: HttpService,
@@ -129,37 +149,6 @@ export class SourcesDataService {
     return dataSource;
   }
 
-  async getLevels(payload: GetSouceDataDto, type: SourceType) {
-    const { page, perPage, appId } = payload;
-
-    return paginate(
-      this.prisma.sourcesData,
-      {
-        where: {
-          type,
-          source: {
-            riverBasin: payload.riverBasin,
-          },
-        },
-        include: {
-          source: {
-            select: {
-              riverBasin: true,
-              source: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      },
-      {
-        page,
-        perPage,
-      },
-    );
-  }
-
   async getWaterLevels(payload: GetSouceDataDto) {
     this.logger.log('Fetching water levels');
     try {
@@ -177,6 +166,269 @@ export class SourcesDataService {
     } catch (error) {
       this.logger.error(`Error while getting rainfall data: ${error}`);
       throw new RpcException('Failed to fetch rainfall data');
+    }
+  }
+
+  async fetchRainfallLevelData(payload: {
+    seriesId: number;
+    location: string;
+    from: Date;
+    to: Date;
+  }) {
+    const { seriesId, location, from, to } = payload;
+    try {
+      const rainfallQueryParams = buildQueryParams(seriesId, from, to);
+      const stationData = await this.fetchRainfallStation(seriesId);
+
+      if (!stationData || !rainfallQueryParams) {
+        this.logger.warn(
+          `Missing station data or query params for ${location}`,
+        );
+        return;
+      }
+
+      const rainfallHistory = await this.httpService.axiosRef.get(
+        hydrologyObservationUrl,
+        {
+          params: rainfallQueryParams,
+        },
+      );
+
+      const rainfallData: RainfallStationData = {
+        ...stationData,
+        history: rainfallHistory.data.data,
+      };
+
+      return rainfallData;
+    } catch (Error) {
+      this.logger.error(`Error for ${location}: ${Error.message}`, Error);
+    }
+  }
+
+  async fetchRiverLevelData(payload: {
+    seriesId: number;
+    location: string;
+    from: Date;
+    to: Date;
+  }) {
+    const { seriesId, location, from, to } = payload;
+    try {
+      const riverWatchQueryParam = buildQueryParams(seriesId, from, to);
+      const stationData = await this.fetchRiverStation(seriesId);
+
+      if (!stationData || !riverWatchQueryParam) {
+        this.logger.warn(
+          `Missing station data or query params for ${location}`,
+        );
+        return;
+      }
+
+      const {
+        data: { data },
+      } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
+        params: riverWatchQueryParam,
+      })) as { data: { data: RiverWaterHistoryItem[] } };
+
+      if (!data || data.length === 0) {
+        this.logger.warn(`No history data returned for ${location}`);
+        return;
+      }
+
+      const waterLevelData: RiverStationData = {
+        ...stationData,
+        history: data,
+      };
+
+      return waterLevelData;
+    } catch (Error) {
+      this.logger.error(
+        `Database error for ${location}: ${Error.message}`,
+        Error,
+      );
+    }
+  }
+
+  async fetchRainfallStation(
+    seriesId: number,
+  ): Promise<RainfallStationItem | null> {
+    try {
+      const {
+        data: { data },
+      } = (await this.httpService.axiosRef.get(rainfallStationUrl, {
+        httpsAgent: httpsAgent,
+      })) as { data: { data: RainfallStationItem[][] } };
+
+      const targettedData = data[0].find((item) => item.series_id == seriesId);
+
+      if (!targettedData) {
+        this.logger.warn(`No rainfall station found for series ID ${seriesId}`);
+        return null;
+      }
+
+      return targettedData;
+    } catch (error) {
+      this.logger.warn('Error fetching rainfall station:', error);
+      throw error;
+    }
+  }
+
+  async fetchRiverStation(seriesId: number): Promise<RiverStationItem | null> {
+    try {
+      const {
+        data: { data: riverStation },
+      } = (await this.httpService.axiosRef.get(riverStationUrl, {
+        httpsAgent: httpsAgent,
+      })) as { data: { data: RiverStationItem[] } };
+
+      const targettedData = riverStation.find(
+        (item) => item.series_id === seriesId,
+      );
+
+      if (!targettedData) {
+        this.logger.warn(`No river station found for series ID ${seriesId}`);
+        return null;
+      }
+
+      return targettedData;
+    } catch (error) {
+      this.logger.warn('Error fetching river station:', error);
+      throw error;
+    }
+  }
+
+  isToday(from: Date, to: Date) {
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
+    return from >= startOfToday && to <= endOfToday;
+  }
+
+  async getLevels(payload: GetSouceDataDto, type: SourceType) {
+    const { riverBasin, from, to, type: dataType } = payload;
+
+    if (payload.source !== DataSource.DHM) {
+      this.logger.warn('GOLFAS data is not implemented yet');
+      return [];
+    }
+
+    if (!type) {
+      this.logger.warn('Type is not passed in the payload');
+      throw new RpcException('Type is required');
+    }
+
+    const isToday = await this.isToday(new Date(from), new Date(to));
+
+    let response;
+
+    const dataInfo = await this.prisma.sourcesData.findFirst({
+      where: {
+        type,
+        source: {
+          riverBasin,
+        },
+      },
+      include: {
+        source: {
+          select: {
+            riverBasin: true,
+            source: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!isToday || !dataInfo) {
+      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
+      const dhmSettings = dataSource[DataSource.DHM];
+
+      const item = dhmSettings.find((item) => {
+        return item.WATER_LEVEL.LOCATION === riverBasin;
+      });
+
+      if (type === 'WATER_LEVEL') {
+        response = await this.fetchRiverLevelData({
+          seriesId: item.WATER_LEVEL.SERIESID,
+          location: item.WATER_LEVEL.LOCATION,
+          from: from || new Date(),
+          to: to || new Date(),
+        });
+      } else {
+        response = await this.fetchRainfallLevelData({
+          seriesId: item.RAINFALL.SERIESID,
+          location: item.RAINFALL.LOCATION,
+          from: from || new Date(),
+          to: to || new Date(),
+        });
+      }
+    }
+
+    const aggregatedInfo = await this.processDataByType(
+      dataType,
+      response ?? dataInfo.info,
+    );
+    return {
+      ...dataInfo,
+      info: aggregatedInfo,
+    };
+  }
+
+  aggregateDataByTime(history: RiverWaterHistoryItem[]) {
+    const hourlyData = {};
+    const dailyData = {};
+
+    history.forEach(({ datetime, value }) => {
+      const date = datetime.split('T')[0];
+      const hour = datetime.split('T')[1].split(':')[0];
+
+      // Aggregate hourly data
+      const hourKey = `${date}T${hour}:00:00`;
+      if (!hourlyData[hourKey]) {
+        hourlyData[hourKey] = 0;
+      }
+      hourlyData[hourKey] = value;
+
+      // Aggregate daily data
+      if (!dailyData[date]) {
+        dailyData[date] = 0;
+      }
+      dailyData[date] = value;
+    });
+
+    // Convert aggregated data to arrays
+    const hourlyArray = Object.entries(hourlyData).map(([datetime, value]) => ({
+      datetime,
+      value,
+    }));
+    const dailyArray = Object.entries(dailyData).map(([date, value]) => ({
+      date,
+      value,
+    }));
+
+    return { hourly: hourlyArray, daily: dailyArray };
+  }
+
+  async processDataByType(type: SourceDataType, data: RiverStationData) {
+    switch (type) {
+      case SourceDataType.Point:
+        return data;
+      case SourceDataType.Hourly:
+        const { hourly } = this.aggregateDataByTime(data.history);
+        return {
+          ...data,
+          history: hourly,
+        };
+      case SourceDataType.Daily:
+        const { daily } = this.aggregateDataByTime(data.history);
+        return {
+          ...data,
+          history: daily,
+        };
+      default:
+        return data;
     }
   }
 }

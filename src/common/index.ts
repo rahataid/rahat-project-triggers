@@ -157,6 +157,9 @@ export const getTriggerAndActivityCompletionTimeDifference = (
 
 export function buildQueryParams(seriesId: number, from = null, to = null) {
   const currentDate = new Date().toISOString().split('T')[0];
+  from = from ? new Date(from).toISOString().split('T')[0] : null;
+  to = to ? new Date(to).toISOString().split('T')[0] : null;
+
   return {
     series_id: seriesId,
     date_from: from || currentDate,

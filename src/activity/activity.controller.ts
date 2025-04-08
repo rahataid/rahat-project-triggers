@@ -8,36 +8,6 @@ import { MS_TRIGGERS_JOBS } from 'src/constant';
 @Controller('activity')
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}
-
-  // @ApiHeader({
-  //   name: 'app-id',
-  //   description: 'Application ID',
-  //   required: true,
-  // })
-  // @Post()
-  // create(@AppId() appId: string, @Body() dto: CreateActivityDto) {
-  //   return this.activityService.create(appId, dto);
-  // }
-
-  // @ApiHeader({
-  //   name: 'app-id',
-  //   description: 'Application ID',
-  //   required: true,
-  // })
-  // @Get()
-  // findAll(@AppId() appId: string, @Query() dto: PaginationDto): any {
-  //   return this.activityService.findAll(appId, dto);
-  // }
-
-  // @Get(':uuid')
-  // findOne(@Param('uuid') uuid: string) {
-  //   return this.activityService.findOne(uuid);
-  // }
-  // @Patch(':uuid')
-  // update(@Param('uuid') uuid: string, @Body() dto: UpdateActivityDto) {
-  //   return this.activityService.update(uuid, dto);
-  // }
-
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.ADD,
   })
@@ -79,17 +49,16 @@ export class ActivityController {
     return this.activityService.remove(payload);
   }
 
-  // @MessagePattern({
-  //   cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.TRIGGER,
-  //   uuid: process.env.PROJECT_ID,
-  // })
-  // async triggerCommunication(payload: {
-  //   communicationId: string;
-  //   activityId: string;
-  // }) {
-  //   console.log('object');
-  //   return this.activityService.triggerCommunication(payload);
-  // }
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.TRIGGER,
+  })
+  async triggerCommunication(payload: {
+    communicationId: string;
+    activityId: string;
+    appId: string;
+  }) {
+    return this.activityService.triggerCommunication(payload);
+  }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.SESSION_LOGS,

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { ActivityStatus } from '@prisma/client';
@@ -782,206 +783,177 @@ export class ActivityService {
     }
   }
 
-  // async triggerCommunication(payload: {
-  //   communicationId: string;
-  //   activityId: string;
-  // }) {
-  //   const activity = await this.prisma.activity.findUnique({
-  //     where: {
-  //       uuid: payload.activityId,
-  //     },
-  //   });
-  //   if (!activity) throw new RpcException('Activity communication not found.');
-  //   const { activityCommunication } = activity;
+  async triggerCommunication(payload: {
+    communicationId: string;
+    activityId: string;
+    appId: string;
+  }) {
+    if (!payload?.communicationId || !payload?.activityId) {
+      this.logger.warn('Communication ID or Activity ID is missing');
+      throw new RpcException('Communication ID or Activity ID is missing');
+    }
 
-  //   const parsedCommunications = JSON.parse(
-  //     JSON.stringify(activityCommunication),
-  //   ) as Array<{
-  //     groupId: string;
-  //     message:
-  //       | string
-  //       | {
-  //           mediaURL: string;
-  //           fileName: string;
-  //         };
-  //     groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
-  //     transportId: string;
-  //     communicationId: string;
-  //   }>;
+    this.logger.log(`Triggering communication for ${payload.activityId}`);
+    const activity = await this.prisma.activity.findUnique({
+      where: {
+        uuid: payload.activityId,
+      },
+    });
+    if (!activity) throw new RpcException('Activity communication not found.');
+    const { activityCommunication } = activity;
 
-  //   const selectedCommunication = parsedCommunications.find(
-  //     (c) => c?.communicationId === payload.communicationId,
-  //   );
+    const parsedCommunications = JSON.parse(
+      JSON.stringify(activityCommunication),
+    ) as Array<{
+      groupId: string;
+      message:
+        | string
+        | {
+            mediaURL: string;
+            fileName: string;
+          };
+      groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
+      transportId: string;
+      communicationId: string;
+    }>;
 
-  //   if (!Object.keys(selectedCommunication).length)
-  //     throw new RpcException('Selected communication not found.');
+    const selectedCommunication = parsedCommunications.find(
+      (c) => c?.communicationId === payload.communicationId,
+    );
 
-  //   // const transportDetails = await this.commsClient.transport.get(
-  //   //   selectedCommunication.transportId,
-  //   // );
+    if (!Object.keys(selectedCommunication).length)
+      throw new RpcException('Selected communication not found.');
 
-  //   const transportDetails = await firstValueFrom(
-  //     this.client.send(
-  //       {
-  //         cmd: JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_DETAILS,
-  //         uuid: process.env.PROJECT_ID,
-  //       },
-  //       {
-  //         transportId: selectedCommunication.transportId,
-  //       },
-  //     ),
-  //   );
+    const transportDetails = await this.commsClient.transport.get(
+      selectedCommunication.transportId,
+    );
 
-  //   if (!transportDetails.data)
-  //     throw new RpcException('Selected transport not found.');
+    if (!transportDetails.data) {
+      this.logger.warn('Selected transport not found');
+      throw new RpcException('Selected transport not found.');
+    }
 
-  //   const addresses = await this.getAddresses(
-  //     selectedCommunication.groupType,
-  //     selectedCommunication.groupId,
-  //     transportDetails.data.validationAddress as ValidationAddress,
-  //   );
+    const addresses = await this.getAddresses(
+      selectedCommunication.groupType,
+      selectedCommunication.groupId,
+      payload.appId,
+      transportDetails.data.validationAddress as ValidationAddress,
+    );
 
-  //   let messageContent: string;
-  //   if (transportDetails.data.type === TransportType.VOICE) {
-  //     const msg = selectedCommunication.message as {
-  //       mediaURL: string;
-  //       fileName: string;
-  //     };
-  //     messageContent = msg.mediaURL;
-  //   } else {
-  //     messageContent = selectedCommunication.message as string;
-  //   }
+    let messageContent: string;
+    if (transportDetails.data.type === TransportType.VOICE) {
+      const msg = selectedCommunication.message as {
+        mediaURL: string;
+        fileName: string;
+      };
+      messageContent = msg.mediaURL;
+    } else {
+      messageContent = selectedCommunication.message as string;
+    }
 
-  //   /// cva_communication microservice
-  //   // const sessionData = await this.commsClient.broadcast.create({
-  //   //   addresses: addresses,
-  //   //   maxAttempts: 3,
-  //   //   message: {
-  //   //     content: messageContent,
-  //   //     meta: {
-  //   //       subject: 'INFO',
-  //   //     },
-  //   //   },
-  //   //   options: {},
-  //   //   transport: selectedCommunication.transportId,
-  //   //   trigger: TriggerType.IMMEDIATE,
-  //   // });
-  //   const sessionData = await firstValueFrom(
-  //     this.client.send(
-  //       {
-  //         cmd: JOBS.ACTIVITIES.COMMUNICATION.BROAD_CAST_CREATE,
-  //         uuid: process.env.PROJECT_ID,
-  //       },
-  //       {
-  //         uuid: selectedCommunication.communicationId,
-  //         // addresses,
-  //         // msgContent: messageContent,
-  //         // transportId: selectedCommunication.transportId,
-  //         // activityTrigger: true,
-  //       },
-  //     ),
-  //   );
+    /// cva_communication microservice
+    const { data: sessionData } = await this.commsClient.broadcast.create({
+      addresses: addresses,
+      maxAttempts: 3,
+      message: {
+        content: messageContent,
+        meta: {
+          subject: 'INFO',
+        },
+      },
+      options: {},
+      transport: selectedCommunication.transportId,
+      trigger: TriggerType.IMMEDIATE,
+    });
 
-  //   console.log('session', sessionData);
+    if (!sessionData) {
+      this.logger.warn('Session not found');
+      throw new RpcException('Session not found.');
+    }
 
-  //   const updatedCommunicationsData = parsedCommunications.map((c) => {
-  //     if (c?.communicationId === payload.communicationId) {
-  //       return {
-  //         ...c,
-  //         sessionId: sessionData.cuid,
-  //       };
-  //     }
-  //     return c;
-  //   });
+    const updatedCommunicationsData = parsedCommunications.map((c) => {
+      if (c?.communicationId === payload.communicationId) {
+        return {
+          ...c,
+          sessionId: sessionData.cuid,
+        };
+      }
+      return c;
+    });
 
-  //   await this.prisma.activity.update({
-  //     where: {
-  //       uuid: payload.activityId,
-  //     },
-  //     data: {
-  //       activityCommunication: updatedCommunicationsData,
-  //     },
-  //   });
+    await this.prisma.activity.update({
+      where: {
+        uuid: payload.activityId,
+      },
+      data: {
+        activityCommunication: updatedCommunicationsData,
+      },
+    });
 
-  //   return sessionData;
-  // }
+    return sessionData;
+  }
 
-  // async getAddresses(
-  //   groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
-  //   groupId: string,
-  //   validationAddress: ValidationAddress,
-  // ) {
-  //   switch (groupType) {
-  //     case 'STAKEHOLDERS':
-  //       const group = await firstValueFrom(
-  //         this.client.send(
-  //           {
-  //             cmd: JOBS.STAKEHOLDERS.GET_ONE_GROUP,
-  //             uuid: process.env.PROJECT_ID,
-  //           },
-  //           { uuid: groupId },
-  //         ),
-  //       );
-  //       if (!group) throw new RpcException('Stakeholders group not found.');
-  //       return group.stakeholders
-  //         .map((stakeholder) => {
-  //           if (validationAddress === ValidationAddress.EMAIL) {
-  //             return stakeholder?.email || null;
-  //           } else if (
-  //             validationAddress === ValidationAddress.PHONE &&
-  //             stakeholder.phone
-  //           ) {
-  //             return stakeholder.phone.substring(
-  //               +stakeholder.phone.length - 10,
-  //             );
-  //           } else if (validationAddress === ValidationAddress.ANY) {
-  //             if (stakeholder.phone) {
-  //               return stakeholder.phone
-  //                 ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
-  //                 : null;
-  //             }
-  //           }
-  //           return null;
-  //         })
-  //         .filter(Boolean);
-  //     case 'BENEFICIARY':
-  //       const beneficiaryGroup = await firstValueFrom(
-  //         this.client.send(
-  //           {
-  //             cmd: JOBS.BENEFICIARY.GET_ONE_GROUP,
-  //             uuid: process.env.PROJECT_ID,
-  //           },
-  //           { uuid: groupId },
-  //         ),
-  //       );
-  //       if (!beneficiaryGroup)
-  //         throw new RpcException('Beneficiary group not found.');
-  //       const groupedBeneficiaries = beneficiaryGroup.groupedBeneficiaries;
-  //       return groupedBeneficiaries
-  //         ?.map((beneficiary) => {
-  //           if (validationAddress === ValidationAddress.EMAIL) {
-  //             return beneficiary.Beneficiary?.pii?.email || null;
-  //           } else if (
-  //             validationAddress === ValidationAddress.PHONE &&
-  //             beneficiary.Beneficiary?.pii?.phone
-  //           ) {
-  //             return beneficiary.Beneficiary?.pii?.phone.substring(
-  //               +beneficiary.Beneficiary?.pii?.phone?.length - 10,
-  //             );
-  //           } else if (validationAddress === ValidationAddress.ANY) {
-  //             if (beneficiary.Beneficiary?.pii?.phone) {
-  //               return beneficiary.Beneficiary?.pii?.phone
-  //                 ? beneficiary.Beneficiary?.pii?.phone.substring(
-  //                     +beneficiary.Beneficiary?.pii?.phone.length - 10,
-  //                   )
-  //                 : null;
-  //             }
-  //           }
-  //           return null;
-  //         })
-  //         .filter(Boolean);
-  //     default:
-  //       return [];
-  //   }
-  // }
+  async getAddresses(
+    groupType: 'STAKEHOLDERS' | 'BENEFICIARY',
+    groupId: string,
+    appId: string,
+    validationAddress: ValidationAddress,
+  ) {
+    const { group } = await this.getGroupDetails(groupType, groupId, appId);
+
+    switch (groupType) {
+      case 'STAKEHOLDERS':
+        if (!group) throw new RpcException('Stakeholders group not found.');
+        return group.stakeholders
+          .map((stakeholder) => {
+            if (validationAddress === ValidationAddress.EMAIL) {
+              return stakeholder?.email || null;
+            } else if (
+              validationAddress === ValidationAddress.PHONE &&
+              stakeholder.phone
+            ) {
+              return stakeholder.phone.substring(
+                +stakeholder.phone.length - 10,
+              );
+            } else if (validationAddress === ValidationAddress.ANY) {
+              if (stakeholder.phone) {
+                return stakeholder.phone
+                  ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
+                  : null;
+              }
+            }
+            return null;
+          })
+          .filter(Boolean);
+      case 'BENEFICIARY':
+        if (!group) throw new RpcException('Beneficiary group not found.');
+
+        const groupedBeneficiaries = group.groupedBeneficiaries;
+        return groupedBeneficiaries
+          ?.map((beneficiary) => {
+            if (validationAddress === ValidationAddress.EMAIL) {
+              return beneficiary.Beneficiary?.pii?.email || null;
+            } else if (
+              validationAddress === ValidationAddress.PHONE &&
+              beneficiary.Beneficiary?.pii?.phone
+            ) {
+              return beneficiary.Beneficiary?.pii?.phone.substring(
+                +beneficiary.Beneficiary?.pii?.phone?.length - 10,
+              );
+            } else if (validationAddress === ValidationAddress.ANY) {
+              if (beneficiary.Beneficiary?.pii?.phone) {
+                return beneficiary.Beneficiary?.pii?.phone
+                  ? beneficiary.Beneficiary?.pii?.phone.substring(
+                      +beneficiary.Beneficiary?.pii?.phone.length - 10,
+                    )
+                  : null;
+              }
+            }
+            return null;
+          })
+          .filter(Boolean);
+      default:
+        return [];
+    }
+  }
 }
