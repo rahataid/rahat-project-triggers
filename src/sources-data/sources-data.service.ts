@@ -376,9 +376,27 @@ export class SourcesDataService {
     };
   }
 
-  aggregateDataByTime(history: RiverWaterHistoryItem[]) {
-    const hourlyData = {};
-    const dailyData = {};
+  aggregateDataByTime(history: any[]) {
+    const hourlyData: Record<
+      string,
+      {
+        values: number[];
+        min: number;
+        max: number;
+        total: number;
+        count: number;
+      }
+    > = {};
+    const dailyData: Record<
+      string,
+      {
+        values: number[];
+        min: number;
+        max: number;
+        total: number;
+        count: number;
+      }
+    > = {};
 
     history.forEach(({ datetime, value }) => {
       const date = datetime.split('T')[0];
@@ -387,25 +405,51 @@ export class SourcesDataService {
       // Aggregate hourly data
       const hourKey = `${date}T${hour}:00:00`;
       if (!hourlyData[hourKey]) {
-        hourlyData[hourKey] = 0;
+        hourlyData[hourKey] = {
+          values: [],
+          min: Infinity,
+          max: -Infinity,
+          total: 0,
+          count: 0,
+        };
       }
-      hourlyData[hourKey] = value;
+      hourlyData[hourKey].values.push(value);
+      hourlyData[hourKey].min = Math.min(hourlyData[hourKey].min, value);
+      hourlyData[hourKey].max = Math.max(hourlyData[hourKey].max, value);
+      hourlyData[hourKey].total += value;
+      hourlyData[hourKey].count += 1;
 
       // Aggregate daily data
-      if (!dailyData[date]) {
-        dailyData[date] = 0;
+      const newDate = `${date}T00:00:00`;
+      if (!dailyData[newDate]) {
+        dailyData[newDate] = {
+          values: [],
+          min: Infinity,
+          max: -Infinity,
+          total: 0,
+          count: 0,
+        };
       }
-      dailyData[date] = value;
+      dailyData[newDate].values.push(value);
+      dailyData[newDate].min = Math.min(dailyData[newDate].min, value);
+      dailyData[newDate].max = Math.max(dailyData[newDate].max, value);
+      dailyData[newDate].total += value;
+      dailyData[newDate].count += 1;
     });
 
     // Convert aggregated data to arrays
-    const hourlyArray = Object.entries(hourlyData).map(([datetime, value]) => ({
+    const hourlyArray = Object.entries(hourlyData).map(([datetime, data]) => ({
       datetime,
-      value,
+      value: data.count > 0 ? data.total / data.count : 0, // average value
+      min: data.min !== Infinity ? data.min : 0,
+      max: data.max !== -Infinity ? data.max : 0,
     }));
-    const dailyArray = Object.entries(dailyData).map(([date, value]) => ({
+
+    const dailyArray = Object.entries(dailyData).map(([date, data]) => ({
       date,
-      value,
+      value: data.count > 0 ? data.total / data.count : 0, // average value
+      min: data.min !== Infinity ? data.min : 0,
+      max: data.max !== -Infinity ? data.max : 0,
     }));
 
     return { hourly: hourlyArray, daily: dailyArray };
