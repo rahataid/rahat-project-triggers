@@ -250,6 +250,7 @@ export class ActivityService {
       responsibility, // <---- Responsibility is Activity Manager
       status,
       appId,
+      riverBasin,
     } = payload;
 
     try {
@@ -258,6 +259,13 @@ export class ActivityService {
           app: appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...(riverBasin && {
+            phase: {
+              source: {
+                riverBasin,
+              },
+            },
+          }),
           ...(category && { categoryId: category }),
           ...(phase && { phaseId: phase }),
           ...(isComplete && { isComplete: isComplete }),
