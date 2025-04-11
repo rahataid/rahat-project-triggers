@@ -445,8 +445,8 @@ export class SourcesDataService {
       max: data.max !== -Infinity ? data.max : 0,
     }));
 
-    const dailyArray = Object.entries(dailyData).map(([date, data]) => ({
-      date,
+    const dailyArray = Object.entries(dailyData).map(([datetime, data]) => ({
+      datetime,
       value: data.count > 0 ? data.total / data.count : 0, // average value
       min: data.min !== Infinity ? data.min : 0,
       max: data.max !== -Infinity ? data.max : 0,
