@@ -440,16 +440,18 @@ export class SourcesDataService {
     // Convert aggregated data to arrays
     const hourlyArray = Object.entries(hourlyData).map(([datetime, data]) => ({
       datetime,
-      value: data.count > 0 ? data.total / data.count : 0, // average value
-      min: data.min !== Infinity ? data.min : 0,
-      max: data.max !== -Infinity ? data.max : 0,
+      value:
+        data.count > 0 ? parseFloat((data.total / data.count).toFixed(3)) : 0,
+      min: data.min !== Infinity ? parseFloat(data.min.toFixed(3)) : 0,
+      max: data.max !== -Infinity ? parseFloat(data.max.toFixed(3)) : 0,
     }));
 
     const dailyArray = Object.entries(dailyData).map(([datetime, data]) => ({
       datetime,
-      value: data.count > 0 ? data.total / data.count : 0, // average value
-      min: data.min !== Infinity ? data.min : 0,
-      max: data.max !== -Infinity ? data.max : 0,
+      value:
+        data.count > 0 ? parseFloat((data.total / data.count).toFixed(3)) : 0,
+      min: data.min !== Infinity ? parseFloat(data.min.toFixed(3)) : 0,
+      max: data.max !== -Infinity ? parseFloat(data.max.toFixed(3)) : 0,
     }));
 
     return { hourly: hourlyArray, daily: dailyArray };
