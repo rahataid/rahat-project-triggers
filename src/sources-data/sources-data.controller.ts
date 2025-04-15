@@ -45,6 +45,13 @@ export class SourcesDataController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.RIVER_STATIONS.GET_DHM,
   })
+  async getAllSource() {
+    return this.dhmService.getRiverStations();
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.RIVER_STATIONS.GET_DHM,
+  })
   async getDhmStations() {
     return this.dhmService.getRiverStations();
   }

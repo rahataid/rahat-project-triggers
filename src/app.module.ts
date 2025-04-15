@@ -19,6 +19,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { MS_TRIGGER_CLIENTS } from './constant';
 import { SettingsModule } from '@rumsan/settings';
 import { CommsModule } from './comms/comms.module';
+import { SourceModule } from './source/source.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { CommsModule } from './comms/comms.module';
     ScheduleModule.forRoot(),
     ListenersModule,
     CommsModule.forRoot(),
+    SourceModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
