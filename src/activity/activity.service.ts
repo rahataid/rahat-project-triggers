@@ -758,9 +758,12 @@ export class ActivityService {
     }
   }
 
-  async getCommsStats() {
+  async getCommsStats(appId: string) {
     this.logger.log('Fetching communication stats');
     try {
+      const stats = await this.commsClient.broadcast.getReport({
+        xref: appId,
+      });
       const activitiesHavingComms = await this.prisma.activity.findMany({
         where: {
           isDeleted: false,
@@ -786,6 +789,7 @@ export class ActivityService {
       }
 
       return {
+        stats: stats.data,
         totalCommsProject,
       };
     } catch (error) {
@@ -875,6 +879,7 @@ export class ActivityService {
       options: {},
       transport: selectedCommunication.transportId,
       trigger: TriggerType.IMMEDIATE,
+      xref: payload.appId,
     });
 
     if (!sessionData) {

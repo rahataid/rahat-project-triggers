@@ -111,7 +111,8 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS,
   })
-  async getCommsStats() {
-    return this.activityService.getCommsStats();
+  async getCommsStats(payload: { appId: string }) {
+    console.log('Running communication status');
+    return await this.activityService.getCommsStats(payload.appId);
   }
 }
