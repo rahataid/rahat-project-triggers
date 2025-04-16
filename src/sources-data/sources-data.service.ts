@@ -21,7 +21,6 @@ import {
 } from 'src/constant/datasourceUrls';
 import * as https from 'https';
 import { buildQueryParams } from 'src/common';
-import { from } from 'rxjs';
 import { SettingsService } from '@rumsan/settings';
 import { DataSourceValue } from 'src/types/settings';
 

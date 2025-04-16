@@ -381,6 +381,7 @@ export class TriggerService {
       await this.prisma.trigger.create({
         data: createData,
       });
+      this.logger.log(`Trigger created with repeatKey: ${repeatableKey}`);
 
       return createData;
     } catch (error) {
