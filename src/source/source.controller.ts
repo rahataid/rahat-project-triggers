@@ -1,19 +1,24 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern } from '@nestjs/microservices';
 import { SourceService } from './source.service';
+import { MS_TRIGGERS_JOBS } from 'src/constant';
+import { GetSouceDto } from './dto/get-source.dto';
 
-@Controller()
+@Controller('source')
 export class SourceController {
   constructor(private readonly sourceService: SourceService) {}
 
-  @MessagePattern('findAllSource')
-  findAll() {
-    return this.sourceService.findAll();
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.SOURCE.GET_ALL,
+  })
+  async getAllSource(dto: GetSouceDto): Promise<any> {
+    return await this.sourceService.findAll(dto);
   }
 
-  @MessagePattern('findOneSource')
-  findOne(@Payload() id: number) {
-    return this.sourceService.findOne(id);
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.SOURCE.GET_ONE,
+  })
+  async findOne(dto: any) {
+    return await this.sourceService.findOne(dto);
   }
-
 }

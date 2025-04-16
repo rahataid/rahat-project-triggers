@@ -78,8 +78,8 @@ export const MS_TRIGGERS_JOBS = {
     GET_GLOFAS: 'ms.jobs.rainfallLevels.getGlofas',
   },
   SOURCE: {
-    GET_ALL: 'ms.jobs.source.getAll',
-    GET_ONE: 'ms.jobs.source.getOne',
+    GET_ALL: 'ms.jobs.sources.getAll',
+    GET_ONE: 'ms.jobs.sources.getOne',
   },
   ACTIVITIES: {
     GET_ONE: 'ms.jobs.activities.getOne',
@@ -102,7 +102,6 @@ export const MS_TRIGGERS_JOBS = {
     ADD: 'ms.jobs.categories.add',
     REMOVE: 'ms.jobs.categories.remove',
   },
-
   DAILY_MONITORING: {
     ADD: 'ms.jobs.dailyMonitoring.add',
     GET_ALL: 'ms.jobs.dailyMonitoring.getAll',
