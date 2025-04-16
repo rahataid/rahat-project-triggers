@@ -142,7 +142,10 @@ export class ActivityService {
         },
       });
 
+      this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
+
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {});
+
       return newActivity;
     } catch (err) {
       this.logger.error('Something went wrong while adding activity', err);
