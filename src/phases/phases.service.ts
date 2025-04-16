@@ -365,6 +365,7 @@ export class PhasesService {
 
     const totalOptionalTriggers = await this.prisma.trigger.count({
       where: {
+        phaseId: phaseDetails.uuid,
         isMandatory: false,
         isDeleted: false,
       },
