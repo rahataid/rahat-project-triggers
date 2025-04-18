@@ -1,7 +1,12 @@
 import { Controller } from '@nestjs/common';
 import { ActivityService } from './activity.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
+import {
+  CreateActivityDto,
+  GetActivityDto,
+  GetActivityHavingCommsDto,
+  UpdateActivityDto,
+} from './dto';
 import { ActivityStatus } from '@prisma/client';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 
@@ -31,7 +36,9 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_HAVING_COMMS,
   })
-  async getHavingComms(@Payload() payload: GetActivityDto): Promise<any> {
+  async getHavingComms(
+    @Payload() payload: GetActivityHavingCommsDto,
+  ): Promise<any> {
     return this.activityService.getHavingComms(payload);
   }
 
