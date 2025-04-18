@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { ActivityStatus } from '@prisma/client';
+import { ActivityStatus, Prisma } from '@prisma/client';
 import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { randomUUID } from 'crypto';
@@ -378,26 +378,39 @@ export class ActivityService {
   }
 
   async getHavingComms(payload: GetActivityHavingCommsDto) {
-    console.log(payload);
     this.logger.log('Fetching activities having communications');
     try {
-      const { page, perPage, activeYear, filters = {}, riverBasin } = payload;
+      const {
+        page,
+        perPage,
+        activeYear,
+        appId,
+        filters = {},
+        riverBasin,
+      } = payload;
       const { title, phase, status } = filters;
 
-      const where: Record<string, any> = {
+      const where: Prisma.ActivityWhereInput = {
         isDeleted: false,
-        activityCommunication: { some: {} },
+        activityCommunication: { not: null },
+        phase: {
+          ...(phase && { name: phase }),
+          ...(activeYear && { activeYear }),
+          ...(riverBasin && {
+            source: {
+              riverBasin,
+            },
+          }),
+        },
+        app: appId,
         ...(title && {
           title: { contains: title, mode: 'insensitive' },
         }),
-        ...(phase && { phaseId: phase }),
         ...(status && { status }),
-        ...(activeYear && { year: activeYear }),
-        ...(riverBasin && { riverBasin }),
       };
 
       const query = {
-        where,
+        where: { ...where },
         include: {
           phase: {
             include: {
@@ -409,7 +422,7 @@ export class ActivityService {
         orderBy: {
           createdAt: 'desc',
         },
-      };
+      }
 
       return paginate(this.prisma.activity, query, { page, perPage });
     } catch (error) {
