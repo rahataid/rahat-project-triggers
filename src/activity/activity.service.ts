@@ -256,6 +256,7 @@ export class ActivityService {
       isComplete,
       isApproved,
       responsibility, // <---- Responsibility is Activity Manager
+      managerId,
       status,
       appId,
       riverBasin,
@@ -286,6 +287,7 @@ export class ActivityService {
               },
             },
           }),
+          ...(managerId && { managerId: managerId }),
           ...(status && { status: status }),
         },
         include: {

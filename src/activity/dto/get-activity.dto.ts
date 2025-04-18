@@ -41,6 +41,10 @@ export class GetActivityDto {
 
   @IsOptional()
   @IsString()
+  managerId: string;
+
+  @IsOptional()
+  @IsString()
   responsibility?: string;
 
   @IsOptional()
