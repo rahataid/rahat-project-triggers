@@ -1,16 +1,21 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { ActivityStatus } from '@prisma/client';
+import { ActivityStatus, Prisma } from '@prisma/client';
+import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
-import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
-import { CreateActivityDto, GetActivityDto, UpdateActivityDto } from './dto';
-import { firstValueFrom } from 'rxjs';
-import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import { randomUUID } from 'crypto';
+import { firstValueFrom } from 'rxjs';
+import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { CommsClient } from 'src/comms/comms.service';
+import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
+import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
+import {
+  CreateActivityDto,
+  GetActivityDto,
+  GetActivityHavingCommsDto,
+  UpdateActivityDto,
+} from './dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -372,18 +377,40 @@ export class ActivityService {
     }
   }
 
-  async getHavingComms(payload: GetActivityDto) {
+  async getHavingComms(payload: GetActivityHavingCommsDto) {
     this.logger.log('Fetching activities having communications');
     try {
-      const { page, perPage } = payload;
+      const {
+        page,
+        perPage,
+        activeYear,
+        appId,
+        filters = {},
+        riverBasin,
+      } = payload;
+      const { title, phase, status } = filters;
+
+      const where: Prisma.ActivityWhereInput = {
+        isDeleted: false,
+        activityCommunication: { not: null },
+        phase: {
+          ...(phase && { name: phase }),
+          ...(activeYear && { activeYear }),
+          ...(riverBasin && {
+            source: {
+              riverBasin,
+            },
+          }),
+        },
+        app: appId,
+        ...(title && {
+          title: { contains: title, mode: 'insensitive' },
+        }),
+        ...(status && { status }),
+      };
 
       const query = {
-        where: {
-          isDeleted: false,
-          activityCommunication: {
-            not: null,
-          },
-        },
+        where: { ...where },
         include: {
           phase: {
             include: {
@@ -395,12 +422,9 @@ export class ActivityService {
         orderBy: {
           createdAt: 'desc',
         },
-      };
+      }
 
-      return paginate(this.prisma.activity, query, {
-        page,
-        perPage,
-      });
+      return paginate(this.prisma.activity, query, { page, perPage });
     } catch (error) {
       this.logger.error(
         `Error while fetching activities having communications`,
