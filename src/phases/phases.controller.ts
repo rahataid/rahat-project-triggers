@@ -1,13 +1,17 @@
-import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern } from '@nestjs/microservices';
+import { Body, Controller, Logger } from '@nestjs/common';
+import { MessagePattern, RpcException } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { PhasesService } from './phases.service';
 import { GetPhaseByName } from './dto';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('phases')
 export class PhasesController {
   logger = new Logger(PhasesController.name);
-  constructor(private readonly phasesService: PhasesService) {}
+  constructor(
+    private readonly phasesService: PhasesService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.CREATE,
@@ -51,5 +55,19 @@ export class PhasesController {
   })
   async getByLocation(payload) {
     return this.phasesService.findByLocation(payload.appId, payload.location);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.ACTIVATE,
+  })
+  async activatePhase(@Body() dto: { phaseUuid: string }) {
+    const isDevelopment =
+      this.configService.get<string>('NODE_ENV') === 'development';
+    if (isDevelopment) {
+      this.logger.log(`Activating phase with UUID: ${dto.phaseUuid}`);
+      return await this.phasesService.activatePhase(dto.phaseUuid);
+    }
+
+    throw new RpcException('Not allowed in production environment');
   }
 }
