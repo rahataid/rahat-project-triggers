@@ -441,28 +441,40 @@ export class PhasesService {
         },
       });
 
+      if (!phaseDetails) {
+        this.logger.warn(`No phase found with uuid ${uuid} to activate`);
+        throw new RpcException(`No phase found with uuid ${uuid} to activate`);
+      }
+
       const phaseActivities = phaseDetails.Activity;
-      // TODO: need to refactor this logic
       for (const activity of phaseActivities) {
         const activityComms = JSON.parse(
           JSON.stringify(activity.activityCommunication),
         );
+
+        this.logger.log(
+          `Adding total ${activityComms.length} communication in Queue for activity ${activity.uuid}`,
+        );
+
         for (const comm of activityComms) {
-          this.client
-            .send(
-              {
-                cmd: JOBS.ACTIVITIES.COMMUNICATION.TRIGGER_CAMPAIGN,
-                location: phaseDetails?.source.riverBasin,
+          this.communicationQueue.add(
+            JOBS.ACTIVITIES.COMMUNICATION.TRIGGER,
+            {
+              communicationId: comm?.communicationId,
+              activityId: activity?.uuid,
+              appId: activity?.app,
+            },
+            {
+              attempts: 3,
+              removeOnComplete: true,
+              backoff: {
+                type: 'exponential',
+                delay: 1000,
               },
-              {
-                communicationId: comm?.communicationId,
-              },
-            )
-            .subscribe({
-              next: (response) => console.log('Success:', response),
-              error: (err) => console.error('Microservice Error:', err),
-            });
+            },
+          );
         }
+
         await this.prisma.activity.update({
           where: {
             uuid: activity.uuid,
@@ -481,15 +493,26 @@ export class PhasesService {
         this.logger.log(
           `Phase ${phaseDetails.uuid} has active payout so, assigning token to ${phaseDetails.source.riverBasin}`,
         );
-        return firstValueFrom(
-          this.client.send(
-            {
-              cmd: JOBS.PAYOUT.ASSIGN_TOKEN,
-              location: phaseDetails?.source.riverBasin,
-            },
-            {},
-          ),
+
+        const appIds = Array.from(
+          new Set(phaseDetails.Activity.map((activity) => activity.app)),
         );
+
+        for (const appId of appIds) {
+          const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
+          const stellerDistrub = await firstValueFrom(
+            this.client.send(
+              {
+                cmd: JOBS.STELLAR.DISBURSE,
+                uuid: appId,
+              },
+              {
+                dName: disburseName,
+              },
+            ),
+          );
+          this.logger.log(`Disbursement for ${appId}`, stellerDistrub);
+        }
       }
       const updatedPhase = await this.prisma.phase.update({
         where: {
@@ -504,6 +527,7 @@ export class PhasesService {
       this.logger.log(`Phase ${uuid} activated successfully`);
 
       // event to calculate reporting
+      // TODO: Need to add feature to calcualte the Stats when phase changes.
       this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
         phaseId: phaseDetails.uuid,
       });

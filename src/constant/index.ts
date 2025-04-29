@@ -25,6 +25,7 @@ export const JOBS = {
     UPDATE: 'rahat.jobs.activities.update',
     UPDATE_STATUS: 'rahat.jobs.activities.updateStatus',
     COMMUNICATION: {
+      TRIGGER: 'rahat.jobs.activities.communication.trigger',
       TRIGGER_CAMPAIGN: 'rahat.jobs.communication.trigger_campaign',
       SESSION_LOGS: 'rahat.jobs.activities.communication.sessionLogs',
       RETRY_FAILED: 'rahat.jobs.activities.communication.retryFailed',
@@ -43,6 +44,9 @@ export const JOBS = {
   STAKEHOLDERS: {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
+  STELLAR: {
+    DISBURSE: 'aa.jobs.stellar.disburse',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {
@@ -59,6 +63,7 @@ export const MS_TRIGGERS_JOBS = {
 
   PHASES: {
     CREATE: 'ms.jobs.phases.create',
+    ACTIVATE: 'ms.jobs.phases.activate',
     GET_ONE: 'ms.jobs.phases.getOne',
     GET_ALL: 'ms.jobs.phases.getAll',
     GET_STATS: 'ms.jobs.phases.getStats',

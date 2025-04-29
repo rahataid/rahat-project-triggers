@@ -7,7 +7,11 @@ import { PrismaService } from '@rumsan/prisma';
 import { Queue } from 'bull';
 import { DateTime } from 'luxon';
 import { BQUEUE, JOBS } from 'src/constant';
-import { AddTriggerStatementDto, DhmDataObject } from './dto';
+import {
+  AddTriggerStatementDto,
+  DhmDataObject,
+  DHMWaterLevelInfo,
+} from './dto';
 import { AbstractSource } from './sources-data-abstract';
 import { RpcException } from '@nestjs/microservices';
 import { RainfallStationData, RiverStationData } from 'src/types/data-source';
@@ -37,16 +41,24 @@ export class DhmService implements AbstractSource {
       where: {
         uuid: uuid,
       },
+      include: {
+        phase: true,
+      },
     });
-    // do not process if it is already triggered
-    if (triggerData.isTriggered) return;
 
-    this.logger.log(`${dataSource}: monitoring`);
+    if (!triggerData || triggerData.isTriggered) return;
 
+    let waterLevelReached = false;
+
+    this.logger.log(`Criteria check for ${dataSource} started`);
     const recentData = await this.prisma.sourcesData.findFirst({
       where: {
+        type: SourceType.WATER_LEVEL,
         source: {
           riverBasin,
+          source: {
+            has: DataSource.DHM,
+          },
         },
       },
       orderBy: {
@@ -61,17 +73,30 @@ export class DhmService implements AbstractSource {
 
     const recentWaterLevel = JSON.parse(
       JSON.stringify(recentData.info),
-    ) as DhmDataObject;
-    const currentLevel = recentWaterLevel.waterLevel;
+    ) as DHMWaterLevelInfo;
+
+    const currentLevel = recentWaterLevel.waterLevel.value;
 
     this.logger.log('##### WATER LEVEL INFO ########');
-    this.logger.log('Latest water level: ', recentWaterLevel);
+    this.logger.log('Latest water level: ', recentWaterLevel.waterLevel);
     this.logger.log('##############################');
 
-    const waterLevelReached = this.compareWaterLevels(
-      currentLevel,
-      triggerStatement?.waterLevel,
-    );
+    // If trigger statement is for READNESS, We will chek for the warningLevel
+    // If trigger statement is for ACTIVATION, We will chek for the dangerLevel
+
+    if (triggerData.phase.name === 'READINESS') {
+      waterLevelReached = this.compareWaterLevels(
+        currentLevel,
+        triggerStatement?.warningLevel,
+      );
+    }
+
+    if (triggerData.phase.name === 'ACTIVATION') {
+      waterLevelReached = this.compareWaterLevels(
+        currentLevel,
+        triggerStatement?.dangerLevel,
+      );
+    }
 
     if (waterLevelReached === false) {
       this.logger.log(
@@ -91,9 +116,7 @@ export class DhmService implements AbstractSource {
           },
         },
       });
-    }
-
-    if (!isMandatory) {
+    } else {
       await this.prisma.phase.update({
         where: {
           uuid: phaseId,

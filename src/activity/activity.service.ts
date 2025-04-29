@@ -424,7 +424,7 @@ export class ActivityService {
         orderBy: {
           createdAt: 'desc',
         },
-      }
+      };
 
       return paginate(this.prisma.activity, query, { page, perPage });
     } catch (error) {
@@ -491,8 +491,12 @@ export class ActivityService {
           status: status,
           notes: notes,
           activityDocuments: JSON.parse(JSON.stringify(docs)),
-          ...(status === 'COMPLETED' && { completedBy: user?.name }),
-          ...(status === 'COMPLETED' && { completedAt: new Date() }),
+          ...(status === 'COMPLETED'
+            ? { completedBy: user?.name }
+            : { completedBy: null }),
+          ...(status === 'COMPLETED'
+            ? { completedAt: new Date() }
+            : { completedAt: null }),
         },
         include: {
           phase: true,
