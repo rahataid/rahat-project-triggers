@@ -48,3 +48,37 @@ export interface DhmDataObject {
   description: string;
   station: number;
 }
+
+export interface DHMWaterLevelInfo {
+  id: number;
+  onm: string;
+  name: string;
+  tags: boolean;
+  basin: string;
+  images: {
+    id: number;
+    name: string;
+    size: number;
+    type: number;
+    description: string;
+  }[];
+  status: string;
+  steady: string;
+  history: {
+    datetime: string;
+    value: number;
+  }[];
+  district: string;
+  latitude: number;
+  elevation: number;
+  longitude: number;
+  series_id: number;
+  waterLevel: {
+    value: number;
+    datetime: string;
+  };
+  description: string;
+  danger_level: string;
+  stationIndex: string;
+  warning_level: string;
+}

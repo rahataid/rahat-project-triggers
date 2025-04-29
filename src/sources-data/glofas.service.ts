@@ -62,6 +62,9 @@ export class GlofasService implements AbstractSource {
       where: {
         source: {
           riverBasin: riverBasin,
+          source: {
+            has: DataSource.GLOFAS,
+          },
         },
       },
       orderBy: {
@@ -70,7 +73,7 @@ export class GlofasService implements AbstractSource {
     });
 
     if (!recentData) {
-      this.logger.error(`${dataSource}:${riverBasin} : data not available`);
+      this.logger.error(`GLOFAS:${riverBasin} : data not available`);
       return;
     }
 
