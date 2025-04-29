@@ -4,7 +4,6 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 // import { PhasesService } from '../phases/phases.service';
 import { BQUEUE, JOBS } from 'src/constant';
-import { DataSource } from '@prisma/client';
 import { PhasesService } from 'src/phases/phases.service';
 
 @Processor(BQUEUE.TRIGGER)
@@ -16,20 +15,8 @@ export class TriggerProcessor {
   @Process(JOBS.TRIGGER.REACHED_THRESHOLD)
   async processTrigger(job: Job) {
     const payload = job.data;
-
-    switch (payload.dataSource) {
-      case DataSource.DHM:
-        await this.processAutomatedData(payload);
-        break;
-      case DataSource.GLOFAS:
-        await this.processAutomatedData(payload);
-        break;
-      case DataSource.MANUAL:
-        await this.processManualTrigger(payload);
-        break;
-
-      default:
-        break;
+    if (payload.dataSource) {
+      this.processAutomatedData(payload);
     }
   }
 
