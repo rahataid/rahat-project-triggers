@@ -84,6 +84,37 @@ export class TriggerService {
     }
   }
 
+  async updateTransaction(uuid: string, transactionHash: string) {
+    this.logger.log(`Updating trigger trasaction with uuid: ${uuid}`);
+
+    try {
+      const trigger = await this.prisma.trigger.findUnique({
+        where: {
+          uuid,
+        },
+      });
+
+      if (!trigger) {
+        this.logger.warn('Trigger not found.');
+        throw new RpcException('Trigger not found.');
+      }
+
+      const updatedTrigger = await this.prisma.trigger.update({
+        where: {
+          uuid,
+        },
+        data: {
+          transactionHash,
+        },
+      });
+
+      return updatedTrigger;
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException(error.message);
+    }
+  }
+
   async update(uuid: string, payload: UpdateTriggerDto) {
     this.logger.log(`Updating trigger with uuid: ${uuid}`);
 
@@ -175,12 +206,12 @@ export class TriggerService {
   }
 
   async getOne(payload: any) {
-    const { repeatKey } = payload;
+    const { repeatKey, uuid } = payload;
     this.logger.log(`Getting trigger with repeatKey: ${repeatKey}`);
     try {
-      return await this.prisma.trigger.findUnique({
+      return await this.prisma.trigger.findFirst({
         where: {
-          repeatKey: repeatKey,
+          OR: [{ uuid: uuid }, { repeatKey: repeatKey }],
         },
         include: {
           phase: {
