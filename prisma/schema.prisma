@@ -145,6 +145,7 @@ model Trigger {
   isDeleted   Boolean @default(false)
 
   triggeredBy String?
+  transactionHash String?
 
   triggeredAt DateTime?
   createdAt   DateTime  @default(now())
