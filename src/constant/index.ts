@@ -57,6 +57,7 @@ export const MS_TRIGGERS_JOBS = {
     ADD: 'ms.jobs.triggers.add',
     REMOVE: 'ms.jobs.triggers.remove',
     UPDATE: 'ms.jobs.triggers.update',
+    UPDATE_TRANSCTION: 'ms.jobs.triggers.updateTransaction',
     ACTIVATE: 'ms.jobs.triggers.activate',
     GET_BY_LOCATION: 'ms.jobs.triggers.getByLocation',
   },
