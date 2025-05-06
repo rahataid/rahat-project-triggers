@@ -16,12 +16,11 @@ export class DailyMonitoringService {
   async create(dto: CreateDailyMonitoringDto) {
     this.logger.log('Creating daily monitoring data');
     try {
-      const { appId, source, riverBasin, ...rest } = dto;
+      const { source, riverBasin, ...rest } = dto;
 
       return await this.prisma.dailyMonitoring.create({
         data: {
           ...rest,
-          app: appId,
           source: {
             connectOrCreate: {
               where: {
@@ -52,13 +51,11 @@ export class DailyMonitoringService {
     this.logger.log('Fetching all daily monitoring data');
 
     try {
-      const { page, perPage, dataEntryBy, riverBasin, createdAt, appId } =
-        payload;
+      const { page, perPage, dataEntryBy, riverBasin, createdAt } = payload;
 
       const query = {
         where: {
           isDeleted: false,
-          app: appId,
           ...(dataEntryBy && {
             dataEntryBy: { contains: dataEntryBy, mode: 'insensitive' },
           }),
@@ -94,13 +91,16 @@ export class DailyMonitoringService {
     );
     try {
       const { uuid } = payload;
-      const result = await this.prisma.dailyMonitoring.findUnique({
+      const result = await this.prisma.dailyMonitoring.findFirst({
         where: {
-          uuid: uuid,
+          groupKey: uuid,
           isDeleted: false,
         },
         include: {
           source: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
         },
       });
 
@@ -111,9 +111,7 @@ export class DailyMonitoringService {
             gte: latest - 2,
             lte: latest,
           },
-          source: {
-            riverBasin: result.source.riverBasin,
-          },
+          sourceId: result.sourceId,
           isDeleted: false,
         },
       });
@@ -135,9 +133,10 @@ export class DailyMonitoringService {
 
   async update(payload: UpdateDailyMonitoringDto) {
     const { uuid, dataEntryBy, riverBasin, info } = payload;
-    const existing = await this.prisma.dailyMonitoring.findUnique({
+    // TODO: fix this
+    const existing = await this.prisma.dailyMonitoring.findFirst({
       where: {
-        uuid: uuid,
+        groupKey: uuid,
       },
       include: {
         source: true,
@@ -148,9 +147,10 @@ export class DailyMonitoringService {
 
     const existingData = JSON.parse(JSON.stringify(existing));
 
+    // TODO: fix this
     const updatedMonitoringData = await this.prisma.dailyMonitoring.update({
       where: {
-        uuid: uuid,
+        id: existingData.id,
       },
       data: {
         dataEntryBy: dataEntryBy || existingData.dataEntryBy,
@@ -179,10 +179,11 @@ export class DailyMonitoringService {
       `Deleting daily monitoring data with uuid: ${payload.uuid}`,
     );
     try {
+      // TODO: fix this
       const { uuid } = payload;
-      return await this.prisma.dailyMonitoring.update({
+      return await this.prisma.dailyMonitoring.updateMany({
         where: {
-          uuid: uuid,
+          groupKey: uuid,
         },
         data: {
           isDeleted: true,
