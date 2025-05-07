@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import {
+  AddDailyMonitoringDto,
   CreateDailyMonitoringDto,
   ListDailyMonitoringDto,
   UpdateDailyMonitoringDto,
 } from './dto';
+import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
@@ -13,41 +16,38 @@ export class DailyMonitoringService {
   logger = new Logger(DailyMonitoringService.name);
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateDailyMonitoringDto) {
+  async create(dto: AddDailyMonitoringDto) {
     this.logger.log('Creating daily monitoring data');
     try {
-      const { source, riverBasin, ...rest } = dto;
+      const { riverBasin, uuid, user, ...rest } = dto;
+      const groupKey = uuid || randomUUID();
 
-      return await this.prisma.dailyMonitoring.create({
-        data: {
-          ...rest,
-          source: {
-            connectOrCreate: {
-              where: {
-                riverBasin: riverBasin,
-                source: {
-                  hasSome: [source],
-                },
-                // source_riverBasin: {
-                //   // source: source,
-                //   riverBasin: riverBasin,
-                // },
-              },
-              create: {
-                riverBasin: riverBasin,
-                source: [source],
-              },
-            },
-          },
-        },
+      const source = await this.prisma.source.findUnique({
+        where: { riverBasin },
       });
+
+      if (!source) throw new NotFoundException('Source not found');
+
+      return Promise.all(
+        rest.data?.map((entry) =>
+          this.prisma.dailyMonitoring.create({
+            data: {
+              groupKey,
+              sourceId: source.id,
+              dataEntryBy: user?.name,
+              dataSource: entry.source,
+              info: entry,
+            },
+          }),
+        ),
+      );
     } catch (error) {
       this.logger.error(error);
       throw new RpcException('Failed to create daily monitoring data');
     }
   }
 
-  findAll(payload: ListDailyMonitoringDto) {
+  async findAll(payload: ListDailyMonitoringDto) {
     this.logger.log('Fetching all daily monitoring data');
 
     try {
@@ -57,13 +57,16 @@ export class DailyMonitoringService {
         where: {
           isDeleted: false,
           ...(dataEntryBy && {
-            dataEntryBy: { contains: dataEntryBy, mode: 'insensitive' },
+            dataEntryBy: {
+              contains: dataEntryBy,
+              mode: Prisma.QueryMode.insensitive,
+            },
           }),
           ...(riverBasin && {
             source: {
               riverBasin: {
                 contains: riverBasin,
-                mode: 'insensitive',
+                mode: Prisma.QueryMode.insensitive,
               },
             },
           }),
@@ -73,12 +76,27 @@ export class DailyMonitoringService {
             },
           }),
         },
+        include: {
+          source: {
+            select: {
+              riverBasin: true,
+            },
+          },
+        },
       };
 
-      return paginate(this.prisma.dailyMonitoring, query, {
-        page,
-        perPage,
-      });
+      const [results, total] = await Promise.all([
+        this.prisma.dailyMonitoring.findMany({
+          where: query.where,
+          include: query.include,
+        }),
+        this.prisma.dailyMonitoring.count({
+          where: query.where,
+        }),
+      ]);
+      console.log(results);
+      const transformedData = this.sameGroupeKeyMergeData(results);
+      return { results: transformedData, total };
     } catch (error) {
       this.logger.error(error);
       throw new RpcException('Failed to fetch daily monitoring data');
@@ -91,7 +109,7 @@ export class DailyMonitoringService {
     );
     try {
       const { uuid } = payload;
-      const result = await this.prisma.dailyMonitoring.findFirst({
+      const result = await this.prisma.dailyMonitoring.findMany({
         where: {
           groupKey: uuid,
           isDeleted: false,
@@ -104,27 +122,30 @@ export class DailyMonitoringService {
         },
       });
 
-      const latest = result.id;
-      const manyData = await this.prisma.dailyMonitoring.findMany({
-        where: {
-          id: {
-            gte: latest - 2,
-            lte: latest,
-          },
-          sourceId: result.sourceId,
-          isDeleted: false,
-        },
-      });
+      return this.sameGroupeKeyMergeData(result);
 
-      const { info: monitoringData, ...rest } = result;
+      // console.log(latest);
+      // const manyData = await this.prisma.dailyMonitoring.findMany({
+      //   where: {
+      //     id: {
+      //       gte: 7 - 2,
+      //       lte: 7,
+      //     },
+      //     sourceId: result.sourceId,
+      //     isDeleted: false,
+      //   },
+      // });
 
-      return {
-        singleData: {
-          ...rest,
-          monitoringData,
-        },
-        multipleData: manyData,
-      };
+      // const { info: monitoringData, ...rest } = result;
+
+      // return {
+      //   singleData: {
+      //     ...rest,
+      //     monitoringData,
+      //   },
+
+      //   multipleData: manyData,
+      // };
     } catch (error) {
       this.logger.error(error);
       throw new RpcException('Failed to fetch daily monitoring data');
@@ -132,46 +153,61 @@ export class DailyMonitoringService {
   }
 
   async update(payload: UpdateDailyMonitoringDto) {
-    const { uuid, dataEntryBy, riverBasin, info } = payload;
-    // TODO: fix this
-    const existing = await this.prisma.dailyMonitoring.findFirst({
-      where: {
-        groupKey: uuid,
-      },
-      include: {
-        source: true,
-      },
-    });
+    const { uuid, riverBasin, data, user: dataEntryBy } = payload;
+    this.logger.log(`Updating daily monitoring data with groupkey: ${uuid}`);
 
-    if (!existing) throw new RpcException('Monitoring Data not found!');
+    try {
+      const sourceRef = await this.prisma.source.findUnique({
+        where: { riverBasin },
+      });
 
-    const existingData = JSON.parse(JSON.stringify(existing));
+      const results = await Promise.all(
+        data.map(async (entry) => {
+          const { id, source, ...infoUpdates } = entry;
 
-    // TODO: fix this
-    const updatedMonitoringData = await this.prisma.dailyMonitoring.update({
-      where: {
-        id: existingData.id,
-      },
-      data: {
-        dataEntryBy: dataEntryBy || existingData.dataEntryBy,
-        // Will update location if riverBasin and source is provided else will keep the existing location
-        ...(riverBasin && {
-          source: {
-            connectOrCreate: {
-              where: {
-                riverBasin: riverBasin,
-              },
-              create: {
-                riverBasin: riverBasin,
-              },
+          const commonData = {
+            groupKey: uuid,
+            info: {
+              ...infoUpdates,
+              ...(source && { source }),
             },
-          },
+            dataSource: source,
+            sourceId: sourceRef?.id,
+          };
+
+          if (id) {
+            const existingRecord = await this.prisma.dailyMonitoring.findFirst({
+              where: { id, groupKey: uuid },
+            });
+
+            if (existingRecord) {
+              const updated = await this.prisma.dailyMonitoring.update({
+                where: { id },
+                data: {
+                  ...commonData,
+                  updatedAt: new Date(),
+                },
+              });
+              return updated;
+            }
+          }
+
+          const created = await this.prisma.dailyMonitoring.create({
+            data: {
+              ...commonData,
+              dataEntryBy: dataEntryBy?.name,
+            },
+          });
+
+          return created;
         }),
-        info: JSON.parse(JSON.stringify(info)) || existingData,
-        updatedAt: new Date(),
-      },
-    });
-    return updatedMonitoringData;
+      );
+
+      return results;
+    } catch (error) {
+      console.error('Error in upsert operation:', error);
+      throw error;
+    }
   }
 
   async remove(payload: { uuid: string }) {
@@ -179,7 +215,6 @@ export class DailyMonitoringService {
       `Deleting daily monitoring data with uuid: ${payload.uuid}`,
     );
     try {
-      // TODO: fix this
       const { uuid } = payload;
       return await this.prisma.dailyMonitoring.updateMany({
         where: {
@@ -193,5 +228,53 @@ export class DailyMonitoringService {
       this.logger.error(error);
       throw new RpcException('Failed to delete daily monitoring data');
     }
+  }
+
+  async deleteDailyMonitoringByIdAndGroupKey(payload: {
+    uuid: string;
+    id: number;
+  }) {
+    try {
+      const { uuid, id } = payload;
+      return await this.prisma.dailyMonitoring.update({
+        where: {
+          groupKey: uuid,
+          id,
+        },
+        data: {
+          isDeleted: true,
+        },
+      });
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException('Failed to delete daily monitoring data');
+    }
+  }
+  sameGroupeKeyMergeData(response) {
+    const grouped = {};
+    response?.forEach((item) => {
+      const { groupKey } = item;
+      const infoWithId = {
+        ...item.info,
+        id: item.id,
+      };
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          groupKey,
+          dataEntryBy: item.dataEntryBy,
+          riverBasin: item?.source?.riverBasin,
+          data: [infoWithId],
+          createdBy: item.createdBy,
+          isDeleted: item.isDeleted,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        };
+      } else {
+        grouped[groupKey].data.push(infoWithId);
+      }
+    });
+
+    return Object.values(grouped);
   }
 }

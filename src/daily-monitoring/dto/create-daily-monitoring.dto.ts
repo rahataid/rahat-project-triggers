@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataSource } from '@prisma/client';
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 export class CreateDailyMonitoringDto {
   @ApiProperty({
     example: '',

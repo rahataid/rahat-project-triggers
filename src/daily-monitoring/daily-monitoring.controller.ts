@@ -3,6 +3,7 @@ import { MessagePattern } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { DailyMonitoringService } from './daily-monitoring.service';
 import {
+  AddDailyMonitoringDto,
   CreateDailyMonitoringDto,
   ListDailyMonitoringDto,
   UpdateDailyMonitoringDto,
@@ -17,7 +18,7 @@ export class DailyMonitoringController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.DAILY_MONITORING.ADD,
   })
-  async add(payload: CreateDailyMonitoringDto) {
+  async add(payload: AddDailyMonitoringDto) {
     return this.dailyMonitoringService.create(payload);
   }
 
@@ -47,5 +48,14 @@ export class DailyMonitoringController {
   })
   async remove(payload: { uuid: string }) {
     return this.dailyMonitoringService.remove(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.DAILY_MONITORING.DELETE,
+  })
+  async deleteByKeyAndGroup(payload: { uuid: string; id: number }) {
+    return this.dailyMonitoringService.deleteDailyMonitoringByIdAndGroupKey(
+      payload,
+    );
   }
 }

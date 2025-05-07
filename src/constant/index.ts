@@ -118,6 +118,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.dailyMonitoring.getOne',
     UPDATE: 'ms.jobs.dailyMonitoring.update',
     REMOVE: 'ms.jobs.dailyMonitoring.remove',
+    DELETE: 'ms.jobs.dailyMonitoring.delete',
   },
 };
 export const EVENTS = {
