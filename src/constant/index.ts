@@ -3,6 +3,7 @@ export const BQUEUE = {
   TRIGGER: 'TRIGGER',
   CONTRACT: 'CONTRACT',
   COMMUNICATION: 'COMMUNICATION',
+  STELLAR: 'STELLAR',
 };
 
 export const JOBS = {
@@ -45,6 +46,9 @@ export const JOBS = {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
   STELLAR: {
+    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.getTriggerOnChainQueue',
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE:
+      'aa.jobs.stellar.updateTriggerParamsOnChainQueue',
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
 };
