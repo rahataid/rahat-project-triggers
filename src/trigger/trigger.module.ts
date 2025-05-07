@@ -20,6 +20,9 @@ import { SourcesDataModule } from 'src/sources-data/sources-data.module';
       {
         name: BQUEUE.TRIGGER,
       },
+      {
+        name: BQUEUE.STELLAR,
+      },
     ),
     forwardRef(() => PhasesModule),
   ],

@@ -8,6 +8,7 @@ import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
+import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -20,6 +21,10 @@ export class TriggerService {
     private readonly phasesService: PhasesService,
     @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
+    @InjectQueue(BQUEUE.STELLAR)
+    private readonly stellarQueue: Queue<
+      AddTriggerJobDto | UpdateTriggerParamsJobDto
+    >,
   ) {}
 
   async create(appId: string, dto: CreateTriggerDto) {
@@ -256,9 +261,38 @@ export class TriggerService {
         repeatKey: randomUUID(),
       };
 
-      return await this.prisma.trigger.create({
+      const trigger = await this.prisma.trigger.create({
         data: payload,
+        include: {
+          phase: true,
+        },
       });
+
+      const queueData: AddTriggerJobDto = {
+        id: trigger.uuid,
+        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+        phase: trigger.phase.name,
+        title: trigger.title,
+        source: trigger.source,
+        river_basin: trigger.phase.riverBasin,
+        params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
+        is_mandatory: trigger.isMandatory,
+      };
+
+      this.stellarQueue.add(JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, queueData, {
+        attempts: 3,
+        removeOnComplete: true,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      });
+
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
+
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
@@ -409,10 +443,36 @@ export class TriggerService {
         source,
         isDeleted: false,
       };
-      await this.prisma.trigger.create({
+      const trigger = await this.prisma.trigger.create({
         data: createData,
+        include: {
+          phase: true,
+        },
       });
       this.logger.log(`Trigger created with repeatKey: ${repeatableKey}`);
+
+      const queueData: AddTriggerJobDto = {
+        id: trigger.uuid,
+        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+        phase: trigger.phase.name,
+        title: trigger.title,
+        source: trigger.source,
+        river_basin: trigger.phase.riverBasin,
+        params: createData.triggerStatement,
+        is_mandatory: trigger.isMandatory,
+      };
+
+      this.stellarQueue.add(JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, queueData, {
+        attempts: 3,
+        removeOnComplete: true,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      });
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
 
       return createData;
     } catch (error) {
@@ -470,7 +530,34 @@ export class TriggerService {
           notes: payload?.notes || '',
           triggeredBy,
         },
+        include: {
+          phase: true,
+        },
       });
+
+      const jobDetails: UpdateTriggerParamsJobDto = {
+        id: updatedTrigger.uuid,
+        isTriggered: updatedTrigger.isTriggered,
+        params: JSON.parse(JSON.stringify(updatedTrigger.triggerStatement)),
+        source: updatedTrigger.source,
+      };
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        jobDetails,
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${jobDetails.id}
+        `);
 
       if (trigger.isMandatory) {
         await this.prisma.phase.update({

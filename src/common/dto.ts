@@ -1,6 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsJSON,
+  IsBoolean,
+  IsObject,
+} from 'class-validator';
 
 export class PaginationDto {
   @ApiProperty({
@@ -39,4 +48,47 @@ export class PaginationDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   order: 'asc' | 'desc' = 'asc';
+}
+export class AddTriggerJobDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  trigger_type: string;
+
+  @IsString()
+  phase: string;
+
+  @IsString()
+  title: string;
+
+  @IsString()
+  source: string;
+
+  @IsString()
+  river_basin: string;
+
+  @IsJSON()
+  params: JSON;
+
+  @IsBoolean()
+  is_mandatory: boolean;
+}
+
+export class UpdateTriggerParamsJobDto {
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @IsString()
+  @IsOptional()
+  source?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isTriggered?: boolean;
+
+  @IsObject()
+  @IsOptional()
+  params?: Record<string, any>;
 }
