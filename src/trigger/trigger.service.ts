@@ -221,6 +221,29 @@ export class TriggerService {
         },
       });
 
+      // Add job in queue to update trigger onChain hash
+      const queueData: UpdateTriggerParamsJobDto = {
+        id: updatedTrigger.uuid,
+        isTriggered: updatedTrigger.isTriggered,
+        params: JSON.parse(JSON.stringify(updatedTrigger.triggerStatement)),
+        source: updatedTrigger.source,
+      };
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        queueData,
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
       return updatedTrigger;
     } catch (error) {
       this.logger.error(error);
