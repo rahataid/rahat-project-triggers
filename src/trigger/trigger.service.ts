@@ -23,7 +23,7 @@ export class TriggerService {
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     @InjectQueue(BQUEUE.STELLAR)
     private readonly stellarQueue: Queue<
-      AddTriggerJobDto | UpdateTriggerParamsJobDto
+      { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
     >,
   ) {}
 
@@ -35,24 +35,57 @@ export class TriggerService {
       we are creating a trigger in the phase itself. and phase is linked with datasource
       */
 
+      let trigger = null;
+
       if (dto.source === 'MANUAL') {
         this.logger.log(
           `User requested MANUAL Trigger, So creating manul trigger`,
         );
         delete dto.triggerDocuments?.type;
-        return await this.createManualTrigger(appId, dto);
+        trigger = await this.createManualTrigger(appId, dto);
+      } else {
+        const sanitizedPayload = {
+          title: dto.title,
+          triggerStatement: dto.triggerStatement,
+          phaseId: dto.phaseId,
+          isMandatory: dto.isMandatory,
+          dataSource: dto.source,
+          riverBasin: dto.riverBasin,
+          repeatEvery: '30000',
+        };
+        trigger = await this.scheduleJob(sanitizedPayload);
       }
-      const sanitizedPayload = {
-        title: dto.title,
-        triggerStatement: dto.triggerStatement,
-        phaseId: dto.phaseId,
-        isMandatory: dto.isMandatory,
-        dataSource: dto.source,
-        riverBasin: dto.riverBasin,
-        repeatEvery: '30000',
+
+      const queueData: AddTriggerJobDto = {
+        id: trigger.uuid,
+        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+        phase: trigger.phase.name,
+        title: trigger.title,
+        source: trigger.source,
+        river_basin: trigger.phase.riverBasin,
+        params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
+        is_mandatory: trigger.isMandatory,
       };
 
-      return this.scheduleJob(sanitizedPayload);
+      this.stellarQueue.add(
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        {
+          triggers: [queueData],
+        },
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
+
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
@@ -83,6 +116,36 @@ export class TriggerService {
           return await this.scheduleJob(sanitizedPayload);
         }),
       );
+      const queueData: AddTriggerJobDto[] = k.map((trigger) => {
+        return {
+          id: trigger.uuid,
+          trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+          phase: trigger.phase.name,
+          title: trigger.title,
+          source: trigger.source,
+          river_basin: trigger.phase.riverBasin,
+          params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
+          is_mandatory: trigger.isMandatory,
+        };
+      });
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        {
+          triggers: queueData,
+        },
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Total ${k.length} triggers added to stellar queue
+        `);
       return k;
     } catch (error) {
       console.log(error);
@@ -158,6 +221,29 @@ export class TriggerService {
         },
       });
 
+      // Add job in queue to update trigger onChain hash
+      const queueData: UpdateTriggerParamsJobDto = {
+        id: updatedTrigger.uuid,
+        isTriggered: updatedTrigger.isTriggered,
+        params: JSON.parse(JSON.stringify(updatedTrigger.triggerStatement)),
+        source: updatedTrigger.source,
+      };
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        queueData,
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
       return updatedTrigger;
     } catch (error) {
       this.logger.error(error);
@@ -267,30 +353,6 @@ export class TriggerService {
           phase: true,
         },
       });
-
-      const queueData: AddTriggerJobDto = {
-        id: trigger.uuid,
-        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
-        phase: trigger.phase.name,
-        title: trigger.title,
-        source: trigger.source,
-        river_basin: trigger.phase.riverBasin,
-        params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
-        is_mandatory: trigger.isMandatory,
-      };
-
-      this.stellarQueue.add(JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, queueData, {
-        attempts: 3,
-        removeOnComplete: true,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      });
-
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id}
-        `);
 
       return trigger;
     } catch (error) {
@@ -451,30 +513,7 @@ export class TriggerService {
       });
       this.logger.log(`Trigger created with repeatKey: ${repeatableKey}`);
 
-      const queueData: AddTriggerJobDto = {
-        id: trigger.uuid,
-        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
-        phase: trigger.phase.name,
-        title: trigger.title,
-        source: trigger.source,
-        river_basin: trigger.phase.riverBasin,
-        params: createData.triggerStatement,
-        is_mandatory: trigger.isMandatory,
-      };
-
-      this.stellarQueue.add(JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, queueData, {
-        attempts: 3,
-        removeOnComplete: true,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      });
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id}
-        `);
-
-      return createData;
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
