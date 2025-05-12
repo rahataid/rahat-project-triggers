@@ -15,10 +15,10 @@ export class TriggerController {
     // here we are checking if the payload is an array  for bulk create
     // also we are  checking if the payload  is an object as it is may be use for single create in others modules
     // we are using  here at once because we have to use the same method for different  moddules that is job schedule
-    if (Array.isArray(payload?.triggers)) {
-      return await this.triggerService.bulkCreate(payload.triggers);
-    }
     const { appId, ...rest } = payload;
+    if (Array.isArray(payload?.triggers)) {
+      return await this.triggerService.bulkCreate(appId, payload.triggers);
+    }
     return await this.triggerService.create(appId, rest);
   }
 
@@ -47,16 +47,16 @@ export class TriggerController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ACTIVATE,
   })
   activateTrigger(payload) {
-    const { uuid, ...dto } = payload;
-    return this.triggerService.activateTrigger(uuid, dto);
+    const { uuid, appId, ...dto } = payload;
+    return this.triggerService.activateTrigger(uuid, appId, dto);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE,
   })
   updateTrigger(payload) {
-    const { uuid, ...dto } = payload;
-    return this.triggerService.update(uuid, dto);
+    const { uuid, appId, ...dto } = payload;
+    return this.triggerService.update(uuid, appId, dto);
   }
 
   @MessagePattern({

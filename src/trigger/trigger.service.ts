@@ -68,7 +68,7 @@ export class TriggerService {
       };
 
       this.stellarQueue.add(
-        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
         {
           triggers: [queueData],
         },
@@ -82,7 +82,7 @@ export class TriggerService {
         },
       );
       this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id}
+        Trigger added to stellar queue action: ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId)} with id: ${queueData.id} for AA ${appId}
         `);
 
       return trigger;
@@ -92,7 +92,7 @@ export class TriggerService {
     }
   }
 
-  async bulkCreate(payload) {
+  async bulkCreate(appId: string, payload) {
     try {
       const k = await Promise.all(
         payload.map(async (item) => {
@@ -130,7 +130,7 @@ export class TriggerService {
       });
 
       this.stellarQueue.add(
-        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
         {
           triggers: queueData,
         },
@@ -144,7 +144,7 @@ export class TriggerService {
         },
       );
       this.logger.log(`
-        Total ${k.length} triggers added to stellar queue
+        Total ${k.length} triggers added for action: ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId)} to stellar queue for AA ${appId}
         `);
       return k;
     } catch (error) {
@@ -183,7 +183,7 @@ export class TriggerService {
     }
   }
 
-  async update(uuid: string, payload: UpdateTriggerDto) {
+  async update(uuid: string, appId: string, payload: UpdateTriggerDto) {
     this.logger.log(`Updating trigger with uuid: ${uuid}`);
 
     try {
@@ -230,7 +230,7 @@ export class TriggerService {
       };
 
       this.stellarQueue.add(
-        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
         queueData,
         {
           attempts: 3,
@@ -242,7 +242,7 @@ export class TriggerService {
         },
       );
       this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id}
+        Trigger added to stellar queue with id: ${queueData.id} for AA ${appId}
         `);
       return updatedTrigger;
     } catch (error) {
@@ -520,7 +520,11 @@ export class TriggerService {
     }
   }
 
-  async activateTrigger(uuid: string, payload: UpdateTriggerDto) {
+  async activateTrigger(
+    uuid: string,
+    appId: string,
+    payload: UpdateTriggerDto,
+  ) {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
     try {
       const { triggeredBy, triggerDocuments } = payload;
@@ -582,7 +586,7 @@ export class TriggerService {
       };
 
       this.stellarQueue.add(
-        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
         jobDetails,
         {
           attempts: 3,
@@ -595,7 +599,7 @@ export class TriggerService {
       );
 
       this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}
+        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId)} for appId ${appId}
         `);
 
       if (trigger.isMandatory) {
