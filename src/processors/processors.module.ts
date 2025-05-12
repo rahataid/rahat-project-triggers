@@ -7,17 +7,19 @@ import { PhasesModule } from '../phases/phases.module';
 import { ScheduleProcessor } from './schedule.processor';
 import { TriggerProcessor } from './trigger.processor';
 import { StatsProcessor } from './stats.processor';
+import { CommunicationProcessor } from './communication.processor';
+import { ActivityModule } from 'src/activity/activity.module';
 // import { StatsProcessor } from './stats.processor';
 // import { TriggerProcessor } from './trigger.processor';
 
 @Module({
-  imports: [SourcesDataModule, PhasesModule],
+  imports: [PhasesModule, SourcesDataModule, ActivityModule],
   providers: [
     ScheduleProcessor,
     TriggerProcessor,
     PrismaService,
     // ContractProcessor,
-    // CommunicationProcessor,
+    CommunicationProcessor,
     StatsProcessor,
   ],
 })

@@ -8,6 +8,7 @@ import { BQUEUE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
+import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -20,6 +21,10 @@ export class TriggerService {
     private readonly phasesService: PhasesService,
     @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
+    @InjectQueue(BQUEUE.STELLAR)
+    private readonly stellarQueue: Queue<
+      { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
+    >,
   ) {}
 
   async create(appId: string, dto: CreateTriggerDto) {
@@ -30,24 +35,57 @@ export class TriggerService {
       we are creating a trigger in the phase itself. and phase is linked with datasource
       */
 
+      let trigger = null;
+
       if (dto.source === 'MANUAL') {
         this.logger.log(
           `User requested MANUAL Trigger, So creating manul trigger`,
         );
         delete dto.triggerDocuments?.type;
-        return await this.createManualTrigger(appId, dto);
+        trigger = await this.createManualTrigger(appId, dto);
+      } else {
+        const sanitizedPayload = {
+          title: dto.title,
+          triggerStatement: dto.triggerStatement,
+          phaseId: dto.phaseId,
+          isMandatory: dto.isMandatory,
+          dataSource: dto.source,
+          riverBasin: dto.riverBasin,
+          repeatEvery: '30000',
+        };
+        trigger = await this.scheduleJob(sanitizedPayload);
       }
-      const sanitizedPayload = {
-        title: dto.title,
-        triggerStatement: dto.triggerStatement,
-        phaseId: dto.phaseId,
-        isMandatory: dto.isMandatory,
-        dataSource: dto.source,
-        riverBasin: dto.riverBasin,
-        repeatEvery: '30000',
+
+      const queueData: AddTriggerJobDto = {
+        id: trigger.uuid,
+        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+        phase: trigger.phase.name,
+        title: trigger.title,
+        source: trigger.source,
+        river_basin: trigger.phase.riverBasin,
+        params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
+        is_mandatory: trigger.isMandatory,
       };
 
-      return this.scheduleJob(sanitizedPayload);
+      this.stellarQueue.add(
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        {
+          triggers: [queueData],
+        },
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
+
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
@@ -78,9 +116,70 @@ export class TriggerService {
           return await this.scheduleJob(sanitizedPayload);
         }),
       );
+      const queueData: AddTriggerJobDto[] = k.map((trigger) => {
+        return {
+          id: trigger.uuid,
+          trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+          phase: trigger.phase.name,
+          title: trigger.title,
+          source: trigger.source,
+          river_basin: trigger.phase.riverBasin,
+          params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
+          is_mandatory: trigger.isMandatory,
+        };
+      });
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        {
+          triggers: queueData,
+        },
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Total ${k.length} triggers added to stellar queue
+        `);
       return k;
     } catch (error) {
       console.log(error);
+    }
+  }
+
+  async updateTransaction(uuid: string, transactionHash: string) {
+    this.logger.log(`Updating trigger trasaction with uuid: ${uuid}`);
+
+    try {
+      const trigger = await this.prisma.trigger.findUnique({
+        where: {
+          uuid,
+        },
+      });
+
+      if (!trigger) {
+        this.logger.warn('Trigger not found.');
+        throw new RpcException('Trigger not found.');
+      }
+
+      const updatedTrigger = await this.prisma.trigger.update({
+        where: {
+          uuid,
+        },
+        data: {
+          transactionHash,
+        },
+      });
+
+      return updatedTrigger;
+    } catch (error) {
+      this.logger.error(error);
+      throw new RpcException(error.message);
     }
   }
 
@@ -122,6 +221,29 @@ export class TriggerService {
         },
       });
 
+      // Add job in queue to update trigger onChain hash
+      const queueData: UpdateTriggerParamsJobDto = {
+        id: updatedTrigger.uuid,
+        isTriggered: updatedTrigger.isTriggered,
+        params: JSON.parse(JSON.stringify(updatedTrigger.triggerStatement)),
+        source: updatedTrigger.source,
+      };
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        queueData,
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${queueData.id}
+        `);
       return updatedTrigger;
     } catch (error) {
       this.logger.error(error);
@@ -175,12 +297,12 @@ export class TriggerService {
   }
 
   async getOne(payload: any) {
-    const { repeatKey } = payload;
+    const { repeatKey, uuid } = payload;
     this.logger.log(`Getting trigger with repeatKey: ${repeatKey}`);
     try {
-      return await this.prisma.trigger.findUnique({
+      return await this.prisma.trigger.findFirst({
         where: {
-          repeatKey: repeatKey,
+          OR: [{ uuid: uuid }, { repeatKey: repeatKey }],
         },
         include: {
           phase: {
@@ -225,9 +347,14 @@ export class TriggerService {
         repeatKey: randomUUID(),
       };
 
-      return await this.prisma.trigger.create({
+      const trigger = await this.prisma.trigger.create({
         data: payload,
+        include: {
+          phase: true,
+        },
       });
+
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
@@ -378,12 +505,15 @@ export class TriggerService {
         source,
         isDeleted: false,
       };
-      await this.prisma.trigger.create({
+      const trigger = await this.prisma.trigger.create({
         data: createData,
+        include: {
+          phase: true,
+        },
       });
       this.logger.log(`Trigger created with repeatKey: ${repeatableKey}`);
 
-      return createData;
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
@@ -439,7 +569,34 @@ export class TriggerService {
           notes: payload?.notes || '',
           triggeredBy,
         },
+        include: {
+          phase: true,
+        },
       });
+
+      const jobDetails: UpdateTriggerParamsJobDto = {
+        id: updatedTrigger.uuid,
+        isTriggered: updatedTrigger.isTriggered,
+        params: JSON.parse(JSON.stringify(updatedTrigger.triggerStatement)),
+        source: updatedTrigger.source,
+      };
+
+      this.stellarQueue.add(
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        jobDetails,
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${jobDetails.id}
+        `);
 
       if (trigger.isMandatory) {
         await this.prisma.phase.update({

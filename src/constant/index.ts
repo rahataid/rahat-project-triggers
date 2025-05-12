@@ -3,6 +3,7 @@ export const BQUEUE = {
   TRIGGER: 'TRIGGER',
   CONTRACT: 'CONTRACT',
   COMMUNICATION: 'COMMUNICATION',
+  STELLAR: 'STELLAR',
 };
 
 export const JOBS = {
@@ -25,6 +26,7 @@ export const JOBS = {
     UPDATE: 'rahat.jobs.activities.update',
     UPDATE_STATUS: 'rahat.jobs.activities.updateStatus',
     COMMUNICATION: {
+      TRIGGER: 'rahat.jobs.activities.communication.trigger',
       TRIGGER_CAMPAIGN: 'rahat.jobs.communication.trigger_campaign',
       SESSION_LOGS: 'rahat.jobs.activities.communication.sessionLogs',
       RETRY_FAILED: 'rahat.jobs.activities.communication.retryFailed',
@@ -43,6 +45,12 @@ export const JOBS = {
   STAKEHOLDERS: {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
+  STELLAR: {
+    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.getTriggerOnChainQueue',
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE:
+      'aa.jobs.stellar.updateTriggerParamsOnChainQueue',
+    DISBURSE: 'aa.jobs.stellar.disburse',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {
@@ -53,12 +61,14 @@ export const MS_TRIGGERS_JOBS = {
     ADD: 'ms.jobs.triggers.add',
     REMOVE: 'ms.jobs.triggers.remove',
     UPDATE: 'ms.jobs.triggers.update',
+    UPDATE_TRANSCTION: 'ms.jobs.triggers.updateTransaction',
     ACTIVATE: 'ms.jobs.triggers.activate',
     GET_BY_LOCATION: 'ms.jobs.triggers.getByLocation',
   },
 
   PHASES: {
     CREATE: 'ms.jobs.phases.create',
+    ACTIVATE: 'ms.jobs.phases.activate',
     GET_ONE: 'ms.jobs.phases.getOne',
     GET_ALL: 'ms.jobs.phases.getAll',
     GET_STATS: 'ms.jobs.phases.getStats',
@@ -108,6 +118,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.dailyMonitoring.getOne',
     UPDATE: 'ms.jobs.dailyMonitoring.update',
     REMOVE: 'ms.jobs.dailyMonitoring.remove',
+    DELETE: 'ms.jobs.dailyMonitoring.delete',
   },
 };
 export const EVENTS = {

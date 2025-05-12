@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
-import { GetTriggersDto } from './dto';
+import { GetTriggersDto, UpdateTriggerTransactionDto } from './dto';
 import { TriggerService } from './trigger.service';
 
 @Controller('trigger')
@@ -57,6 +57,16 @@ export class TriggerController {
   updateTrigger(payload) {
     const { uuid, ...dto } = payload;
     return this.triggerService.update(uuid, dto);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE_TRANSCTION,
+  })
+  updateTriggerTransaction(payload: UpdateTriggerTransactionDto) {
+    return this.triggerService.updateTransaction(
+      payload.uuid,
+      payload.transactionHash,
+    );
   }
 
   @MessagePattern({

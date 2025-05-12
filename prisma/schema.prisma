@@ -78,15 +78,15 @@ model SourcesData {
 
 model DailyMonitoring {
   id   Int    @id @default(autoincrement())
-  uuid String @unique @default(uuid())
+  groupKey String?
 
   dataEntryBy String
   info        Json    @db.JsonB()
-  app         String?
 
   sourceId   Int
   source     Source @relation(fields: [sourceId], references: [id])
-
+  
+  dataSource String?
   isDeleted Boolean   @default(false)
   createdBy String?
   createdAt DateTime  @default(now())
@@ -143,8 +143,10 @@ model Trigger {
   isMandatory Boolean @default(false)
   isTriggered Boolean @default(false)
   isDeleted   Boolean @default(false)
+  isDailyMonitored Boolean @default(false)
 
   triggeredBy String?
+  transactionHash String?
 
   triggeredAt DateTime?
   createdAt   DateTime  @default(now())

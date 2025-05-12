@@ -20,6 +20,7 @@ import { MS_TRIGGER_CLIENTS } from 'src/constant';
   ],
 
   controllers: [ActivityController],
+  exports: [ActivityService],
   providers: [ActivityService],
 })
 export class ActivityModule {}
