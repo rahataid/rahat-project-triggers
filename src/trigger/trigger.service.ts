@@ -9,6 +9,7 @@ import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
+import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -25,6 +26,10 @@ export class TriggerService {
     private readonly stellarQueue: Queue<
       { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
     >,
+    @InjectQueue(BQUEUE.STELLAR)
+    private readonly stellarQueue: Queue<
+      { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
+    >,
   ) {}
 
   async create(appId: string, dto: CreateTriggerDto) {
@@ -34,6 +39,8 @@ export class TriggerService {
       We don't need to create a trigger sperately if source is manual, because,
       we are creating a trigger in the phase itself. and phase is linked with datasource
       */
+
+      let trigger = null;
 
       let trigger = null;
 
@@ -68,7 +75,7 @@ export class TriggerService {
       };
 
       this.stellarQueue.add(
-        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
         {
           triggers: [queueData],
         },
@@ -82,7 +89,7 @@ export class TriggerService {
         },
       );
       this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id}
+        Trigger added to stellar queue action: ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId)} with id: ${queueData.id} for AA ${appId}
         `);
 
       return trigger;
@@ -92,7 +99,7 @@ export class TriggerService {
     }
   }
 
-  async bulkCreate(payload) {
+  async bulkCreate(appId: string, payload) {
     try {
       const k = await Promise.all(
         payload.map(async (item) => {
@@ -130,7 +137,7 @@ export class TriggerService {
       });
 
       this.stellarQueue.add(
-        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE,
+        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
         {
           triggers: queueData,
         },
@@ -144,7 +151,7 @@ export class TriggerService {
         },
       );
       this.logger.log(`
-        Total ${k.length} triggers added to stellar queue
+        Total ${k.length} triggers added for action: ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId)} to stellar queue for AA ${appId}
         `);
       return k;
     } catch (error) {
@@ -183,7 +190,7 @@ export class TriggerService {
     }
   }
 
-  async update(uuid: string, payload: UpdateTriggerDto) {
+  async update(uuid: string, appId: string, payload: UpdateTriggerDto) {
     this.logger.log(`Updating trigger with uuid: ${uuid}`);
 
     try {
@@ -230,7 +237,7 @@ export class TriggerService {
       };
 
       this.stellarQueue.add(
-        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
         queueData,
         {
           attempts: 3,
@@ -242,7 +249,7 @@ export class TriggerService {
         },
       );
       this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id}
+        Trigger added to stellar queue with id: ${queueData.id} for AA ${appId}
         `);
       return updatedTrigger;
     } catch (error) {
@@ -298,10 +305,13 @@ export class TriggerService {
 
   async getOne(payload: any) {
     const { repeatKey, uuid } = payload;
+    const { repeatKey, uuid } = payload;
     this.logger.log(`Getting trigger with repeatKey: ${repeatKey}`);
     try {
       return await this.prisma.trigger.findFirst({
+      return await this.prisma.trigger.findFirst({
         where: {
+          OR: [{ uuid: uuid }, { repeatKey: repeatKey }],
           OR: [{ uuid: uuid }, { repeatKey: repeatKey }],
         },
         include: {
@@ -348,11 +358,17 @@ export class TriggerService {
       };
 
       const trigger = await this.prisma.trigger.create({
+      const trigger = await this.prisma.trigger.create({
         data: payload,
         include: {
           phase: true,
         },
+        include: {
+          phase: true,
+        },
       });
+
+      return trigger;
 
       return trigger;
     } catch (error) {
@@ -506,7 +522,11 @@ export class TriggerService {
         isDeleted: false,
       };
       const trigger = await this.prisma.trigger.create({
+      const trigger = await this.prisma.trigger.create({
         data: createData,
+        include: {
+          phase: true,
+        },
         include: {
           phase: true,
         },
@@ -514,13 +534,18 @@ export class TriggerService {
       this.logger.log(`Trigger created with repeatKey: ${repeatableKey}`);
 
       return trigger;
+      return trigger;
     } catch (error) {
       this.logger.error(error);
       throw new RpcException(error.message);
     }
   }
 
-  async activateTrigger(uuid: string, payload: UpdateTriggerDto) {
+  async activateTrigger(
+    uuid: string,
+    appId: string,
+    payload: UpdateTriggerDto,
+  ) {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
     try {
       const { triggeredBy, triggerDocuments } = payload;
@@ -582,7 +607,7 @@ export class TriggerService {
       };
 
       this.stellarQueue.add(
-        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
         jobDetails,
         {
           attempts: 3,
@@ -595,7 +620,7 @@ export class TriggerService {
       );
 
       this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}
+        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId)} for appId ${appId}
         `);
 
       if (trigger.isMandatory) {
