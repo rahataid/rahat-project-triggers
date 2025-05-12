@@ -4,6 +4,7 @@ export const BQUEUE = {
   CONTRACT: 'CONTRACT',
   COMMUNICATION: 'COMMUNICATION',
   STELLAR: 'STELLAR',
+  STELLAR: 'STELLAR',
 };
 
 export const JOBS = {
@@ -26,6 +27,7 @@ export const JOBS = {
     UPDATE: 'rahat.jobs.activities.update',
     UPDATE_STATUS: 'rahat.jobs.activities.updateStatus',
     COMMUNICATION: {
+      TRIGGER: 'rahat.jobs.activities.communication.trigger',
       TRIGGER: 'rahat.jobs.activities.communication.trigger',
       TRIGGER_CAMPAIGN: 'rahat.jobs.communication.trigger_campaign',
       SESSION_LOGS: 'rahat.jobs.activities.communication.sessionLogs',
@@ -63,12 +65,14 @@ export const MS_TRIGGERS_JOBS = {
     REMOVE: 'ms.jobs.triggers.remove',
     UPDATE: 'ms.jobs.triggers.update',
     UPDATE_TRANSCTION: 'ms.jobs.triggers.updateTransaction',
+    UPDATE_TRANSCTION: 'ms.jobs.triggers.updateTransaction',
     ACTIVATE: 'ms.jobs.triggers.activate',
     GET_BY_LOCATION: 'ms.jobs.triggers.getByLocation',
   },
 
   PHASES: {
     CREATE: 'ms.jobs.phases.create',
+    ACTIVATE: 'ms.jobs.phases.activate',
     ACTIVATE: 'ms.jobs.phases.activate',
     GET_ONE: 'ms.jobs.phases.getOne',
     GET_ALL: 'ms.jobs.phases.getAll',
@@ -119,6 +123,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.dailyMonitoring.getOne',
     UPDATE: 'ms.jobs.dailyMonitoring.update',
     REMOVE: 'ms.jobs.dailyMonitoring.remove',
+    DELETE: 'ms.jobs.dailyMonitoring.delete',
     DELETE: 'ms.jobs.dailyMonitoring.delete',
   },
 };
