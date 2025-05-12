@@ -46,9 +46,10 @@ export const JOBS = {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
   STELLAR: {
-    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.getTriggerOnChainQueue',
-    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE:
-      'aa.jobs.stellar.updateTriggerParamsOnChainQueue',
+    ADD_ONCHAIN_TRIGGER_QUEUE: (PROJECT_ID) =>
+      'aa.jobs.stellar.getTriggerOnChainQueue_' + PROJECT_ID,
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: (PROJECT_ID) =>
+      'aa.jobs.stellar.updateTriggerParamsOnChainQueue_' + PROJECT_ID,
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
 };
