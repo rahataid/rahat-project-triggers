@@ -85,18 +85,17 @@ export class DailyMonitoringService {
         },
       };
 
-      const [results, total] = await Promise.all([
+      const [results] = await Promise.all([
         this.prisma.dailyMonitoring.findMany({
           where: query.where,
           include: query.include,
-        }),
-        this.prisma.dailyMonitoring.count({
-          where: query.where,
+          orderBy: {
+            createdAt: 'desc',
+          },
         }),
       ]);
-      console.log(results);
       const transformedData = this.sameGroupeKeyMergeData(results);
-      return { results: transformedData, total };
+      return { results: transformedData };
     } catch (error) {
       this.logger.error(error);
       throw new RpcException('Failed to fetch daily monitoring data');
