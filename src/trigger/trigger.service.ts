@@ -9,7 +9,6 @@ import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { RpcException } from '@nestjs/microservices';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
-import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -26,10 +25,6 @@ export class TriggerService {
     private readonly stellarQueue: Queue<
       { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
     >,
-    @InjectQueue(BQUEUE.STELLAR)
-    private readonly stellarQueue: Queue<
-      { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
-    >,
   ) {}
 
   async create(appId: string, dto: CreateTriggerDto) {
@@ -39,8 +34,6 @@ export class TriggerService {
       We don't need to create a trigger sperately if source is manual, because,
       we are creating a trigger in the phase itself. and phase is linked with datasource
       */
-
-      let trigger = null;
 
       let trigger = null;
 
@@ -305,13 +298,10 @@ export class TriggerService {
 
   async getOne(payload: any) {
     const { repeatKey, uuid } = payload;
-    const { repeatKey, uuid } = payload;
     this.logger.log(`Getting trigger with repeatKey: ${repeatKey}`);
     try {
       return await this.prisma.trigger.findFirst({
-      return await this.prisma.trigger.findFirst({
         where: {
-          OR: [{ uuid: uuid }, { repeatKey: repeatKey }],
           OR: [{ uuid: uuid }, { repeatKey: repeatKey }],
         },
         include: {
@@ -358,11 +348,7 @@ export class TriggerService {
       };
 
       const trigger = await this.prisma.trigger.create({
-      const trigger = await this.prisma.trigger.create({
         data: payload,
-        include: {
-          phase: true,
-        },
         include: {
           phase: true,
         },
@@ -522,11 +508,7 @@ export class TriggerService {
         isDeleted: false,
       };
       const trigger = await this.prisma.trigger.create({
-      const trigger = await this.prisma.trigger.create({
         data: createData,
-        include: {
-          phase: true,
-        },
         include: {
           phase: true,
         },

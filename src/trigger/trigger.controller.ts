@@ -70,16 +70,6 @@ export class TriggerController {
   }
 
   @MessagePattern({
-    cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE_TRANSCTION,
-  })
-  updateTriggerTransaction(payload: UpdateTriggerTransactionDto) {
-    return this.triggerService.updateTransaction(
-      payload.uuid,
-      payload.transactionHash,
-    );
-  }
-
-  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.REMOVE,
   })
   remove(payload) {
