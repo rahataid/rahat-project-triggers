@@ -159,7 +159,7 @@ export class ActivityService {
   }
 
   async getOne(payload: { uuid: string; appId: string }) {
-    const { uuid, appId } = payload;
+    let { uuid, appId } = payload;
     // return this.prisma.activity.findUnique({
     //   where: {
     //     uuid: uuid,
@@ -191,6 +191,7 @@ export class ActivityService {
       const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
       const activityPayout = [];
+      appId = appId ?? (activityData?.app || null);
 
       if (Array.isArray(aComm) && aComm.length) {
         for (const comm of aComm) {
@@ -216,6 +217,13 @@ export class ActivityService {
             communication.transportId,
           );
           const transportName = transport.data.name;
+
+          this.logger.log('Fetching group details for', {
+            groupType: communication.groupType,
+            groupId: communication.groupId,
+            appId,
+          });
+
           const { group, groupName } = await this.getGroupDetails(
             communication.groupType,
             communication.groupId,
