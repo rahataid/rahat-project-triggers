@@ -172,7 +172,7 @@ export class ActivityService {
 
     this.logger.log(`Fetching activity with uuid: ${uuid}`);
     try {
-      const { activityCommunication: aComm, ...activityData } =
+      const activityData =
         await this.prisma.activity.findUnique({
           where: {
             uuid: uuid,
@@ -188,6 +188,7 @@ export class ActivityService {
           },
         });
 
+      const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
       const activityPayout = [];
 
