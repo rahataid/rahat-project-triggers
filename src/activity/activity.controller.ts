@@ -122,4 +122,12 @@ export class ActivityController {
     console.log('Running communication status');
     return await this.activityService.getCommsStats(payload.appId);
   }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
+  })
+  async getTransportSessionStatsByGroup() {
+    console.log('Running communication Stats by stakeholders and beneficiary');
+    return this.activityService.getTransportSessionStatsByGroup();
+  }
 }

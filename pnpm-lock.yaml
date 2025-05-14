@@ -51,8 +51,8 @@ importers:
         specifier: 0.0.17
         version: 0.0.17
       '@rumsan/connect':
-        specifier: ^1.0.5
-        version: 1.0.5
+        specifier: ^1.0.6
+        version: 1.0.6
       '@rumsan/extensions':
         specifier: ^0.1.103
         version: 0.1.103
@@ -817,8 +817,8 @@ packages:
   '@rumsan/communication@0.0.17':
     resolution: {integrity: sha512-LYZlfjyiOzpvp73bOie3Okx9uepvUO95D6PI+MDxIHnZnfsTOCcYBYtNzoJ4W+05zD1QPc+QyfAvUs8iA1oZHg==}
 
-  '@rumsan/connect@1.0.5':
-    resolution: {integrity: sha512-cMj1TE3iQwUVCeSG3auPkA6LiC1aQ7+uNv0d1CuBYms7SchToAILeDFH7aCYd5LACnZimfvqNA8SPovLBNm56A==}
+  '@rumsan/connect@1.0.6':
+    resolution: {integrity: sha512-A8hewq1b9NW5CuSljpiam7G5QeRDnCpmreA/u6BUnFS6pd3A9cT1gwxK0Yc9+W9DT5FnsinNw43/eAgwggMzJQ==}
 
   '@rumsan/core@3.0.116':
     resolution: {integrity: sha512-+IGGUZp7cdmuvdFa6hvdxpC/rfgJets18UKJxTgjDLPgja/B4h2t2sXsYd67XGWM4yciCLmuiT+i+2JSXdUPBw==}
@@ -4218,7 +4218,7 @@ snapshots:
 
   '@rumsan/communication@0.0.17': {}
 
-  '@rumsan/connect@1.0.5':
+  '@rumsan/connect@1.0.6':
     dependencies:
       tslib: 2.8.1
 

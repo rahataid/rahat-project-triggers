@@ -159,7 +159,7 @@ export class ActivityService {
   }
 
   async getOne(payload: { uuid: string; appId: string }) {
-    let { uuid, appId } = payload;
+    const { uuid, appId } = payload;
     // return this.prisma.activity.findUnique({
     //   where: {
     //     uuid: uuid,
@@ -172,7 +172,7 @@ export class ActivityService {
 
     this.logger.log(`Fetching activity with uuid: ${uuid}`);
     try {
-      const activityData =
+      const { activityCommunication: aComm, ...activityData } =
         await this.prisma.activity.findUnique({
           where: {
             uuid: uuid,
@@ -188,10 +188,8 @@ export class ActivityService {
           },
         });
 
-      const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
       const activityPayout = [];
-      appId = appId ?? (activityData?.app || null);
 
       if (Array.isArray(aComm) && aComm.length) {
         for (const comm of aComm) {
@@ -217,13 +215,6 @@ export class ActivityService {
             communication.transportId,
           );
           const transportName = transport.data.name;
-
-          this.logger.log('Fetching group details for', {
-            groupType: communication.groupType,
-            groupId: communication.groupId,
-            appId,
-          });
-
           const { group, groupName } = await this.getGroupDetails(
             communication.groupType,
             communication.groupId,
@@ -1009,6 +1000,98 @@ export class ActivityService {
           .filter(Boolean);
       default:
         return [];
+    }
+  }
+
+  async getTransportSessionStatsByGroup() {
+    try {
+      const activities = await this.prisma.activity.findMany({
+        select: {
+          activityCommunication: true,
+        },
+      });
+
+      const commsToProcess: {
+        groupType: string;
+        transportId: string;
+        sessionId: string;
+      }[] = [];
+
+      for (const activity of activities) {
+        const comms: any = activity.activityCommunication;
+        for (const comm of comms) {
+          const { sessionId, groupType, transportId } = comm;
+          if (sessionId && groupType && transportId) {
+            commsToProcess.push({ sessionId, groupType, transportId });
+          }
+        }
+      }
+
+      const transportIdMap = new Map<string, string>();
+      const uniqueTransportIds = [
+        ...new Set(commsToProcess.map((c) => c.transportId)),
+      ];
+
+      const transportResponses = await Promise.all(
+        uniqueTransportIds.map((id) => this.commsClient.transport.get(id)),
+      );
+
+      transportResponses.forEach((res, idx) => {
+        transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+      });
+
+      const sessions: Record<string, Record<string, Set<string>>> = {
+        BENEFICIARY: {},
+        STAKEHOLDERS: {},
+      };
+
+      for (const { groupType, transportId, sessionId } of commsToProcess) {
+        const group = groupType.toUpperCase();
+        const transportType = transportIdMap.get(transportId);
+        if (!transportType || !sessions[group]) continue;
+
+        if (!sessions[group][transportType]) {
+          sessions[group][transportType] = new Set();
+        }
+        sessions[group][transportType].add(sessionId);
+      }
+
+      const result: Record<string, Record<string, any>> = {
+        beneficiary: {},
+        stakeholder: {},
+      };
+
+      const resultKeys: { groupKey: string; transportType: string }[] = [];
+      const broadcastPromises: Promise<any>[] = [];
+
+      for (const [groupType, transportMap] of Object.entries(sessions)) {
+        const groupKey =
+          groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
+
+        for (const [transportType, sessionSet] of Object.entries(
+          transportMap,
+        )) {
+          const sessionList = Array.from(sessionSet);
+          broadcastPromises.push(
+            this.commsClient.session.broadcastCount({
+              sessions: sessionList,
+            }),
+          );
+          resultKeys.push({ groupKey, transportType });
+        }
+      }
+
+      const broadcastResults = await Promise.all(broadcastPromises);
+
+      broadcastResults.forEach((res, idx) => {
+        const { groupKey, transportType } = resultKeys[idx];
+        result[groupKey][transportType] = res.data;
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error while fetching group details', error);
+      throw new RpcException(error);
     }
   }
 }
