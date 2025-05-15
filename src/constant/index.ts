@@ -107,6 +107,7 @@ export const MS_TRIGGERS_JOBS = {
       SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
       // RETRY_FAILED: 'ms.jobs.activities.communication.retryFailed',
       GET_STATS: 'ms.jobs.activities.communication.getStats',
+      GET_STATS_GROUP: 'ms.jobs.triggers.getTransportSessionStatsByGroup',
     },
   },
   CATEGORIES: {
