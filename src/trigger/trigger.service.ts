@@ -526,11 +526,12 @@ export class TriggerService {
   async activateTrigger(
     uuid: string,
     appId: string,
-    payload: UpdateTriggerDto,
+    payload: any,
   ) {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
     try {
-      const { triggeredBy, triggerDocuments } = payload;
+      const { triggeredBy, triggerDocuments, user } = payload;
+      console.log("payload", payload);
 
       const trigger = await this.prisma.trigger.findUnique({
         where: {
@@ -574,7 +575,7 @@ export class TriggerService {
           triggeredAt: new Date(),
           triggerDocuments: JSON.parse(JSON.stringify(triggerDocs)),
           notes: payload?.notes || '',
-          triggeredBy,
+          triggeredBy: user?.name,
         },
         include: {
           phase: true,
@@ -639,6 +640,10 @@ export class TriggerService {
           delay: 1000,
         },
       });
+      
+      this.logger.log(`
+        Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
+        `);
 
       return updatedTrigger;
     } catch (error) {
