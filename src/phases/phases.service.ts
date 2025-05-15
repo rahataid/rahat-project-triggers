@@ -535,7 +535,6 @@ export class PhasesService {
       return updatedPhase;
     } catch (error) {
       this.logger.error('Error while activating phase', error);
-      throw new RpcException(error);
     }
   }
 
