@@ -258,20 +258,21 @@ export class ActivityService {
 
     this.logger.log(`Fetching activity with uuid: ${uuid}`);
     try {
-      const activityData = await this.prisma.activity.findUnique({
-        where: {
-          uuid: uuid,
-        },
-        include: {
-          category: true,
-          phase: {
-            include: {
-              source: true,
-            },
+      const activityData =
+        await this.prisma.activity.findUnique({
+          where: {
+            uuid: uuid,
           },
-          manager: true,
-        },
-      });
+          include: {
+            category: true,
+            phase: {
+              include: {
+                source: true,
+              },
+            },
+            manager: true,
+          },
+        });
 
       const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
