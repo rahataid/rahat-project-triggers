@@ -19,6 +19,11 @@ const main = async () => {
               create: {
                 activeYear: year.toString(),
                 source: { connect: { riverBasin: source.riverBasin } },
+                requiredMandatoryTriggers: 2,
+                requiredOptionalTriggers: 1,
+                receivedMandatoryTriggers: 0,
+                receivedOptionalTriggers: 0,
+                canTriggerPayout: phase === 'ACTIVATION' ? true : false,
                 name: phase,
               },
               where: {
@@ -32,6 +37,11 @@ const main = async () => {
                 source: { connect: { riverBasin: source.riverBasin } },
                 name: phase,
                 activeYear: year.toString(),
+                requiredMandatoryTriggers: 2,
+                requiredOptionalTriggers: 1,
+                receivedMandatoryTriggers: 0,
+                receivedOptionalTriggers: 0,
+                canTriggerPayout: phase === 'ACTIVATION' ? true : false,
               },
             });
           },
