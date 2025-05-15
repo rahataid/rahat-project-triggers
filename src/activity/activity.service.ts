@@ -1061,7 +1061,6 @@ export class ActivityService {
               );
             } else if (validationAddress === ValidationAddress.ANY) {
               // Fallback: use phone number if available
-
               if (stakeholder.phone) {
                 return stakeholder.phone
                   ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
