@@ -119,7 +119,6 @@ export class ActivityController {
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS,
   })
   async getCommsStats(payload: { appId: string }) {
-    console.log('Running communication status');
     return await this.activityService.getCommsStats(payload.appId);
   }
 
@@ -127,7 +126,6 @@ export class ActivityController {
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
   async getTransportSessionStatsByGroup() {
-    console.log('Running communication Stats by stakeholders and beneficiary');
     return this.activityService.getTransportSessionStatsByGroup();
   }
 }

@@ -158,8 +158,94 @@ export class ActivityService {
     }
   }
 
+  // async getOne(payload: { uuid: string; appId: string }) {
+  //   const { uuid, appId } = payload;
+  //   // return this.prisma.activity.findUnique({
+  //   //   where: {
+  //   //     uuid: uuid,
+  //   //   },
+  //   //   include: {
+  //   //     category: true,
+  //   //     phase: true,
+  //   //   },
+  //   // });
+
+  //   this.logger.log(`Fetching activity with uuid: ${uuid}`);
+  //   try {
+  //     const { activityCommunication: aComm, ...activityData } =
+  //       await this.prisma.activity.findUnique({
+  //         where: {
+  //           uuid: uuid,
+  //         },
+  //         include: {
+  //           category: true,
+  //           phase: {
+  //             include: {
+  //               source: true,
+  //             },
+  //           },
+  //           manager: true,
+  //         },
+  //       });
+
+  //     const activityCommunication = [];
+  //     const activityPayout = [];
+
+  //     if (Array.isArray(aComm) && aComm.length) {
+  //       for (const comm of aComm) {
+  //         const communication = JSON.parse(
+  //           JSON.stringify(comm),
+  //         ) as ActivityCommunicationData & {
+  //           transportId: string;
+  //           sessionId: string;
+  //         };
+
+  //         let sessionStatus = SessionStatus.NEW;
+  //         if (communication.sessionId) {
+  //           const sessionDetails = await this.commsClient.session.get(
+  //             communication.sessionId,
+  //           );
+  //           sessionStatus = sessionDetails.data.status;
+  //         }
+  //         // const transport = await this.commsClient.transport.get(
+  //         //   communication.transportId,
+  //         // );
+
+  //         const transport = await this.commsClient.transport.get(
+  //           communication.transportId,
+  //         );
+  //         const transportName = transport.data.name;
+  //         const { group, groupName } = await this.getGroupDetails(
+  //           communication.groupType,
+  //           communication.groupId,
+  //           appId,
+  //         );
+
+  //         activityCommunication.push({
+  //           ...communication,
+  //           groupName: groupName,
+  //           transportName: transportName,
+  //           sessionStatus,
+  //           ...(communication.sessionId && {
+  //             sessionId: communication.sessionId,
+  //           }),
+  //         });
+  //       }
+  //     }
+
+  //     return {
+  //       ...activityData,
+  //       activityCommunication,
+  //       activityPayout,
+  //     };
+  //   } catch (error) {
+  //     this.logger.error('Something went wrong while fetching activity', error);
+  //     throw new RpcException(error?.message || 'Something went wrong');
+  //   }
+  // }
+
   async getOne(payload: { uuid: string; appId: string }) {
-    const { uuid, appId } = payload;
+    let { uuid, appId } = payload;
     // return this.prisma.activity.findUnique({
     //   where: {
     //     uuid: uuid,
@@ -172,24 +258,25 @@ export class ActivityService {
 
     this.logger.log(`Fetching activity with uuid: ${uuid}`);
     try {
-      const { activityCommunication: aComm, ...activityData } =
-        await this.prisma.activity.findUnique({
-          where: {
-            uuid: uuid,
-          },
-          include: {
-            category: true,
-            phase: {
-              include: {
-                source: true,
-              },
+      const activityData = await this.prisma.activity.findUnique({
+        where: {
+          uuid: uuid,
+        },
+        include: {
+          category: true,
+          phase: {
+            include: {
+              source: true,
             },
-            manager: true,
           },
-        });
+          manager: true,
+        },
+      });
 
+      const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
       const activityPayout = [];
+      appId = appId ?? (activityData?.app || null);
 
       if (Array.isArray(aComm) && aComm.length) {
         for (const comm of aComm) {
@@ -215,6 +302,13 @@ export class ActivityService {
             communication.transportId,
           );
           const transportName = transport.data.name;
+
+          this.logger.log('Fetching group details for', {
+            groupType: communication.groupType,
+            groupId: communication.groupId,
+            appId,
+          });
+
           const { group, groupName } = await this.getGroupDetails(
             communication.groupType,
             communication.groupId,
@@ -945,11 +1039,13 @@ export class ActivityService {
     appId: string,
     validationAddress: ValidationAddress,
   ) {
+    //  Retrieve the group details (either stakeholder group or beneficiary group)
     const { group } = await this.getGroupDetails(groupType, groupId, appId);
 
     switch (groupType) {
       case 'STAKEHOLDERS':
         if (!group) throw new RpcException('Stakeholders group not found.');
+        //  Extract and validate contact addresses for stakeholders
         return group.stakeholders
           .map((stakeholder) => {
             if (validationAddress === ValidationAddress.EMAIL) {
@@ -958,10 +1054,14 @@ export class ActivityService {
               validationAddress === ValidationAddress.PHONE &&
               stakeholder.phone
             ) {
+              // Extract last 10 digits of the phone number
+
               return stakeholder.phone.substring(
                 +stakeholder.phone.length - 10,
               );
             } else if (validationAddress === ValidationAddress.ANY) {
+              // Fallback: use phone number if available
+
               if (stakeholder.phone) {
                 return stakeholder.phone
                   ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
@@ -975,6 +1075,7 @@ export class ActivityService {
         if (!group) throw new RpcException('Beneficiary group not found.');
 
         const groupedBeneficiaries = group.groupedBeneficiaries;
+        //  Extract and validate contact addresses for beneficiaries
         return groupedBeneficiaries
           ?.map((beneficiary) => {
             if (validationAddress === ValidationAddress.EMAIL) {
@@ -983,10 +1084,13 @@ export class ActivityService {
               validationAddress === ValidationAddress.PHONE &&
               beneficiary.Beneficiary?.pii?.phone
             ) {
+              // Extract last 10 digits of the phone number
+
               return beneficiary.Beneficiary?.pii?.phone.substring(
                 +beneficiary.Beneficiary?.pii?.phone?.length - 10,
               );
             } else if (validationAddress === ValidationAddress.ANY) {
+              // Fallback: use phone number if available
               if (beneficiary.Beneficiary?.pii?.phone) {
                 return beneficiary.Beneficiary?.pii?.phone
                   ? beneficiary.Beneficiary?.pii?.phone.substring(
@@ -1004,13 +1108,16 @@ export class ActivityService {
   }
 
   async getTransportSessionStatsByGroup() {
+    this.logger.log(`Fetching transport session stats by group`);
+
     try {
+      // Step 1: Fetch all activities with their related communications
       const activities = await this.prisma.activity.findMany({
         select: {
           activityCommunication: true,
         },
       });
-
+      // Step 2: Flatten communication data and extract necessary fields
       const commsToProcess: {
         groupType: string;
         transportId: string;
@@ -1026,7 +1133,7 @@ export class ActivityService {
           }
         }
       }
-
+      // Step 3: Map transportId to its readable transport name using external client
       const transportIdMap = new Map<string, string>();
       const uniqueTransportIds = [
         ...new Set(commsToProcess.map((c) => c.transportId)),
@@ -1039,7 +1146,7 @@ export class ActivityService {
       transportResponses.forEach((res, idx) => {
         transportIdMap.set(uniqueTransportIds[idx], res.data.name);
       });
-
+      // Step 4: Build a nested structure to group sessionIds by groupType and transportType
       const sessions: Record<string, Record<string, Set<string>>> = {
         BENEFICIARY: {},
         STAKEHOLDERS: {},
@@ -1049,13 +1156,14 @@ export class ActivityService {
         const group = groupType.toUpperCase();
         const transportType = transportIdMap.get(transportId);
         if (!transportType || !sessions[group]) continue;
-
+        // Group sessionIds under their respective groupType and transport name.
+        // Structure: sessions[groupType][transportType] = Set of sessionIds
         if (!sessions[group][transportType]) {
           sessions[group][transportType] = new Set();
         }
         sessions[group][transportType].add(sessionId);
       }
-
+      // Step 5: Initialize result structure and prepare for broadcasting session count requests
       const result: Record<string, Record<string, any>> = {
         beneficiary: {},
         stakeholder: {},
@@ -1063,7 +1171,7 @@ export class ActivityService {
 
       const resultKeys: { groupKey: string; transportType: string }[] = [];
       const broadcastPromises: Promise<any>[] = [];
-
+      // Step 6: For each group + transport combination, request broadcast stats
       for (const [groupType, transportMap] of Object.entries(sessions)) {
         const groupKey =
           groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
@@ -1072,6 +1180,7 @@ export class ActivityService {
           transportMap,
         )) {
           const sessionList = Array.from(sessionSet);
+          // Enqueue a broadcast count request for each unique transport + group combination
           broadcastPromises.push(
             this.commsClient.session.broadcastCount({
               sessions: sessionList,
@@ -1080,14 +1189,14 @@ export class ActivityService {
           resultKeys.push({ groupKey, transportType });
         }
       }
-
+      // Step 7: Resolve all broadcast count requests and map the results back
       const broadcastResults = await Promise.all(broadcastPromises);
 
       broadcastResults.forEach((res, idx) => {
         const { groupKey, transportType } = resultKeys[idx];
         result[groupKey][transportType] = res.data;
       });
-
+      // Final structured output containing session broadcast stats
       return result;
     } catch (error) {
       this.logger.error('Error while fetching group details', error);
