@@ -258,21 +258,20 @@ export class ActivityService {
 
     this.logger.log(`Fetching activity with uuid: ${uuid}`);
     try {
-      const activityData =
-        await this.prisma.activity.findUnique({
-          where: {
-            uuid: uuid,
-          },
-          include: {
-            category: true,
-            phase: {
-              include: {
-                source: true,
-              },
+      const activityData = await this.prisma.activity.findUnique({
+        where: {
+          uuid: uuid,
+        },
+        include: {
+          category: true,
+          phase: {
+            include: {
+              source: true,
             },
-            manager: true,
           },
-        });
+          manager: true,
+        },
+      });
 
       const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
@@ -530,7 +529,7 @@ export class ActivityService {
         },
       );
 
-      //fetches and updates communication session statuses for each activity and summarizes the overall status per activity.
+      //fetches and updates communication session status for each activity and summarizes the overall status per activity.
       const enhancedData = await Promise.all(
         activities.map(async (activity: any) => {
           const enhancedComms = await Promise.all(
