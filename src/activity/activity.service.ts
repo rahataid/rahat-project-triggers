@@ -258,21 +258,20 @@ export class ActivityService {
 
     this.logger.log(`Fetching activity with uuid: ${uuid}`);
     try {
-      const activityData =
-        await this.prisma.activity.findUnique({
-          where: {
-            uuid: uuid,
-          },
-          include: {
-            category: true,
-            phase: {
-              include: {
-                source: true,
-              },
+      const activityData = await this.prisma.activity.findUnique({
+        where: {
+          uuid: uuid,
+        },
+        include: {
+          category: true,
+          phase: {
+            include: {
+              source: true,
             },
-            manager: true,
           },
-        });
+          manager: true,
+        },
+      });
 
       const aComm = activityData?.activityCommunication ?? [];
       const activityCommunication = [];
@@ -521,7 +520,63 @@ export class ActivityService {
         },
       };
 
-      return paginate(this.prisma.activity, query, { page, perPage });
+      const { data: activities, meta } = await paginate(
+        this.prisma.activity,
+        query,
+        {
+          page,
+          perPage,
+        },
+      );
+
+      //fetches and updates communication session status for each activity and summarizes the overall status per activity.
+      const enhancedData = await Promise.all(
+        activities.map(async (activity: any) => {
+          const enhancedComms = await Promise.all(
+            activity.activityCommunication.map(async (comm) => {
+              try {
+                const { data } = await this.commsClient.session.get(
+                  comm.sessionId,
+                );
+                return {
+                  ...comm,
+                  sessionStatus: data.status,
+                };
+              } catch (error) {
+                this.logger.warn(
+                  `Failed to fetch session status for sessionId: ${comm.sessionId}`,
+                );
+                return {
+                  ...comm,
+                  sessionStatus: 'WORK IN PROGRESS',
+                };
+              }
+            }),
+          );
+
+          let commStatus: string | null;
+
+          if (!enhancedComms.length) {
+            commStatus = 'Null';
+          } else {
+            const allCompleted = enhancedComms.every(
+              (comm) => comm.sessionStatus.toLowerCase() === 'completed',
+            );
+            commStatus = allCompleted ? 'Completed' : 'Work in Progress';
+          }
+
+          return {
+            ...activity,
+            activityCommunication: enhancedComms,
+            commStatus,
+          };
+        }),
+      );
+
+      return {
+        data: enhancedData,
+        meta,
+      };
     } catch (error) {
       this.logger.error(
         `Error while fetching activities having communications`,
