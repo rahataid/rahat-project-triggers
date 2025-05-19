@@ -530,6 +530,7 @@ export class ActivityService {
       );
 
       //fetches and updates communication session status for each activity and summarizes the overall status per activity.
+      // TODO: Need to implement filtering based on status
       const enhancedData = await Promise.all(
         activities.map(async (activity: any) => {
           const enhancedComms = await Promise.all(
