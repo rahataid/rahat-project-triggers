@@ -421,6 +421,27 @@ export class PhasesService {
     }
   }
 
+  async getAppIdByPhase(phaseId: string): Promise<string[]> {
+    const phase = await this.prisma.phase.findUnique({
+      where: {
+        uuid: phaseId,
+      },
+      include: {
+        Activity: {
+          where: {
+            isDeleted: false,
+          },
+        },
+      },
+    });
+
+    const appIds = Array.from(
+      new Set(phase.Activity.map((activity) => activity.app)),
+    );
+
+    return appIds;
+  }
+
   async activatePhase(uuid: string) {
     try {
       const phaseDetails = await this.prisma.phase.findUnique({
@@ -494,9 +515,8 @@ export class PhasesService {
           `Phase ${phaseDetails.uuid} has active payout so, assigning token to ${phaseDetails.source.riverBasin}`,
         );
 
-        const appIds = Array.from(
-          new Set(phaseDetails.Activity.map((activity) => activity.app)),
-        );
+        const appIds = await this.getAppIdByPhase(phaseDetails.uuid);
+        this.logger.log(`Running disbursement for ${appIds.length} apps`);
 
         for (const appId of appIds) {
           const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
