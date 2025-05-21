@@ -123,6 +123,10 @@ export const MS_TRIGGERS_JOBS = {
     REMOVE: 'ms.jobs.dailyMonitoring.remove',
     DELETE: 'ms.jobs.dailyMonitoring.delete',
   },
+  REVERT_PHASE: {
+    CREATE: 'ms.jobs.revertPhase.create',
+    GET_ALL: 'ms.jobs.revertPhase.getAll',
+  },
 };
 export const EVENTS = {
   PHASE_ACTIVATED: 'events.phase_activated',

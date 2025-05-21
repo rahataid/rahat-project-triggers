@@ -20,6 +20,7 @@ import { MS_TRIGGER_CLIENTS } from './constant';
 import { SettingsModule } from '@rumsan/settings';
 import { CommsModule } from './comms/comms.module';
 import { SourceModule } from './source/source.module';
+import { TriggerHistoryModule } from './trigger-history/trigger-history.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { SourceModule } from './source/source.module';
     ListenersModule,
     CommsModule.forRoot(),
     SourceModule,
+    TriggerHistoryModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

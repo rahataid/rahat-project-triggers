@@ -119,6 +119,7 @@ model Phase {
 
   source   Source     @relation(fields: [riverBasin], references: [riverBasin])
   Trigger  Trigger[]
+  TriggerHistory TriggerHistory[]
   Activity Activity[]
 
   @@unique([riverBasin, activeYear, name])
@@ -154,6 +155,43 @@ model Trigger {
   updatedAt   DateTime? @updatedAt()
 
   @@map("tbl_triggers")
+}
+
+model TriggerHistory {
+  id   Int    @id @default(autoincrement())
+  uuid String 
+
+  repeatKey   String  
+  repeatEvery String?
+
+  triggerStatement Json?   @db.JsonB()
+  triggerDocuments Json?   @db.JsonB()
+  notes            String?
+  title            String?
+
+  phase   Phase?      @relation(fields: [phaseId], references: [uuid])
+  phaseId String?
+
+  phaseActivationDate DateTime?
+  version Int
+
+  source  DataSource?
+  isMandatory      Boolean @default(false)
+  isTriggered      Boolean @default(false)
+  isDeleted        Boolean @default(false)
+  isDailyMonitored Boolean @default(false)
+
+  triggeredBy     String?
+  transactionHash String?
+
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt()
+
+  revertedAt DateTime
+  revertedBy String
+
+  @@map("tbl_trigger_history")
 }
 
 model ActivityCategory {
