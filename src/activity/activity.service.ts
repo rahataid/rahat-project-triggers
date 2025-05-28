@@ -537,12 +537,14 @@ export class ActivityService {
         activities.map(async (activity: any) => {
           const enhancedComms = await Promise.all(
             activity.activityCommunication.map(async (comm) => {
+
               if(!comm.sessionId) {
                 return {
                   ...comm,
                   sessionStatus: 'Not Started',
                 };
               };
+
               try {
                 const { data } = await this.commsClient.session.get(
                   comm.sessionId,
@@ -571,10 +573,12 @@ export class ActivityService {
             const allCompleted = enhancedComms.every(
               (comm) => comm.sessionStatus.toLowerCase() === 'completed',
             );
+
             const isNotStarted = enhancedComms.every(
               (comm) => comm.sessionStatus.toLowerCase() === 'not started',
             );
             commStatus = allCompleted ? 'Completed' : isNotStarted ? 'Not Started' : 'Work in Progress';
+
           }
 
           return {
