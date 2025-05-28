@@ -485,10 +485,12 @@ export class ActivityService {
         riverBasin,
       } = payload;
       const { title, phase, status } = filters;
-
+      
       const where: Prisma.ActivityWhereInput = {
         isDeleted: false,
-        activityCommunication: { not: null },
+        activityCommunication: {
+          not: []
+        },
         phase: {
           ...(phase && { name: phase }),
           ...(activeYear && { activeYear }),
@@ -535,6 +537,14 @@ export class ActivityService {
         activities.map(async (activity: any) => {
           const enhancedComms = await Promise.all(
             activity.activityCommunication.map(async (comm) => {
+
+              if(!comm.sessionId) {
+                return {
+                  ...comm,
+                  sessionStatus: 'Not Started',
+                };
+              };
+
               try {
                 const { data } = await this.commsClient.session.get(
                   comm.sessionId,
@@ -563,7 +573,12 @@ export class ActivityService {
             const allCompleted = enhancedComms.every(
               (comm) => comm.sessionStatus.toLowerCase() === 'completed',
             );
-            commStatus = allCompleted ? 'Completed' : 'Work in Progress';
+
+            const isNotStarted = enhancedComms.every(
+              (comm) => comm.sessionStatus.toLowerCase() === 'not started',
+            );
+            commStatus = allCompleted ? 'Completed' : isNotStarted ? 'Not Started' : 'Work in Progress';
+
           }
 
           return {
