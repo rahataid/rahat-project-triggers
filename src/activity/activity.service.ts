@@ -354,13 +354,15 @@ export class ActivityService {
       status,
       appId,
       riverBasin,
+      isAutomated,
     } = payload;
-
     try {
       const query = {
         where: {
           app: appId,
           isDeleted: false,
+          ...(typeof isAutomated === 'boolean' && { isAutomated }),
+
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...(riverBasin && {
             phase: {
