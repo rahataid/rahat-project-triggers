@@ -65,7 +65,7 @@ export class GetActivityDto {
   @IsOptional()
   activeYear?: string;
 
-  @IsBoolean()
+  @IsString()
   @IsOptional()
-  isAutomated?: boolean;
+  isAutomated?: string;
 }
