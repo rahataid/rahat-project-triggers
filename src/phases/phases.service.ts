@@ -6,7 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { CreatePhaseDto } from './dto/create-phase.dto';
-import { UpdatePhaseDto } from './dto/update-phase.dto';
+import {
+  ConfigureThresholdPhaseDto,
+  UpdatePhaseDto,
+} from './dto/update-phase.dto';
 import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { ActivityStatus, DataSource } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
@@ -733,5 +736,18 @@ export class PhasesService {
       this.logger.error('Error while fetching phase by location', error);
       throw new RpcException(error);
     }
+  }
+
+  async configurePhaseThreshold(dto: ConfigureThresholdPhaseDto) {
+    const { uuid, requiredMandatoryTriggers, requiredOptionalTriggers } = dto;
+    return this.prisma.phase.update({
+      where: {
+        uuid,
+      },
+      data: {
+        requiredOptionalTriggers,
+        requiredMandatoryTriggers,
+      },
+    });
   }
 }

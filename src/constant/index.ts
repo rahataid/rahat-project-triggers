@@ -77,6 +77,7 @@ export const MS_TRIGGERS_JOBS = {
     ADD_TRIGGERS: 'ms.jobs.phases.addTriggers',
     REVERT_PHASE: 'ms.jobs.phases.revertPhase',
     GET_BY_LOCATION: 'ms.jobs.phases.getByLocation',
+    CONFIGURE_THRESHOLD: 'ms.jobs.phase.configureThreshold',
   },
   RIVER_STATIONS: {
     GET_DHM: 'ms.jobs.riverStations.getDhm',
