@@ -354,13 +354,16 @@ export class ActivityService {
       status,
       appId,
       riverBasin,
+      isAutomated,
     } = payload;
-
     try {
       const query = {
         where: {
           app: appId,
           isDeleted: false,
+          ...(isAutomated && {
+            isAutomated: isAutomated === 'true' ? true : false,
+          }),
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...(riverBasin && {
             phase: {
@@ -485,11 +488,11 @@ export class ActivityService {
         riverBasin,
       } = payload;
       const { title, phase, status } = filters;
-      
+
       const where: Prisma.ActivityWhereInput = {
         isDeleted: false,
         activityCommunication: {
-          not: []
+          not: [],
         },
         phase: {
           ...(phase && { name: phase }),
@@ -537,13 +540,12 @@ export class ActivityService {
         activities.map(async (activity: any) => {
           const enhancedComms = await Promise.all(
             activity.activityCommunication.map(async (comm) => {
-
-              if(!comm.sessionId) {
+              if (!comm.sessionId) {
                 return {
                   ...comm,
                   sessionStatus: 'Not Started',
                 };
-              };
+              }
 
               try {
                 const { data } = await this.commsClient.session.get(
@@ -577,8 +579,11 @@ export class ActivityService {
             const isNotStarted = enhancedComms.every(
               (comm) => comm.sessionStatus.toLowerCase() === 'not started',
             );
-            commStatus = allCompleted ? 'Completed' : isNotStarted ? 'Not Started' : 'Work in Progress';
-
+            commStatus = allCompleted
+              ? 'Completed'
+              : isNotStarted
+                ? 'Not Started'
+                : 'Work in Progress';
           }
 
           return {
