@@ -2,7 +2,7 @@ import { Body, Controller, Logger } from '@nestjs/common';
 import { MessagePattern, RpcException } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { PhasesService } from './phases.service';
-import { GetPhaseByName } from './dto';
+import { ConfigureThresholdPhaseDto, GetPhaseByName } from './dto';
 import { ConfigService } from '@nestjs/config';
 
 @Controller('phases')
@@ -69,5 +69,12 @@ export class PhasesController {
     }
 
     throw new RpcException('Not allowed in production environment');
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.CONFIGURE_THRESHOLD,
+  })
+  async configurePhaseThreshold(payload: ConfigureThresholdPhaseDto) {
+    return this.phasesService.configurePhaseThreshold(payload);
   }
 }
