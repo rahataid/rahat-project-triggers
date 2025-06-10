@@ -22,7 +22,15 @@ const config: DataSourceConfig = {
         },
       },
     ],
-    [DataSource.GLOFAS]: {},
+    [DataSource.GLOFAS]: [{
+      LOCATION: 'Karnali at Chisapani',
+      URL: "https://ows.globalfloods.eu/glofas-ows/ows.py",
+      BBOX: "8753364.64714296,3117815.425733483,9092541.220653716,3456991.999244238",
+      I: '721',
+      J: '303',
+      TIMESTRING: ''
+    },
+    ],
   },
   isPrivate: false,
 };

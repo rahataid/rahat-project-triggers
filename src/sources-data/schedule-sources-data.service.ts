@@ -56,6 +56,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();
+    this.synchronizeGlofas();
   }
 
   /*
@@ -256,16 +257,19 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     }
   }
 
+  // run every 15 sec
+  @Cron('15 * * * *')
   async synchronizeGlofas() {
     try {
       this.logger.log('GLOFAS: syncing once every hour');
       // const glofasSettings = DATASOURCE.GLOFAS;
+      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
+      const glofasSettings = dataSource[DataSource.GLOFAS][0];
 
       const { dateString, dateTimeString } = getFormattedDate();
-      const glofasSettings = SettingsService.get('DATASOURCE.GLOFAS') as Omit<
-        GlofasStationInfo,
-        'TIMESTRING'
-      >;
+//       const glofasSettings = SettingsService.get('DATASOURCE.GLOFAS') as Omit<
+//  'TIMESTRING'
+//       >;
       const riverBasin = glofasSettings['LOCATION'];
 
       const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
@@ -282,6 +286,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         ...glofasSettings,
         TIMESTRING: dateTimeString,
       });
+
       const reportingPoints = stationData?.content['Reporting Points'].point;
 
       const glofasData = parseGlofasData(reportingPoints);
