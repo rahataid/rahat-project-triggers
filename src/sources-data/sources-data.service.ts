@@ -373,7 +373,8 @@ export class SourcesDataService {
         });
       }
     }
-    if(!response || !dataInfo){
+
+    if(!response && !dataInfo){
       return null;
     }
 

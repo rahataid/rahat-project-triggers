@@ -258,7 +258,7 @@ export class PhasesService {
               phase: true,
             },
             orderBy: {
-              updatedAt: 'desc',
+              title: 'desc',
             },
           },
           source: true,
@@ -347,6 +347,9 @@ export class PhasesService {
         phaseId: phaseDetails.uuid,
         isDeleted: false,
       },
+      orderBy: {
+        updatedAt: "desc",
+      }
     });
 
     const totalMandatoryTriggers = await this.prisma.trigger.count({
