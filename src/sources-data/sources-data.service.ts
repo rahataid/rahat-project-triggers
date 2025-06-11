@@ -23,7 +23,6 @@ import * as https from 'https';
 import { buildQueryParams, getFormattedDate } from 'src/common';
 import { SettingsService } from '@rumsan/settings';
 import { DataSourceValue } from 'src/types/settings';
-import { GlofasService } from './glofas.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
