@@ -258,44 +258,55 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   }
 
   // run every 15 sec
-  @Cron('15 * * * *')
+  @Cron('*/15 * * * * *')
   async synchronizeGlofas() {
     try {
       this.logger.log('GLOFAS: syncing once every hour');
-      // const glofasSettings = DATASOURCE.GLOFAS;
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
-      const glofasSettings = dataSource[DataSource.GLOFAS][0];
-
-      const { dateString, dateTimeString } = getFormattedDate();
-//       const glofasSettings = SettingsService.get('DATASOURCE.GLOFAS') as Omit<
-//  'TIMESTRING'
-//       >;
-      const riverBasin = glofasSettings['LOCATION'];
-
-      const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
-        riverBasin,
-        dateString,
-      );
-
-      if (hasExistingRecord) {
-        console.log('existingRecord');
+      const glofasSettings = dataSource[DataSource.GLOFAS];
+      // as Omit<
+      //   GlofasStationInfo,
+      //   'TIMESTRING'
+      // >;
+      if (!glofasSettings) {
+        this.logger.warn('GLOFAS settings not found');
         return;
       }
+      glofasSettings.forEach(async (glofasStation: GlofasStationInfo) => {
+        const { dateString, dateTimeString } = getFormattedDate();
 
-      const stationData = await this.glofasService.getStationData({
-        ...glofasSettings,
-        TIMESTRING: dateTimeString,
-      });
+        const riverBasin = glofasStation['LOCATION'];
 
-      const reportingPoints = stationData?.content['Reporting Points'].point;
+        const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
+          riverBasin,
+          dateString,
+        );
+        if (hasExistingRecord) {
+          this.logger.log(
+            `GLOFAS: Data for ${riverBasin} on ${dateString} already exists.`,
+          );
+          console.log('existingRecord');
+          return;
+        }
 
-      const glofasData = parseGlofasData(reportingPoints);
+        this.logger.log(
+          `GLOFAS: Fetching data for ${riverBasin} on ${dateString}`,
+        );
+        const stationData = await this.glofasService.getStationData({
+          ...glofasStation,
+          TIMESTRING: dateTimeString,
+        });
 
-      return this.sourceService.create({
-        source: 'GLOFAS',
-        riverBasin: riverBasin,
-        type: SourceType.RAINFALL,
-        info: { ...glofasData, forecastDate: dateString },
+        const reportingPoints = stationData?.content['Reporting Points'].point;
+
+        const glofasData = parseGlofasData(reportingPoints);
+
+        return this.sourceService.create({
+          source: 'GLOFAS',
+          riverBasin: riverBasin,
+          type: SourceType.RAINFALL,
+          info: { ...glofasData, forecastDate: dateString },
+        });
       });
     } catch (err) {
       this.logger.error('GLOFAS Err:', err.message);

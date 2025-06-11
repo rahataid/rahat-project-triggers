@@ -22,15 +22,16 @@ const config: DataSourceConfig = {
         },
       },
     ],
-    [DataSource.GLOFAS]: [{
-      LOCATION: 'Karnali at Chisapani',
-      URL: "https://ows.globalfloods.eu/glofas-ows/ows.py",
-      BBOX: "8753364.64714296,3117815.425733483,9092541.220653716,3456991.999244238",
-      I: '721',
-      J: '303',
-      TIMESTRING: ''
-    },
-    ],
+    [DataSource.GLOFAS]: [
+      {
+        LOCATION: 'Karnali at Chisapani',
+        URL: 'https://ows.globalfloods.eu/glofas-ows/ows.py',
+        BBOX: '8753364.64714296,3117815.425733483,9092541.220653716,3456991.999244238', //bounding box for karnali at chisapani
+        I: '721', //coordinate for station
+        J: '303',
+        TIMESTRING: '2023-10-01T00:00:00Z',
+      }
+  ],
   },
   isPrivate: false,
 };
