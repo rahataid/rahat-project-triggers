@@ -27,22 +27,7 @@ import {
 import { DataSource, SourceType } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
 
-// const DATASOURCE = {
-//   DHM: {
-//     URL: 'https://bipadportal.gov.np/api/v1',
-//     LOCATION: 'Karnali at Chisapani',
-//   },
-//   GLOFAS: {
-//     I: '721',
-//     J: '303',
-//     URL: 'https://ows.globalfloods.eu/glofas-ows/ows.py',
-//     BBOX: '8753364.64714296,3117815.425733483,9092541.220653716,3456991.999244238',
-//     LOCATION: 'Karnali at Chisapani',
-//   },
-// };
-
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
-
 @Injectable()
 export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ScheduleSourcesDataService.name);
@@ -59,42 +44,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     this.synchronizeGlofas();
   }
 
-  /*
-   * @deprecated
-   * This method is deprecated and will be removed in future versions.
-   */
-  // @Cron('*/5 * * * *') // every 5 min
-  async synchronizeDHM() {
-    try {
-      this.logger.log('DHM: syncing every hour');
-
-      const dhmSettings = SettingsService.get('DATASOURCE.DHM');
-
-      const riverBasin = dhmSettings['LOCATION'];
-      const dhmURL = dhmSettings['URL'];
-      const waterLevelResponse = await this.dhmService.getRiverStationData(
-        dhmURL,
-        riverBasin,
-      );
-
-      const waterLevelData = this.dhmService.sortByDate(
-        waterLevelResponse.data.results as any[],
-      );
-
-      if (waterLevelData.length === 0) {
-        this.logger.log(
-          `DHM:${riverBasin}: Water level data is not available.`,
-        );
-        return;
-      }
-
-      const recentWaterLevel = waterLevelData[0];
-      // return this.dhmService.saveWaterLevelsData(riverBasin, recentWaterLevel);
-    } catch (err) {
-      this.logger.error('DHM Err:', err.message);
-    }
-  }
-
+  // run every 15 minutes
   @Cron('*/15 * * * *')
   async syncRiverWaterData() {
     this.logger.log('Syncing river water data');
@@ -154,6 +104,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     }
   }
 
+  // run every 15 minutes
   @Cron('*/15 * * * *')
   async syncRainfallData() {
     this.logger.log('Syncing rainfall data');
@@ -257,45 +208,55 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     }
   }
 
-  // run every 15 sec
-  @Cron('15 * * * *')
+  // run every hour
+  @Cron('0 * * * *')
   async synchronizeGlofas() {
     try {
-      this.logger.log('GLOFAS: syncing once every hour');
-      // const glofasSettings = DATASOURCE.GLOFAS;
+      this.logger.log('GLOFAS: syncing Glofas data');
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
-      const glofasSettings = dataSource[DataSource.GLOFAS][0];
+      const glofasSettings = dataSource[DataSource.GLOFAS];
 
-      const { dateString, dateTimeString } = getFormattedDate();
-//       const glofasSettings = SettingsService.get('DATASOURCE.GLOFAS') as Omit<
-//  'TIMESTRING'
-//       >;
-      const riverBasin = glofasSettings['LOCATION'];
-
-      const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
-        riverBasin,
-        dateString,
-      );
-
-      if (hasExistingRecord) {
-        console.log('existingRecord');
+      if (!glofasSettings) {
+        this.logger.warn('GLOFAS settings not found');
         return;
       }
+      glofasSettings.forEach(async (glofasStation: GlofasStationInfo) => {
+        const { dateString, dateTimeString } = getFormattedDate();
 
-      const stationData = await this.glofasService.getStationData({
-        ...glofasSettings,
-        TIMESTRING: dateTimeString,
-      });
+        const riverBasin = glofasStation['LOCATION'];
 
-      const reportingPoints = stationData?.content['Reporting Points'].point;
+        const hasExistingRecord = await this.glofasService.findGlofasDataByDate(
+          riverBasin,
+          dateString,
+        );
+        if (hasExistingRecord) {
+          this.logger.log(
+            `GLOFAS: Data for ${riverBasin} on ${dateString} already exists.`,
+          );
+          console.log('existingRecord');
+          return;
+        }
 
-      const glofasData = parseGlofasData(reportingPoints);
+        this.logger.log(
+          `GLOFAS: Fetching data for ${riverBasin} on ${dateString}`,
+        );
+        const stationData = await this.glofasService.getStationData({
+          ...glofasStation,
+          TIMESTRING: dateTimeString,
+        });
 
-      return this.sourceService.create({
-        source: 'GLOFAS',
-        riverBasin: riverBasin,
-        type: SourceType.RAINFALL,
-        info: { ...glofasData, forecastDate: dateString },
+        const reportingPoints = stationData?.content['Reporting Points'].point;
+
+        const glofasData = parseGlofasData(reportingPoints);
+        this.logger.log(
+          `GLOFAS: Parsed data for ${riverBasin} on ${dateString}`,
+        );
+        return this.sourceService.create({
+          source: 'GLOFAS',
+          riverBasin: riverBasin,
+          type: SourceType.RAINFALL,
+          info: { ...glofasData, forecastDate: dateString },
+        });
       });
     } catch (err) {
       this.logger.error('GLOFAS Err:', err.message);

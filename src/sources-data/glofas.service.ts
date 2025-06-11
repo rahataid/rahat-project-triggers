@@ -184,7 +184,7 @@ export class GlofasService implements AbstractSource {
       glofasURL.searchParams.append(key, value);
     }
 
-    console.log(glofasURL);
+    this.logger.log(`Fetching GLOFAS data from URL: ${glofasURL.href}`);
 
     return (await this.httpService.axiosRef.get(glofasURL.href)).data;
   }
