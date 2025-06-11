@@ -306,11 +306,12 @@ export class SourcesDataService {
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
     const { riverBasin, from, to, type: dataType } = payload;
 
-    if (payload.source !== DataSource.DHM) {
       if (!riverBasin) {
         this.logger.warn('River basin is not passed in the payload');
         throw new RpcException('River basin is required');
       }
+
+    if (payload.source !== DataSource.DHM) {
       return this.getGlofasWaterLevels(payload);
     }
 
@@ -348,8 +349,13 @@ export class SourcesDataService {
       const dhmSettings = dataSource[DataSource.DHM];
 
       const item = dhmSettings.find((item) => {
-        return item.WATER_LEVEL.LOCATION === riverBasin;
+        return item?.WATER_LEVEL?.LOCATION === riverBasin;
       });
+
+      if(!item){
+        this.logger.warn(`No data found for ${riverBasin}`);
+        return null;
+      }
 
       if (type === 'WATER_LEVEL') {
         response = await this.fetchRiverLevelData({
@@ -366,6 +372,9 @@ export class SourcesDataService {
           to: to || new Date(),
         });
       }
+    }
+    if(!response || !dataInfo){
+      return null;
     }
 
     const aggregatedInfo = await this.processDataByType(
@@ -500,9 +509,7 @@ export class SourcesDataService {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
         source: {
-          riverBasin: {
-            contains: riverBasin,
-          },
+          riverBasin,
         },
         info: {
           path: ['forecastDate'],
