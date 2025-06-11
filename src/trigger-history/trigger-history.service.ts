@@ -3,6 +3,7 @@ import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '@rumsan/prisma';
 import { Prisma } from '@prisma/client';
 import { GetTriggerHistoryDto } from './dto/get-trigger-history.dto';
+import { GetOneTriggerHistoryDto } from './dto/get-one-trigger-history';
 
 @Injectable()
 export class TriggerHistoryService {
@@ -178,6 +179,28 @@ export class TriggerHistoryService {
     } catch (error) {
       this.logger.error('Error fetching current version', error);
       throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
+  async getOne(payload: GetOneTriggerHistoryDto) {
+    const { id } = payload;
+    this.logger.log(`Getting triggerHistory with id: ${id}`);
+    try {
+      return await this.prisma.triggerHistory.findUnique({
+        where: {
+          id,
+        },
+        include: {
+          phase: {
+            include: {
+              source: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      this.logger.error(error.message);
+      throw new RpcException(error.message);
     }
   }
 }
