@@ -20,9 +20,10 @@ import {
   riverStationUrl,
 } from 'src/constant/datasourceUrls';
 import * as https from 'https';
-import { buildQueryParams } from 'src/common';
+import { buildQueryParams, getFormattedDate } from 'src/common';
 import { SettingsService } from '@rumsan/settings';
 import { DataSourceValue } from 'src/types/settings';
+import { GlofasService } from './glofas.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
@@ -307,8 +308,11 @@ export class SourcesDataService {
     const { riverBasin, from, to, type: dataType } = payload;
 
     if (payload.source !== DataSource.DHM) {
-      this.logger.warn('GOLFAS data is not implemented yet');
-      return [];
+      if (!riverBasin) {
+        this.logger.warn('River basin is not passed in the payload');
+        throw new RpcException('River basin is required');
+      }
+      return this.getGlofasWaterLevels(payload);
     }
 
     if (!type) {
@@ -373,6 +377,22 @@ export class SourcesDataService {
       ...dataInfo,
       info: aggregatedInfo,
     };
+  }
+
+  async getGlofasWaterLevels(payload: GetSouceDataDto) {
+    let { riverBasin } = payload;
+
+    // DHM uses Doda for Dhoda where as Glofas uses Dhoda
+    riverBasin = riverBasin.replace('Dhoda', 'Doda');
+
+    const date = getFormattedDate();
+
+    const data = await this.findGlofasData(
+      riverBasin,
+      date.dateString,
+    );
+
+    return data;
   }
 
   aggregateDataByTime(history: any[]) {
@@ -475,5 +495,22 @@ export class SourcesDataService {
       default:
         return data;
     }
+  }
+
+  async findGlofasData(riverBasin: string, forecastDate: string) {
+    const recordExists = await this.prisma.sourcesData.findFirst({
+      where: {
+        source: {
+          riverBasin: {
+            contains: riverBasin,
+          },
+        },
+        info: {
+          path: ['forecastDate'],
+          equals: forecastDate,
+        },
+      },
+    });
+    return recordExists;
   }
 }
