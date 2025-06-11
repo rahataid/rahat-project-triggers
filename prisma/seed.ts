@@ -13,11 +13,11 @@ const config: DataSourceConfig = {
     [DataSource.DHM]: [
       {
         [SourceType.RAINFALL]: {
-          LOCATION: 'Karnali at Chisapani',
+          LOCATION: 'Doda river at East-West Highway',
           SERIESID: 13067,
         },
         [SourceType.WATER_LEVEL]: {
-          LOCATION: 'Mahakali',
+          LOCATION: 'Doda river at East-West Highway',
           SERIESID: 29089,
         },
       },

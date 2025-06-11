@@ -271,7 +271,9 @@ export class GlofasService implements AbstractSource {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
         source: {
-          riverBasin: riverBasin,
+          riverBasin: {
+            contains: riverBasin,
+          },
         },
         info: {
           path: ['forecastDate'],

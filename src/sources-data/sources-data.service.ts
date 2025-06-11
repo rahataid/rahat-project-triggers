@@ -20,7 +20,7 @@ import {
   riverStationUrl,
 } from 'src/constant/datasourceUrls';
 import * as https from 'https';
-import { buildQueryParams } from 'src/common';
+import { buildQueryParams, getFormattedDate } from 'src/common';
 import { SettingsService } from '@rumsan/settings';
 import { DataSourceValue } from 'src/types/settings';
 
@@ -306,9 +306,13 @@ export class SourcesDataService {
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
     const { riverBasin, from, to, type: dataType } = payload;
 
+      if (!riverBasin) {
+        this.logger.warn('River basin is not passed in the payload');
+        throw new RpcException('River basin is required');
+      }
+
     if (payload.source !== DataSource.DHM) {
-      this.logger.warn('GOLFAS data is not implemented yet');
-      return [];
+      return this.getGlofasWaterLevels(payload);
     }
 
     if (!type) {
@@ -345,8 +349,13 @@ export class SourcesDataService {
       const dhmSettings = dataSource[DataSource.DHM];
 
       const item = dhmSettings.find((item) => {
-        return item.WATER_LEVEL.LOCATION === riverBasin;
+        return item?.WATER_LEVEL?.LOCATION === riverBasin;
       });
+
+      if(!item){
+        this.logger.warn(`No data found for ${riverBasin}`);
+        return null;
+      }
 
       if (type === 'WATER_LEVEL') {
         response = await this.fetchRiverLevelData({
@@ -364,6 +373,9 @@ export class SourcesDataService {
         });
       }
     }
+    if(!response || !dataInfo){
+      return null;
+    }
 
     const aggregatedInfo = await this.processDataByType(
       dataType,
@@ -373,6 +385,22 @@ export class SourcesDataService {
       ...dataInfo,
       info: aggregatedInfo,
     };
+  }
+
+  async getGlofasWaterLevels(payload: GetSouceDataDto) {
+    let { riverBasin } = payload;
+
+    // DHM uses Doda for Dhoda where as Glofas uses Dhoda
+    riverBasin = riverBasin.replace('Dhoda', 'Doda');
+
+    const date = getFormattedDate();
+
+    const data = await this.findGlofasData(
+      riverBasin,
+      date.dateString,
+    );
+
+    return data;
   }
 
   aggregateDataByTime(history: any[]) {
@@ -475,5 +503,20 @@ export class SourcesDataService {
       default:
         return data;
     }
+  }
+
+  async findGlofasData(riverBasin: string, forecastDate: string) {
+    const recordExists = await this.prisma.sourcesData.findFirst({
+      where: {
+        source: {
+          riverBasin,
+        },
+        info: {
+          path: ['forecastDate'],
+          equals: forecastDate,
+        },
+      },
+    });
+    return recordExists;
   }
 }
