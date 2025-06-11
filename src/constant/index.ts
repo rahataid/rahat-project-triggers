@@ -127,6 +127,7 @@ export const MS_TRIGGERS_JOBS = {
   REVERT_PHASE: {
     CREATE: 'ms.jobs.revertPhase.create',
     GET_ALL: 'ms.jobs.revertPhase.getAll',
+    GET_ONE: 'ms.jobs.revertPhase.getOne',
   },
 };
 export const EVENTS = {
