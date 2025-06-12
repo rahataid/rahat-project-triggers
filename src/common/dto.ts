@@ -73,6 +73,9 @@ export class AddTriggerJobDto {
 
   @IsBoolean()
   is_mandatory: boolean;
+
+  @IsString()
+  notes: string;
 }
 
 export class UpdateTriggerParamsJobDto {
