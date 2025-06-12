@@ -52,6 +52,7 @@ export class TriggerService {
           dataSource: dto.source,
           riverBasin: dto.riverBasin,
           repeatEvery: '30000',
+          notes: dto.notes,
         };
         trigger = await this.scheduleJob(sanitizedPayload);
       }
@@ -65,6 +66,7 @@ export class TriggerService {
         river_basin: trigger.phase.riverBasin,
         params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
         is_mandatory: trigger.isMandatory,
+        notes: trigger.notes,
       };
 
       this.stellarQueue.add(
@@ -111,6 +113,7 @@ export class TriggerService {
             source: item.source,
             riverBasin: item.riverBasin,
             repeatEvery: '30000',
+            notes: item.notes,
           };
 
           return await this.scheduleJob(sanitizedPayload);
@@ -126,6 +129,7 @@ export class TriggerService {
           river_basin: trigger.phase.riverBasin,
           params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
           is_mandatory: trigger.isMandatory,
+          notes: trigger.notes,
         };
       });
 
@@ -523,15 +527,11 @@ export class TriggerService {
     }
   }
 
-  async activateTrigger(
-    uuid: string,
-    appId: string,
-    payload: any,
-  ) {
+  async activateTrigger(uuid: string, appId: string, payload: any) {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
     try {
       const { triggeredBy, triggerDocuments, user } = payload;
-      console.log("payload", payload);
+      console.log('payload', payload);
 
       const trigger = await this.prisma.trigger.findUnique({
         where: {
@@ -640,7 +640,7 @@ export class TriggerService {
           delay: 1000,
         },
       });
-      
+
       this.logger.log(`
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
         `);
