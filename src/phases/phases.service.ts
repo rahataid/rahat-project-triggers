@@ -348,8 +348,8 @@ export class PhasesService {
         isDeleted: false,
       },
       orderBy: {
-        updatedAt: "desc",
-      }
+        createdAt: 'desc',
+      },
     });
 
     const totalMandatoryTriggers = await this.prisma.trigger.count({
