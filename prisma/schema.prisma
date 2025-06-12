@@ -68,6 +68,7 @@ model SourcesData {
   type     SourceType
   sourceId Int
   source   Source     @relation(fields: [sourceId], references: [id])
+  dataSource DataSource? 
 
   info Json @db.JsonB()
 

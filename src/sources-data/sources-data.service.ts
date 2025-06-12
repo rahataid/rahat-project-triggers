@@ -44,6 +44,7 @@ export class SourcesDataService {
         data: {
           info,
           type,
+          dataSource: source,
           source: {
             connectOrCreate: {
               where: {
@@ -327,6 +328,7 @@ export class SourcesDataService {
     const dataInfo = await this.prisma.sourcesData.findFirst({
       where: {
         type,
+        dataSource: payload.source,
         source: {
           riverBasin,
         },
