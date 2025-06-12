@@ -1,4 +1,5 @@
 import { DataSource, SourceType } from '@prisma/client';
+import { GlofasStationInfo } from 'src/sources-data/dto';
 
 export type RainfallWaterLevelConfig = {
   [SourceType.RAINFALL]: {
@@ -13,7 +14,7 @@ export type RainfallWaterLevelConfig = {
 
 export type DataSourceValue = {
   [DataSource.DHM]: RainfallWaterLevelConfig[];
-  [DataSource.GLOFAS]: Record<string, never>;
+  [DataSource.GLOFAS]: GlofasStationInfo[];
 };
 
 export type DataSourceConfig = {

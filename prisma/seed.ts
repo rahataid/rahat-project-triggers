@@ -13,16 +13,25 @@ const config: DataSourceConfig = {
     [DataSource.DHM]: [
       {
         [SourceType.RAINFALL]: {
-          LOCATION: 'Karnali at Chisapani',
+          LOCATION: 'Doda river at East-West Highway',
           SERIESID: 13067,
         },
         [SourceType.WATER_LEVEL]: {
-          LOCATION: 'Mahakali',
+          LOCATION: 'Doda river at East-West Highway',
           SERIESID: 29089,
         },
       },
     ],
-    [DataSource.GLOFAS]: {},
+    [DataSource.GLOFAS]: [
+      {
+        LOCATION: 'Doda river at East-West Highway',
+        URL: 'https://ows.globalfloods.eu/glofas-ows/ows.py',
+        BBOX: '8918060.964088082,3282511.7426786087,9006116.420672605,3370567.1992631317', //bounding box for karnali at chisapani
+        I: '227', //coordinate for station
+        J: '67',
+        TIMESTRING: '2023-10-01T00:00:00Z',
+      },
+    ],
   },
   isPrivate: false,
 };

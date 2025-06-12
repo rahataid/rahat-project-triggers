@@ -1139,9 +1139,7 @@ export class ActivityService {
             } else if (validationAddress === ValidationAddress.ANY) {
               // Fallback: use phone number if available
               if (stakeholder.phone) {
-                return stakeholder.phone
-                  ? stakeholder.phone.substring(+stakeholder.phone.length - 10)
-                  : null;
+                return stakeholder.phone ? stakeholder.phone : null;
               }
             }
             return null;
@@ -1169,9 +1167,7 @@ export class ActivityService {
               // Fallback: use phone number if available
               if (beneficiary.Beneficiary?.pii?.phone) {
                 return beneficiary.Beneficiary?.pii?.phone
-                  ? beneficiary.Beneficiary?.pii?.phone.substring(
-                      +beneficiary.Beneficiary?.pii?.phone.length - 10,
-                    )
+                  ? beneficiary.Beneficiary?.pii?.phone
                   : null;
               }
             }

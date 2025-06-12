@@ -184,6 +184,8 @@ export class GlofasService implements AbstractSource {
       glofasURL.searchParams.append(key, value);
     }
 
+    this.logger.log(`Fetching GLOFAS data from URL: ${glofasURL.href}`);
+
     return (await this.httpService.axiosRef.get(glofasURL.href)).data;
   }
 
@@ -269,7 +271,9 @@ export class GlofasService implements AbstractSource {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
         source: {
-          riverBasin: riverBasin,
+          riverBasin: {
+            contains: riverBasin,
+          },
         },
         info: {
           path: ['forecastDate'],
