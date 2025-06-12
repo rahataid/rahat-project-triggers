@@ -229,6 +229,7 @@ export class DhmService implements AbstractSource {
         const existingRecord = await tx.sourcesData.findFirst({
           where: {
             type,
+            dataSource: DataSource.DHM,
             source: {
               riverBasin,
             },
@@ -247,6 +248,7 @@ export class DhmService implements AbstractSource {
           return await tx.sourcesData.create({
             data: {
               type,
+              dataSource: DataSource.DHM,
               info: JSON.parse(JSON.stringify(payload)),
               source: {
                 connectOrCreate: {
