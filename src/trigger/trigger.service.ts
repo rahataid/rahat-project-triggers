@@ -260,10 +260,10 @@ export class TriggerService {
     try {
       const { riverBasin, activeYear, ...dto } = payload;
 
-      if (!riverBasin || !activeYear) {
-        this.logger.warn('riverBasin or activeYear not provided');
-        throw new RpcException('riverBasin or activeYear not provided');
-      }
+      // if (!riverBasin || !activeYear) {
+      //   this.logger.warn('riverBasin or activeYear not provided');
+      //   throw new RpcException('riverBasin or activeYear not provided');
+      // }
 
       return paginate(
         this.prisma.trigger,
@@ -271,11 +271,13 @@ export class TriggerService {
           where: {
             isDeleted: false,
             phase: {
-              activeYear,
-              riverBasin: {
-                contains: riverBasin,
-                mode: 'insensitive',
-              },
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                riverBasin: {
+                  contains: riverBasin,
+                  mode: 'insensitive',
+                },
+              }),
             },
           },
           include: {
