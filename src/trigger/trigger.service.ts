@@ -69,6 +69,7 @@ export class TriggerService {
         notes: trigger.notes,
       };
 
+      //TODO: EVM Change - low priority
       this.stellarQueue.add(
         JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
         {
@@ -133,6 +134,7 @@ export class TriggerService {
         };
       });
 
+      // TODO: EVM Change
       this.stellarQueue.add(
         JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
         {
@@ -233,6 +235,7 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
+      // TODO: EVM Change
       this.stellarQueue.add(
         JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
         queueData,
@@ -589,6 +592,7 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
+      // TODO: EVM Change
       this.stellarQueue.add(
         JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
         jobDetails,
@@ -602,6 +606,7 @@ export class TriggerService {
         },
       );
 
+      // TODO: EVM Change
       this.logger.log(`
         Trigger added to stellar queue with id: ${jobDetails.id}, action: ${JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId)} for appId ${appId}
         `);
@@ -632,6 +637,7 @@ export class TriggerService {
         });
       }
 
+      // TODO: EVM Change
       this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
         attempts: 3,
         removeOnComplete: true,

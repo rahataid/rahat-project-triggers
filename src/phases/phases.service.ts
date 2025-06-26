@@ -527,6 +527,7 @@ export class PhasesService {
         for (const appId of appIds) {
           const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
           const stellerDistrub = await firstValueFrom(
+            // TODO: EVM Change
             this.client.send(
               {
                 cmd: JOBS.STELLAR.DISBURSE,
