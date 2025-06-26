@@ -53,6 +53,11 @@ export const JOBS = {
       'aa.jobs.stellar.updateTriggerParamsOnChainQueue_' + PROJECT_ID,
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
+  CHAIN: {
+    DISBURSE: 'aa.jobs.chain.disburse',
+    SEND_OTP: 'aa.jobs.chain.sendOtp',
+    SEND_ASSET: 'aa.jobs.chain.sendAsset',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {

@@ -530,7 +530,8 @@ export class PhasesService {
             // TODO: EVM Change
             this.client.send(
               {
-                cmd: JOBS.STELLAR.DISBURSE,
+                // cmd: JOBS.STELLAR.DISBURSE,
+                cmd: JOBS.CHAIN.DISBURSE,
                 uuid: appId,
               },
               {
