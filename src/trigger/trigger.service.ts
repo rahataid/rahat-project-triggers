@@ -27,7 +27,7 @@ export class TriggerService {
     >,
   ) {}
 
-  async create(appId: string, dto: CreateTriggerDto) {
+  async create(appId: string, dto: CreateTriggerDto, createdBy: string) {
     this.logger.log(`Creating trigger for app: ${appId}`);
     try {
       /*
@@ -42,7 +42,7 @@ export class TriggerService {
           `User requested MANUAL Trigger, So creating manul trigger`,
         );
         delete dto.triggerDocuments?.type;
-        trigger = await this.createManualTrigger(appId, dto);
+        trigger = await this.createManualTrigger(appId, dto, createdBy);
       } else {
         const sanitizedPayload = {
           title: dto.title,
@@ -94,7 +94,7 @@ export class TriggerService {
     }
   }
 
-  async bulkCreate(appId: string, payload) {
+  async bulkCreate(appId: string, payload, createdBy: string) {
     try {
       const k = await Promise.all(
         payload.map(async (item) => {
@@ -102,7 +102,11 @@ export class TriggerService {
             this.logger.log(
               `User requested MANUAL Trigger, So creating manul trigger`,
             );
-            return await this.createManualTrigger(payload.appId, item);
+            return await this.createManualTrigger(
+              payload.appId,
+              item,
+              createdBy,
+            );
           }
 
           const sanitizedPayload = {
@@ -328,7 +332,11 @@ export class TriggerService {
     );
   }
 
-  async createManualTrigger(appId: string, dto: CreateTriggerDto) {
+  async createManualTrigger(
+    appId: string,
+    dto: CreateTriggerDto,
+    createdBy: string,
+  ) {
     this.logger.log(`Creating manual trigger for app: ${appId}`);
     try {
       const { phaseId, ...rest } = dto;
@@ -349,6 +357,7 @@ export class TriggerService {
         source: DataSource.MANUAL,
         isDeleted: false,
         repeatKey: randomUUID(),
+        createdBy,
       };
 
       const trigger = await this.prisma.trigger.create({
@@ -357,8 +366,6 @@ export class TriggerService {
           phase: true,
         },
       });
-
-      return trigger;
 
       return trigger;
     } catch (error) {
