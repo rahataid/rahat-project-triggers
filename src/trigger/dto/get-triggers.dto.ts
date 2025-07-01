@@ -35,7 +35,7 @@ export class GetTriggersDto extends PartialType(PaginationDto) {
   })
   @IsString()
   @IsOptional()
-  riverBasin: string;
+  riverBasin?: string;
 
   @ApiProperty({
     example: '2024',
@@ -43,5 +43,5 @@ export class GetTriggersDto extends PartialType(PaginationDto) {
   })
   @IsString()
   @IsOptional()
-  activeYear: string;
+  activeYear?: string;
 }
