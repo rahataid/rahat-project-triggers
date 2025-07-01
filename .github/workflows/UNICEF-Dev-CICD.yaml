@@ -1,4 +1,4 @@
-name: UNICEF-DEV CI/CD
+name: UNICEF Dev CI/CD
 on:
   push:
     branches:
