@@ -41,9 +41,9 @@ export interface RiverWaterHistoryItem {
 }
 
 export interface RiverStationData extends RiverStationItem {
-  history: RiverWaterHistoryItem[];
+  history?: RiverWaterHistoryItem[];
 }
 
 export interface RainfallStationData extends RainfallStationItem {
-  history: RiverWaterHistoryItem[];
+  history?: RiverWaterHistoryItem[];
 }
