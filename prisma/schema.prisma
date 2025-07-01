@@ -148,6 +148,7 @@ model Trigger {
   isDeleted        Boolean @default(false)
   isDailyMonitored Boolean @default(false)
 
+  createdBy       String?
   triggeredBy     String?
   transactionHash String?
 

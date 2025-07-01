@@ -15,11 +15,15 @@ export class TriggerController {
     // here we are checking if the payload is an array  for bulk create
     // also we are  checking if the payload  is an object as it is may be use for single create in others modules
     // we are using  here at once because we have to use the same method for different  moddules that is job schedule
-    const { appId, ...rest } = payload;
+    const { user, appId, ...rest } = payload;
     if (Array.isArray(payload?.triggers)) {
-      return await this.triggerService.bulkCreate(appId, payload.triggers);
+      return await this.triggerService.bulkCreate(
+        appId,
+        payload.triggers,
+        user?.name,
+      );
     }
-    return await this.triggerService.create(appId, rest);
+    return await this.triggerService.create(appId, rest, user?.name);
   }
 
   @MessagePattern({
