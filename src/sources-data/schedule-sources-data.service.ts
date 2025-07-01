@@ -52,17 +52,16 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
       dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
+        const riverWatchQueryParam = buildQueryParams(SERIESID);
+        const stationData = await this.fetchRiverStation(SERIESID);
+        if (!stationData || !riverWatchQueryParam) {
+          this.logger.warn(
+            `Missing station data or query params for ${LOCATION}`,
+          );
+          return;
+        }
+
         try {
-          const riverWatchQueryParam = buildQueryParams(SERIESID);
-          const stationData = await this.fetchRiverStation(SERIESID);
-
-          if (!stationData || !riverWatchQueryParam) {
-            this.logger.warn(
-              `Missing station data or query params for ${LOCATION}`,
-            );
-            return;
-          }
-
           const {
             data: { data },
           } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
@@ -93,14 +92,26 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             this.logger.warn(`Failed to save water level data for ${LOCATION}`);
           }
         } catch (dbError) {
+          // If history data fetch fails, save only the station data
+          await this.dhmService.saveDataInDhm(
+            SourceType.WATER_LEVEL,
+            LOCATION,
+            {
+              ...stationData,
+            },
+          );
+
           this.logger.error(
-            `Database error for ${LOCATION}: ${dbError.message}`,
-            dbError,
+            `Error while fetching river watch history data ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
           );
         }
       });
     } catch (error) {
-      this.logger.error('Error in syncRiverWaterData:', error.message);
+      console.log('error', error);
+      this.logger.error(
+        'Error in syncRiverWaterData:',
+        error?.response?.data?.message || error.message,
+      );
     }
   }
 
@@ -150,13 +161,15 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
           }
         } catch (dbError) {
           this.logger.error(
-            `Database error for ${LOCATION}: ${dbError.message}`,
-            dbError,
+            `Error while fetching rainfall history data for ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
           );
         }
       });
     } catch (error) {
-      this.logger.warn('Error fetching rainfall data:', error.message);
+      this.logger.error(
+        'Error fetching rainfall data:',
+        error?.response?.data?.message || error.message,
+      );
     }
   }
 
@@ -233,7 +246,6 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
           this.logger.log(
             `GLOFAS: Data for ${riverBasin} on ${dateString} already exists.`,
           );
-          console.log('existingRecord');
           return;
         }
 

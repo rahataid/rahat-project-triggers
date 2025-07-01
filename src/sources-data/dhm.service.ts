@@ -240,7 +240,11 @@ export class DhmService implements AbstractSource {
           return await tx.sourcesData.update({
             where: { id: existingRecord.id },
             data: {
-              info: JSON.parse(JSON.stringify(payload)),
+              info: {
+                ...(existingRecord.info &&
+                  JSON.parse(JSON.stringify(existingRecord.info))),
+                ...JSON.parse(JSON.stringify(payload)),
+              },
               updatedAt: new Date(),
             },
           });
