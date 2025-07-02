@@ -307,10 +307,10 @@ export class SourcesDataService {
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
     const { riverBasin, from, to, type: dataType } = payload;
 
-      if (!riverBasin) {
-        this.logger.warn('River basin is not passed in the payload');
-        throw new RpcException('River basin is required');
-      }
+    if (!riverBasin) {
+      this.logger.warn('River basin is not passed in the payload');
+      throw new RpcException('River basin is required');
+    }
 
     if (payload.source !== DataSource.DHM) {
       return this.getGlofasWaterLevels(payload);
@@ -354,7 +354,7 @@ export class SourcesDataService {
         return item?.WATER_LEVEL?.LOCATION === riverBasin;
       });
 
-      if(!item){
+      if (!item) {
         this.logger.warn(`No data found for ${riverBasin}`);
         return null;
       }
@@ -376,7 +376,7 @@ export class SourcesDataService {
       }
     }
 
-    if(!response && !dataInfo){
+    if (!response && !dataInfo) {
       return null;
     }
 
@@ -398,10 +398,7 @@ export class SourcesDataService {
 
     const date = getFormattedDate();
 
-    const data = await this.findGlofasData(
-      riverBasin,
-      date.dateString,
-    );
+    const data = await this.findGlofasData(riverBasin, date.dateString);
 
     return data;
   }

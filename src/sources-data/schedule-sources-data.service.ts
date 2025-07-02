@@ -27,6 +27,12 @@ import {
 import { DataSource, SourceType } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
 
+enum SourceDataENUM {
+  POINT = 1,
+  HOURLY = 2,
+  DAILY = 3,
+}
+
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
 export class ScheduleSourcesDataService implements OnApplicationBootstrap {
@@ -54,28 +60,43 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
         const riverWatchQueryParam = buildQueryParams(SERIESID);
         const stationData = await this.fetchRiverStation(SERIESID);
+        console.log('stationData', stationData);
         if (!stationData || !riverWatchQueryParam) {
           this.logger.warn(
             `Missing station data or query params for ${LOCATION}`,
           );
           return;
         }
+        const Form = new FormData();
+        Form.append('date', riverWatchQueryParam.date_from);
+        Form.append('period', SourceDataENUM.POINT.toString());
+        Form.append('seriesid', SERIESID.toString());
 
         try {
           const {
             data: { data },
-          } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
-            params: riverWatchQueryParam,
-          })) as { data: { data: RiverWaterHistoryItem[] } };
+          } = (await this.httpService.axiosRef.post(
+            'https://www.dhm.gov.np/site/getRiverWatchBySeriesId',
+            Form,
+          )) as {
+            data: {
+              data: {
+                table: string;
+              };
+            };
+          };
 
-          if (!data || data.length === 0) {
-            this.logger.warn(`No history data returned for ${LOCATION}`);
-            return;
-          }
+          // if (!data || data.length === 0) {
+          //   this.logger.warn(`No history data returned for ${LOCATION}`);
+          //   return;
+          // }
+
+          console.log('data', data.table);
+          const cleanData = getCleanData(data.table);
 
           const waterLevelData: RiverStationData = {
             ...stationData,
-            history: data,
+            // history: data,
           };
 
           const res = await this.dhmService.saveDataInDhm(
