@@ -66,6 +66,16 @@ export type InputItem =
       Max: number;
       Min: number;
       Average: number;
+    }
+  | {
+      Date: string;
+      Hourly: number;
+      Total: number;
+    }
+  | {
+      Date: string;
+      Daily: number;
+      Total: number;
     };
 
 export interface NormalizedItem {

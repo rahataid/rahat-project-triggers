@@ -177,8 +177,9 @@ export class SourcesDataService {
     location: string;
     from: Date;
     to: Date;
+    dataType: string;
   }) {
-    const { seriesId, location, from, to } = payload;
+    const { seriesId, location, from, to, dataType } = payload;
     try {
       const rainfallQueryParams = buildQueryParams(seriesId, from, to);
       const stationData = await this.fetchRainfallStation(seriesId);
@@ -190,16 +191,24 @@ export class SourcesDataService {
         return;
       }
 
-      const rainfallHistory = await this.httpService.axiosRef.get(
-        hydrologyObservationUrl,
-        {
-          params: rainfallQueryParams,
-        },
-      );
+      const data = await this.dhmService.getDhmRiverWatchData({
+        date:
+          dataType === SourceDataType.Daily
+            ? rainfallQueryParams.date_to
+            : rainfallQueryParams.date_from,
+        period: SourceDataTypeEnum[dataType],
+        seriesid: seriesId.toString(),
+        location: location,
+      });
+
+      const normalizedData =
+        await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+          data as InputItem[],
+        );
 
       const rainfallData: RainfallStationData = {
         ...stationData,
-        history: rainfallHistory.data.data,
+        history: normalizedData,
       };
 
       return rainfallData;
@@ -237,9 +246,10 @@ export class SourcesDataService {
         location: location,
       });
 
-      const normalizedData = await this.dhmService.normalizeDhmRiverWatchData(
-        data as InputItem[],
-      );
+      const normalizedData =
+        await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+          data as InputItem[],
+        );
 
       // const {
       //   data: { data },
@@ -391,6 +401,7 @@ export class SourcesDataService {
           location: item.RAINFALL.LOCATION,
           from: from || new Date(),
           to: to || new Date(),
+          dataType: dataType,
         });
       }
     }

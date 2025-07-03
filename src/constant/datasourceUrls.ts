@@ -6,3 +6,9 @@ export const riverStationUrl =
 
 export const rainfallStationUrl =
   'https://www.dhm.gov.np/frontend_dhm/hydrology/getRainfallFilter';
+
+export const dhmRiverWatchUrl =
+  'http://www.dhm.gov.np/site/getRiverWatchBySeriesId';
+
+export const dhmRainfallWatchUrl =
+  'http://www.dhm.gov.np/frontend_dhm/hydrology/getRainfallWatchMapBySeriesId';

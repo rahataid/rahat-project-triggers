@@ -71,7 +71,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
           });
 
           const normalizedData =
-            await this.dhmService.normalizeDhmRiverWatchData(
+            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
               data as InputItem[],
             );
 
@@ -137,16 +137,21 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             return;
           }
 
-          const rainfallHistory = await this.httpService.axiosRef.get(
-            hydrologyObservationUrl,
-            {
-              params: rainfallQueryParams,
-            },
-          );
+          const data = await this.dhmService.getDhmRainfallWatchData({
+            date: rainfallQueryParams.date_from,
+            period: SourceDataTypeEnum.HOURLY.toString(),
+            seriesid: SERIESID.toString(),
+            location: LOCATION,
+          });
+
+          const normalizedData =
+            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+              data as InputItem[],
+            );
 
           const rainfallData: RainfallStationData = {
             ...stationData,
-            history: rainfallHistory.data.data,
+            history: normalizedData,
           };
 
           const res = await this.dhmService.saveDataInDhm(
