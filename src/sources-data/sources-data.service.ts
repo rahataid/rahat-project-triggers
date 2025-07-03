@@ -333,14 +333,14 @@ export class SourcesDataService {
   }
 
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
-    const { riverBasin, from, to, type: dataType } = payload;
+    const { riverBasin, from, to, type: dataType, source } = payload;
 
     if (!riverBasin) {
       this.logger.warn('River basin is not passed in the payload');
       throw new RpcException('River basin is required');
     }
 
-    if (payload.source !== DataSource.DHM) {
+    if (source !== DataSource.DHM) {
       return this.getGlofasWaterLevels(payload);
     }
 
@@ -351,22 +351,15 @@ export class SourcesDataService {
 
     const isToday = await this.isToday(new Date(from), new Date(to));
 
-    let response;
-
     const dataInfo = await this.prisma.sourcesData.findFirst({
       where: {
         type,
-        dataSource: payload.source,
-        source: {
-          riverBasin,
-        },
+        dataSource: source,
+        source: { riverBasin },
       },
       include: {
         source: {
-          select: {
-            riverBasin: true,
-            source: true,
-          },
+          select: { riverBasin: true, source: true },
         },
       },
       orderBy: {
@@ -374,51 +367,62 @@ export class SourcesDataService {
       },
     });
 
-    if (!isToday || !dataInfo) {
-      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
-      const dhmSettings = dataSource[DataSource.DHM];
+    const isRealTime =
+      (type === SourceType.WATER_LEVEL &&
+        dataType === SourceDataType.Point &&
+        isToday) ||
+      (type === SourceType.RAINFALL &&
+        dataType === SourceDataType.Hourly &&
+        isToday);
 
-      const item = dhmSettings.find((item) => {
-        return item?.WATER_LEVEL?.LOCATION === riverBasin;
-      });
-
-      if (!item) {
-        this.logger.warn(`No data found for ${riverBasin}`);
-        return null;
-      }
-
-      if (type === 'WATER_LEVEL') {
-        response = await this.fetchRiverLevelData({
-          seriesId: item.WATER_LEVEL.SERIESID,
-          location: item.WATER_LEVEL.LOCATION,
-          from: from || new Date(),
-          to: to || new Date(),
-          dataType: dataType,
-        });
-      } else {
-        response = await this.fetchRainfallLevelData({
-          seriesId: item.RAINFALL.SERIESID,
-          location: item.RAINFALL.LOCATION,
-          from: from || new Date(),
-          to: to || new Date(),
-          dataType: dataType,
-        });
-      }
+    if (isRealTime) {
+      return dataInfo;
     }
+
+    const dhmSettings = (
+      SettingsService.get('DATASOURCE') as DataSourceValue
+    )?.[DataSource.DHM];
+    const item = dhmSettings?.find(
+      (i) => i?.WATER_LEVEL?.LOCATION === riverBasin,
+    );
+
+    if (!item) {
+      this.logger.warn(
+        `No DHM data config found for river basin: ${riverBasin}`,
+      );
+      return null;
+    }
+
+    const fetchPayload = {
+      seriesId:
+        type === SourceType.WATER_LEVEL
+          ? item.WATER_LEVEL.SERIESID
+          : item.RAINFALL.SERIESID,
+      location:
+        type === SourceType.WATER_LEVEL
+          ? item.WATER_LEVEL.LOCATION
+          : item.RAINFALL.LOCATION,
+      from: from || new Date(),
+      to: to || new Date(),
+      dataType,
+    };
+
+    const response =
+      type === SourceType.WATER_LEVEL
+        ? await this.fetchRiverLevelData(fetchPayload)
+        : await this.fetchRainfallLevelData(fetchPayload);
 
     if (!response && !dataInfo) {
       return null;
     }
 
-    return !isToday
-      ? {
-          ...dataInfo,
-          info: {
-            ...response,
-            history: response.history,
-          },
-        }
-      : dataInfo;
+    return {
+      ...dataInfo,
+      info: {
+        ...response,
+        history: response?.history,
+      },
+    };
 
     // const aggregatedInfo = await this.processDataByType(
     //   dataType,
