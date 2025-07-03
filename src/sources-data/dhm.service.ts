@@ -14,8 +14,13 @@ import {
 } from './dto';
 import { AbstractSource } from './sources-data-abstract';
 import { RpcException } from '@nestjs/microservices';
-import { RainfallStationData, RiverStationData } from 'src/types/data-source';
-
+import {
+  InputItem,
+  NormalizedItem,
+  RainfallStationData,
+  RiverStationData,
+} from 'src/types/data-source';
+import { scrapeDataFromHtml } from 'src/common';
 @Injectable()
 export class DhmService implements AbstractSource {
   private readonly logger = new Logger(DhmService.name);
@@ -273,5 +278,69 @@ export class DhmService implements AbstractSource {
       this.logger.error(`Error saving data for ${riverBasin}:`, err);
       throw err;
     }
+  }
+
+  async getDhmRiverWatchData(payload: {
+    date: string;
+    period: string;
+    seriesid: string;
+    location: string;
+  }): Promise<{ [key: string]: any }[]> {
+    const { date, period, seriesid, location } = payload;
+
+    const form = new FormData();
+    form.append('date', date);
+    form.append('period', period);
+    form.append('seriesid', seriesid);
+
+    try {
+      const {
+        data: { data },
+      } = await this.httpService.axiosRef.post(
+        'http://www.dhm.gov.np/site/getRiverWatchBySeriesId',
+        form,
+      );
+
+      const sanitizedData = scrapeDataFromHtml(data.table);
+
+      if (!sanitizedData || sanitizedData.length === 0) {
+        this.logger.warn(`No history data returned for ${location}`);
+        return;
+      }
+      return sanitizedData;
+    } catch (e) {
+      this.logger.log(
+        `Error fetching river watch by series id: ${seriesid}`,
+        e,
+      );
+    }
+  }
+
+  async normalizeDhmRiverWatchData(
+    dataArray: InputItem[],
+  ): Promise<NormalizedItem[]> {
+    return dataArray.map((item) => {
+      const base = {
+        datetime: item.Date,
+      };
+
+      if ('Point' in item) {
+        return {
+          ...base,
+          value: item.Point,
+        };
+      }
+
+      if ('Average' in item && 'Max' in item && 'Min' in item) {
+        return {
+          ...base,
+          value: item.Average,
+          max: item.Max,
+          min: item.Min,
+        };
+      }
+
+      throw new Error('Invalid data format');
+    });
   }
 }

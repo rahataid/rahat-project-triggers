@@ -23,15 +23,11 @@ import {
   RiverStationData,
   RainfallStationItem,
   RainfallStationData,
+  SourceDataTypeEnum,
+  InputItem,
 } from 'src/types/data-source';
 import { DataSource, SourceType } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
-
-enum SourceDataENUM {
-  POINT = 1,
-  HOURLY = 2,
-  DAILY = 3,
-}
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
@@ -60,43 +56,28 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
         const riverWatchQueryParam = buildQueryParams(SERIESID);
         const stationData = await this.fetchRiverStation(SERIESID);
-        console.log('stationData', stationData);
         if (!stationData || !riverWatchQueryParam) {
           this.logger.warn(
             `Missing station data or query params for ${LOCATION}`,
           );
           return;
         }
-        const Form = new FormData();
-        Form.append('date', riverWatchQueryParam.date_from);
-        Form.append('period', SourceDataENUM.POINT.toString());
-        Form.append('seriesid', SERIESID.toString());
-
         try {
-          const {
-            data: { data },
-          } = (await this.httpService.axiosRef.post(
-            'https://www.dhm.gov.np/site/getRiverWatchBySeriesId',
-            Form,
-          )) as {
-            data: {
-              data: {
-                table: string;
-              };
-            };
-          };
+          const data = await this.dhmService.getDhmRiverWatchData({
+            date: riverWatchQueryParam.date_from,
+            period: SourceDataTypeEnum.POINT.toString(),
+            seriesid: SERIESID.toString(),
+            location: LOCATION,
+          });
 
-          // if (!data || data.length === 0) {
-          //   this.logger.warn(`No history data returned for ${LOCATION}`);
-          //   return;
-          // }
-
-          console.log('data', data.table);
-          const cleanData = getCleanData(data.table);
+          const normalizedData =
+            await this.dhmService.normalizeDhmRiverWatchData(
+              data as InputItem[],
+            );
 
           const waterLevelData: RiverStationData = {
             ...stationData,
-            // history: data,
+            history: normalizedData,
           };
 
           const res = await this.dhmService.saveDataInDhm(

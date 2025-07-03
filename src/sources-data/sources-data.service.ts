@@ -8,11 +8,13 @@ import { RpcException } from '@nestjs/microservices';
 import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
 import { DataSource, SourceType } from '@prisma/client';
 import {
+  InputItem,
   RainfallStationData,
   RainfallStationItem,
   RiverStationData,
   RiverStationItem,
   RiverWaterHistoryItem,
+  SourceDataTypeEnum,
 } from 'src/types/data-source';
 import {
   hydrologyObservationUrl,
@@ -23,15 +25,16 @@ import * as https from 'https';
 import { buildQueryParams, getFormattedDate } from 'src/common';
 import { SettingsService } from '@rumsan/settings';
 import { DataSourceValue } from 'src/types/settings';
+import { DhmService } from './dhm.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
 export class SourcesDataService {
   logger = new Logger(SourcesDataService.name);
-  dhmService: any;
   constructor(
     private prisma: PrismaService,
+    private readonly dhmService: DhmService,
     private readonly httpService: HttpService,
   ) {}
   async create(dto: CreateSourcesDataDto) {
@@ -210,8 +213,9 @@ export class SourcesDataService {
     location: string;
     from: Date;
     to: Date;
+    dataType: string;
   }) {
-    const { seriesId, location, from, to } = payload;
+    const { seriesId, location, from, to, dataType } = payload;
     try {
       const riverWatchQueryParam = buildQueryParams(seriesId, from, to);
       const stationData = await this.fetchRiverStation(seriesId);
@@ -223,20 +227,34 @@ export class SourcesDataService {
         return;
       }
 
-      const {
-        data: { data },
-      } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
-        params: riverWatchQueryParam,
-      })) as { data: { data: RiverWaterHistoryItem[] } };
+      const data = await this.dhmService.getDhmRiverWatchData({
+        date:
+          dataType === SourceDataType.Daily
+            ? riverWatchQueryParam.date_to
+            : riverWatchQueryParam.date_from,
+        period: SourceDataTypeEnum[dataType],
+        seriesid: seriesId.toString(),
+        location: location,
+      });
 
-      if (!data || data.length === 0) {
-        this.logger.warn(`No history data returned for ${location}`);
-        return;
-      }
+      const normalizedData = await this.dhmService.normalizeDhmRiverWatchData(
+        data as InputItem[],
+      );
+
+      // const {
+      //   data: { data },
+      // } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
+      //   params: riverWatchQueryParam,
+      // })) as { data: { data: RiverWaterHistoryItem[] } };
+
+      // if (!data || data.length === 0) {
+      //   this.logger.warn(`No history data returned for ${location}`);
+      //   return;
+      // }
 
       const waterLevelData: RiverStationData = {
         ...stationData,
-        history: data,
+        history: normalizedData,
       };
 
       return waterLevelData;
@@ -296,7 +314,7 @@ export class SourcesDataService {
     }
   }
 
-  isToday(from: Date, to: Date) {
+  async isToday(from: Date, to: Date) {
     const today = new Date();
     const startOfToday = new Date(today.setHours(0, 0, 0, 0));
     const endOfToday = new Date(today.setHours(23, 59, 59, 999));
@@ -365,6 +383,7 @@ export class SourcesDataService {
           location: item.WATER_LEVEL.LOCATION,
           from: from || new Date(),
           to: to || new Date(),
+          dataType: dataType,
         });
       } else {
         response = await this.fetchRainfallLevelData({
@@ -380,14 +399,24 @@ export class SourcesDataService {
       return null;
     }
 
-    const aggregatedInfo = await this.processDataByType(
-      dataType,
-      response ?? dataInfo.info,
-    );
-    return {
-      ...dataInfo,
-      info: aggregatedInfo,
-    };
+    return !isToday
+      ? {
+          ...dataInfo,
+          info: {
+            ...response,
+            history: response.history,
+          },
+        }
+      : dataInfo;
+
+    // const aggregatedInfo = await this.processDataByType(
+    //   dataType,
+    //   response ?? dataInfo.info,
+    // );
+    // return {
+    //   ...dataInfo,
+    //   info: aggregatedInfo,
+    // };
   }
 
   async getGlofasWaterLevels(payload: GetSouceDataDto) {
