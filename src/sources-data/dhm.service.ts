@@ -14,8 +14,17 @@ import {
 } from './dto';
 import { AbstractSource } from './sources-data-abstract';
 import { RpcException } from '@nestjs/microservices';
-import { RainfallStationData, RiverStationData } from 'src/types/data-source';
-
+import {
+  InputItem,
+  NormalizedItem,
+  RainfallStationData,
+  RiverStationData,
+} from 'src/types/data-source';
+import { scrapeDataFromHtml } from 'src/common';
+import {
+  dhmRainfallWatchUrl,
+  dhmRiverWatchUrl,
+} from 'src/constant/datasourceUrls';
 @Injectable()
 export class DhmService implements AbstractSource {
   private readonly logger = new Logger(DhmService.name);
@@ -273,5 +282,117 @@ export class DhmService implements AbstractSource {
       this.logger.error(`Error saving data for ${riverBasin}:`, err);
       throw err;
     }
+  }
+
+  async getDhmRiverWatchData(payload: {
+    date: string;
+    period: string;
+    seriesid: string;
+    location: string;
+  }): Promise<{ [key: string]: any }[]> {
+    const { date, period, seriesid, location } = payload;
+
+    const form = new FormData();
+    form.append('date', date);
+    form.append('period', period);
+    form.append('seriesid', seriesid);
+
+    try {
+      const {
+        data: { data },
+      } = await this.httpService.axiosRef.post(dhmRiverWatchUrl, form);
+
+      const sanitizedData = scrapeDataFromHtml(data.table);
+
+      if (!sanitizedData || sanitizedData.length === 0) {
+        this.logger.warn(`No history data returned for ${location}`);
+        return;
+      }
+      return sanitizedData;
+    } catch (e) {
+      this.logger.log(
+        `Error fetching river watch by series id: ${seriesid}`,
+        e,
+      );
+    }
+  }
+
+  async getDhmRainfallWatchData(payload: {
+    date: string;
+    period: string;
+    seriesid: string;
+    location: string;
+  }): Promise<{ [key: string]: any }[]> {
+    const { date, period, seriesid, location } = payload;
+
+    const form = new FormData();
+    form.append('date', date);
+    form.append('period', period);
+    form.append('seriesid', seriesid);
+
+    try {
+      const {
+        data: { data },
+      } = await this.httpService.axiosRef.post(dhmRainfallWatchUrl, form);
+
+      const sanitizedData = scrapeDataFromHtml(data.table);
+
+      if (!sanitizedData || sanitizedData.length === 0) {
+        this.logger.warn(`No history data returned for ${location}`);
+        return;
+      }
+      return sanitizedData;
+    } catch (e) {
+      this.logger.log(
+        `Error fetching rainfall watch by series id: ${seriesid}`,
+        e,
+      );
+    }
+  }
+
+  async normalizeDhmRiverAndRainfallWatchData(
+    dataArray: InputItem[],
+  ): Promise<NormalizedItem[]> {
+    return dataArray.map((item) => {
+      const base = {
+        datetime: item.Date,
+      };
+
+      if ('Point' in item) {
+        return {
+          ...base,
+          value: item.Point,
+        };
+      }
+
+      if ('Average' in item && 'Max' in item && 'Min' in item) {
+        return {
+          ...base,
+          value: item.Average,
+          max: item.Max,
+          min: item.Min,
+        };
+      }
+
+      if ('Total' in item && 'Hourly' in item) {
+        return {
+          ...base,
+          value: item.Total,
+          min: Math.min(item.Hourly, item.Total),
+          max: Math.max(item.Hourly, item.Total),
+        };
+      }
+
+      if ('Total' in item && 'Daily' in item) {
+        return {
+          ...base,
+          value: item.Total,
+          min: Math.min(item.Daily, item.Total),
+          max: Math.max(item.Daily, item.Total),
+        };
+      }
+
+      throw new Error('Invalid data format');
+    });
   }
 }
