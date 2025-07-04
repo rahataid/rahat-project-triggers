@@ -158,7 +158,9 @@ export class SourcesDataService {
       return await this.getLevels(payload, SourceType.WATER_LEVEL);
     } catch (error) {
       this.logger.error(`Error while getting water levels: ${error}`);
-      throw new RpcException('Failed to fetch water levels');
+      throw new RpcException(
+        `Failed to fetch water levels: '${error.message}'`,
+      );
     }
   }
 
