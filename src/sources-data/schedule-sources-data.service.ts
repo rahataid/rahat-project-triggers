@@ -23,6 +23,8 @@ import {
   RiverStationData,
   RainfallStationItem,
   RainfallStationData,
+  SourceDataTypeEnum,
+  InputItem,
 } from 'src/types/data-source';
 import { DataSource, SourceType } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
@@ -60,22 +62,22 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
           );
           return;
         }
-
         try {
-          const {
-            data: { data },
-          } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
-            params: riverWatchQueryParam,
-          })) as { data: { data: RiverWaterHistoryItem[] } };
+          const data = await this.dhmService.getDhmRiverWatchData({
+            date: riverWatchQueryParam.date_from,
+            period: SourceDataTypeEnum.POINT.toString(),
+            seriesid: SERIESID.toString(),
+            location: LOCATION,
+          });
 
-          if (!data || data.length === 0) {
-            this.logger.warn(`No history data returned for ${LOCATION}`);
-            return;
-          }
+          const normalizedData =
+            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+              data as InputItem[],
+            );
 
           const waterLevelData: RiverStationData = {
             ...stationData,
-            history: data,
+            history: normalizedData,
           };
 
           const res = await this.dhmService.saveDataInDhm(
@@ -135,16 +137,21 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             return;
           }
 
-          const rainfallHistory = await this.httpService.axiosRef.get(
-            hydrologyObservationUrl,
-            {
-              params: rainfallQueryParams,
-            },
-          );
+          const data = await this.dhmService.getDhmRainfallWatchData({
+            date: rainfallQueryParams.date_from,
+            period: SourceDataTypeEnum.HOURLY.toString(),
+            seriesid: SERIESID.toString(),
+            location: LOCATION,
+          });
+
+          const normalizedData =
+            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+              data as InputItem[],
+            );
 
           const rainfallData: RainfallStationData = {
             ...stationData,
-            history: rainfallHistory.data.data,
+            history: normalizedData,
           };
 
           const res = await this.dhmService.saveDataInDhm(
