@@ -38,6 +38,8 @@ export type RainfallStationItem = {
 export interface RiverWaterHistoryItem {
   datetime: string;
   value: number;
+  max?: number;
+  min?: number;
 }
 
 export interface RiverStationData extends RiverStationItem {
@@ -46,4 +48,39 @@ export interface RiverStationData extends RiverStationItem {
 
 export interface RainfallStationData extends RainfallStationItem {
   history?: RiverWaterHistoryItem[];
+}
+
+export enum SourceDataTypeEnum {
+  POINT = 1,
+  HOURLY = 2,
+  DAILY = 3,
+}
+
+export type InputItem =
+  | {
+      Date: string;
+      Point: number;
+    }
+  | {
+      Date: string;
+      Max: number;
+      Min: number;
+      Average: number;
+    }
+  | {
+      Date: string;
+      Hourly: number;
+      Total: number;
+    }
+  | {
+      Date: string;
+      Daily: number;
+      Total: number;
+    };
+
+export interface NormalizedItem {
+  datetime: string;
+  value: number;
+  max?: number;
+  min?: number;
 }

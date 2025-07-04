@@ -188,6 +188,7 @@ model TriggerHistory {
 
   triggeredAt DateTime?
   createdAt   DateTime  @default(now())
+  createdBy   String?
   updatedAt   DateTime? @updatedAt()
 
   revertedAt DateTime
