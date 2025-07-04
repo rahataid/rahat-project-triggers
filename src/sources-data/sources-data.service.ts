@@ -152,52 +152,20 @@ export class SourcesDataService {
     return dataSource;
   }
 
-  isDateWithinLast14Days(date: Date): boolean {
-    if (!(date instanceof Date) || isNaN(date.getTime())) return false;
-
-    const today = new Date();
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(today.getDate() - 14);
-
-    date.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-    fourteenDaysAgo.setHours(0, 0, 0, 0);
-
-    return date >= fourteenDaysAgo && date <= today;
-  }
-
   async getWaterLevels(payload: GetSouceDataDto) {
-    const { from, to } = payload;
     this.logger.log('Fetching water levels');
-
-    if (
-      !this.isDateWithinLast14Days(new Date(from)) ||
-      !this.isDateWithinLast14Days(new Date(to))
-    ) {
-      this.logger.error('Dates must be within the last 14 days');
-      throw new RpcException('Dates must be within the last 14 days');
-    }
-
     try {
       return await this.getLevels(payload, SourceType.WATER_LEVEL);
     } catch (error) {
       this.logger.error(`Error while getting water levels: ${error}`);
-      throw new RpcException('Failed to fetch water levels');
+      throw new RpcException(
+        `Failed to fetch water levels: '${error.message}'`,
+      );
     }
   }
 
   async getRainfallLevels(payload: GetSouceDataDto) {
-    const { from, to } = payload;
     this.logger.log('Fetching rainfall data');
-
-    if (
-      !this.isDateWithinLast14Days(new Date(from)) ||
-      !this.isDateWithinLast14Days(new Date(to))
-    ) {
-      this.logger.error('Dates must be within the last 14 days');
-      throw new RpcException('Dates must be within the last 14 days');
-    }
-
     try {
       return await this.getLevels(payload, SourceType.RAINFALL);
     } catch (error) {
@@ -358,6 +326,20 @@ export class SourcesDataService {
     }
   }
 
+  isDateWithinLast14Days(date: Date): boolean {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return false;
+
+    const today = new Date();
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(today.getDate() - 14);
+
+    date.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    fourteenDaysAgo.setHours(0, 0, 0, 0);
+
+    return date >= fourteenDaysAgo && date <= today;
+  }
+
   isToday(from: Date, to: Date) {
     const today = new Date();
     const startOfToday = new Date(today.setHours(0, 0, 0, 0));
@@ -411,6 +393,14 @@ export class SourcesDataService {
 
     if (isRealTime) {
       return dataInfo;
+    }
+
+    if (
+      !this.isDateWithinLast14Days(new Date(from)) ||
+      !this.isDateWithinLast14Days(new Date(to))
+    ) {
+      this.logger.error('Dates must be within the last 14 days');
+      throw new RpcException('Dates must be within the last 14 days');
     }
 
     const dhmSettings = (
