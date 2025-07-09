@@ -173,7 +173,7 @@ export class DailyMonitoringService {
       });
       const groupedData =
         this.groupGaugeReadingsByDateAndStation(gaugeReadingData);
-      return this.sortGaugeReadingGroups(groupedData);
+      return groupedData;
     } catch (error) {
       this.logger.error('Error fetching gauge reading data:', error);
       throw new RpcException('Failed to fetch gauge reading data');
@@ -199,11 +199,6 @@ export class DailyMonitoringService {
             gaugeForecast,
           ),
         );
-      } else {
-        this.updateExistingGaugeReadingGroup(
-          grouped.get(groupKey),
-          gaugeReading,
-        );
       }
     });
 
@@ -217,7 +212,6 @@ export class DailyMonitoringService {
     const station = item.info?.station || '';
     const gaugeForecast = item.info?.gaugeForecast || '';
     const gaugeReading = parseFloat(item.info?.gaugeReading) || 0;
-
     return { sourceId, dateKey, station, gaugeReading, gaugeForecast };
   }
 
@@ -236,26 +230,12 @@ export class DailyMonitoringService {
       dataEntryBy: item.dataEntryBy,
       riverBasin: item.source?.riverBasin,
       gaugeForecast,
-      totalGaugeReading: gaugeReading,
-      averageGaugeReading: gaugeReading,
-      count: 1,
+      latestGaugeReading: gaugeReading,
       createdBy: item.createdBy,
       isDeleted: item.isDeleted,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
-  }
-
-  private updateExistingGaugeReadingGroup(group: any, gaugeReading: number) {
-    group.totalGaugeReading += gaugeReading;
-    group.count += 1;
-    group.averageGaugeReading = group.totalGaugeReading / group.count;
-  }
-
-  private sortGaugeReadingGroups(groups: any[]) {
-    return groups.sort((a, b) => {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
   }
 
   async getGaugeForecast(payload: GaugeForecastDto) {
