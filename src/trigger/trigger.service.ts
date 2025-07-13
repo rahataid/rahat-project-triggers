@@ -53,6 +53,7 @@ export class TriggerService {
           riverBasin: dto.riverBasin,
           repeatEvery: '30000',
           notes: dto.notes,
+          createdBy,
         };
         trigger = await this.scheduleJob(sanitizedPayload);
       }
@@ -118,6 +119,7 @@ export class TriggerService {
             riverBasin: item.riverBasin,
             repeatEvery: '30000',
             notes: item.notes,
+            createdBy,
           };
 
           return await this.scheduleJob(sanitizedPayload);
@@ -518,6 +520,7 @@ export class TriggerService {
           },
         },
         source,
+        createdBy: payload.createdBy,
         isDeleted: false,
       };
       const trigger = await this.prisma.trigger.create({

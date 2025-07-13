@@ -15,8 +15,18 @@ export function parseGlofasData(content: string) {
   const $ = cheerio.load(content);
 
   // 2 yr return period table
-  const rpTable = $(
+  const rpTable2yr = $(
     'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 2 yr RP"]',
+  );
+
+  // 5 yr return period table
+  const rpTable5yr = $(
+    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 5 yr RP"]',
+  );
+
+  // 20 yr return period table
+  const rpTable20yr = $(
+    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 20 yr RP"]',
   );
 
   // point forecast table
@@ -27,19 +37,24 @@ export function parseGlofasData(content: string) {
   );
 
   if (
-    rpTable.length === 0 ||
+    rpTable2yr.length === 0 ||
+    rpTable5yr.length === 0 ||
+    rpTable20yr.length === 0 ||
     pfTable.length === 0 ||
     hydrographElement.length === 0
   ) {
     return;
   }
 
-  const returnPeriodTable = parseReturnPeriodTable(rpTable, $);
+  const returnPeriodTable2yr = parseReturnPeriodTable(rpTable2yr, $);
+  const returnPeriodTable5yr = parseReturnPeriodTable(rpTable5yr, $); 
+  const returnPeriodTable20yr = parseReturnPeriodTable(rpTable20yr, $);
   const pointForecastData = parsePointForecast(pfTable, $);
   const hydrographImageUrl = hydrographElement.attr('src');
-
   return {
-    returnPeriodTable,
+    returnPeriodTable2yr,
+    returnPeriodTable5yr,
+    returnPeriodTable20yr,
     pointForecastData,
     hydrographImageUrl,
   };
