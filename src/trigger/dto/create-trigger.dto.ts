@@ -36,6 +36,14 @@ export class CreateTriggerDto {
   title?: string;
 
   @ApiProperty({
+    example: 'Trigger description',
+    description: 'The description of the trigger',
+  })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({
     example: 'Every day',
     description: 'The repeat frequency of the trigger',
   })
