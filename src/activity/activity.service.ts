@@ -1133,9 +1133,10 @@ export class ActivityService {
             ) {
               // Extract last 10 digits of the phone number
 
-              return stakeholder.phone.substring(
-                +stakeholder.phone.length - 10,
-              );
+              // return stakeholder.phone.substring(
+              //   +stakeholder.phone.length - 10,
+              // );
+              return stakeholder.phone;
             } else if (validationAddress === ValidationAddress.ANY) {
               // Fallback: use phone number if available
               if (stakeholder.phone) {
@@ -1160,9 +1161,10 @@ export class ActivityService {
             ) {
               // Extract last 10 digits of the phone number
 
-              return beneficiary.Beneficiary?.pii?.phone.substring(
-                +beneficiary.Beneficiary?.pii?.phone?.length - 10,
-              );
+              // return beneficiary.Beneficiary?.pii?.phone.substring(
+              //   +beneficiary.Beneficiary?.pii?.phone?.length - 10,
+              // );
+              return beneficiary.Beneficiary?.pii?.phone;
             } else if (validationAddress === ValidationAddress.ANY) {
               // Fallback: use phone number if available
               if (beneficiary.Beneficiary?.pii?.phone) {
