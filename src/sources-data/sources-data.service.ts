@@ -183,7 +183,11 @@ export class SourcesDataService {
   }) {
     const { seriesId, location, from, to, dataType } = payload;
     try {
-      const rainfallQueryParams = buildQueryParams(seriesId, from, to);
+      const rainfallQueryParams = buildQueryParams(
+        seriesId,
+        new Date(from),
+        to,
+      );
       const stationData = await this.fetchRainfallStation(seriesId);
 
       if (!stationData || !rainfallQueryParams) {
@@ -193,11 +197,8 @@ export class SourcesDataService {
         return;
       }
 
-      const data = await this.dhmService.getDhmRiverWatchData({
-        date:
-          dataType === SourceDataType.Daily
-            ? rainfallQueryParams.date_to
-            : rainfallQueryParams.date_from,
+      const data = await this.dhmService.getDhmRainfallWatchData({
+        date: rainfallQueryParams.date_from,
         period: SourceDataTypeEnum[dataType],
         seriesid: seriesId.toString(),
         location: location,
@@ -228,7 +229,11 @@ export class SourcesDataService {
   }) {
     const { seriesId, location, from, to, dataType } = payload;
     try {
-      const riverWatchQueryParam = buildQueryParams(seriesId, from, to);
+      const riverWatchQueryParam = buildQueryParams(
+        seriesId,
+        new Date(from),
+        to,
+      );
       const stationData = await this.fetchRiverStation(seriesId);
 
       if (!stationData || !riverWatchQueryParam) {
@@ -239,10 +244,7 @@ export class SourcesDataService {
       }
 
       const data = await this.dhmService.getDhmRiverWatchData({
-        date:
-          dataType === SourceDataType.Daily
-            ? riverWatchQueryParam.date_to
-            : riverWatchQueryParam.date_from,
+        date: riverWatchQueryParam.date_from,
         period: SourceDataTypeEnum[dataType],
         seriesid: seriesId.toString(),
         location: location,
