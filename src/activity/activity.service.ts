@@ -646,6 +646,11 @@ export class ActivityService {
         },
       });
 
+      if (!activity) {
+        this.logger.warn(`Activity not found: ${uuid}`);
+        throw new RpcException(`Activity not found: ${uuid}`);
+      }
+
       const docs = activityDocuments?.length
         ? activityDocuments
         : activity?.activityDocuments || [];
