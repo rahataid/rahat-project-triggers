@@ -71,8 +71,8 @@ function parseReturnPeriodTable(
     .map((_, element) => $(element).text().trim())
     .toArray();
 
-  // first 5 data row (excluding the header) , data from latest day
-  const dataRow = rpTable.find('tr').slice(1, 6);
+  // first 10 data row (excluding the header) , data from latest day
+  const dataRow = rpTable.find('tr').slice(1, 11);
   const returnPeriodData = [];
 
   for (const row of dataRow) {
