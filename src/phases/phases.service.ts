@@ -679,6 +679,7 @@ export class PhasesService {
           appId,
           {
             title: trigger.title,
+            description: trigger?.description,
             isMandatory: trigger.isMandatory,
             phaseId: trigger.phaseId,
             source: trigger.source,
@@ -690,6 +691,7 @@ export class PhasesService {
           appId,
           {
             title: trigger.title,
+            description: trigger?.description,
             triggerStatement: JSON.parse(
               JSON.stringify(trigger.triggerStatement),
             ),

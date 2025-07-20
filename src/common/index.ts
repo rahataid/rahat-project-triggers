@@ -71,8 +71,8 @@ function parseReturnPeriodTable(
     .map((_, element) => $(element).text().trim())
     .toArray();
 
-  // first 5 data row (excluding the header) , data from latest day
-  const dataRow = rpTable.find('tr').slice(1, 6);
+  // first 10 data row (excluding the header) , data from latest day
+  const dataRow = rpTable.find('tr').slice(1, 11);
   const returnPeriodData = [];
 
   for (const row of dataRow) {
@@ -173,7 +173,9 @@ export const getTriggerAndActivityCompletionTimeDifference = (
 
 export function buildQueryParams(seriesId: number, from = null, to = null) {
   const currentDate = new Date().toISOString().split('T')[0];
-  from = from ? new Date(from).toISOString().split('T')[0] : null;
+  const endOfFrom = from ? new Date(from.setHours(23, 59, 59, 999)) : null;
+
+  from = endOfFrom ? endOfFrom.toISOString().split('T')[0] : null;
   to = to ? new Date(to).toISOString().split('T')[0] : null;
 
   return {

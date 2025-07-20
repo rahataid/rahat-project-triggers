@@ -46,6 +46,7 @@ export class TriggerService {
       } else {
         const sanitizedPayload = {
           title: dto.title,
+          description: dto.description,
           triggerStatement: dto.triggerStatement,
           phaseId: dto.phaseId,
           isMandatory: dto.isMandatory,
@@ -63,6 +64,7 @@ export class TriggerService {
         trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
         phase: trigger.phase.name,
         title: trigger.title,
+        description: trigger.description,
         source: trigger.source,
         river_basin: trigger.phase.riverBasin,
         params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
@@ -120,6 +122,7 @@ export class TriggerService {
             repeatEvery: '30000',
             notes: item.notes,
             createdBy,
+            description: item.description,
           };
 
           return await this.scheduleJob(sanitizedPayload);
@@ -131,6 +134,7 @@ export class TriggerService {
           trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
           phase: trigger.phase.name,
           title: trigger.title,
+          description: trigger.description,
           source: trigger.source,
           river_basin: trigger.phase.riverBasin,
           params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
@@ -219,6 +223,7 @@ export class TriggerService {
         title: payload.title || trigger.title,
         triggerStatement: payload.triggerStatement || trigger.triggerStatement,
         notes: payload.notes ?? trigger.notes,
+        description: payload.description ?? trigger.description,
         isMandatory: payload.isMandatory ?? trigger.isMandatory,
       };
 
