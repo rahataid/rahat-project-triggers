@@ -14,11 +14,11 @@ const config: DataSourceConfig = {
       {
         [SourceType.RAINFALL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: 13067,
+          SERIESID: [13067, 29608, 5726, 29689, 29785], // Dhangadi Airport, AWS at Parsia, Santipur Belauri, Kallagoth (Krishnapur), Jyamirkhali
         },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: 29089,
+          SERIESID: [29089],
         },
       },
     ],
