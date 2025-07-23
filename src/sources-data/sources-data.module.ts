@@ -9,6 +9,7 @@ import { GlofasService } from './glofas.service';
 import { ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
 import { BQUEUE } from 'src/constant';
+import { GfhService } from './gfh.service';
 
 @Module({
   imports: [
@@ -24,12 +25,14 @@ import { BQUEUE } from 'src/constant';
     ScheduleSourcesDataService,
     DhmService,
     GlofasService,
+    GfhService,
     ConfigService,
   ],
   exports: [
     SourcesDataService,
     ScheduleSourcesDataService,
     DhmService,
+    GfhService,
     GlofasService,
   ],
 })

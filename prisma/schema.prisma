@@ -25,6 +25,7 @@ enum DataSource {
   GLOFAS
   MANUAL
   DAILY_MONITORING
+  GFH
 }
 
 enum ActivityStatus {

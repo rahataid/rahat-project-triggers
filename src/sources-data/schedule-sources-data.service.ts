@@ -12,14 +12,12 @@ import { DhmService } from './dhm.service';
 import { GlofasService } from './glofas.service';
 import { HttpService } from '@nestjs/axios';
 import {
-  hydrologyObservationUrl,
   rainfallStationUrl,
   riverStationUrl,
 } from 'src/constant/datasourceUrls';
 import * as https from 'https';
 import {
   RiverStationItem,
-  RiverWaterHistoryItem,
   RiverStationData,
   RainfallStationItem,
   RainfallStationData,
@@ -28,6 +26,7 @@ import {
 } from 'src/types/data-source';
 import { DataSource, SourceType } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
+import { GfhService } from './gfh.service';
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
@@ -39,11 +38,13 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     private readonly dhmService: DhmService,
     private readonly glofasService: GlofasService,
     private readonly httpService: HttpService,
+    private readonly gfhService: GfhService,
   ) {}
   onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();
     this.synchronizeGlofas();
+    this.syncGlobalFloodHub();
   }
 
   // run every 15 minutes
@@ -178,6 +179,88 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         'Error fetching rainfall data:',
         error?.response?.data?.message || error.message,
       );
+    }
+  }
+
+  //run every 24 hours
+  @Cron('0 0 * * *')
+  async syncGlobalFloodHub() {
+    this.logger.log('Starting flood data fetching process...');
+    try {
+      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
+      const gfhSettings = dataSource[DataSource.GFH];
+
+      // Step 1 : Check if GFH settings are available
+      if (!gfhSettings || gfhSettings.length === 0) {
+        this.logger.warn('GFH settings not found or empty');
+        return;
+      }
+
+      // Step 2: Fetch all gauges
+      const gauges = await this.gfhService.fetchAllGauges();
+      if (gauges.length === 0) {
+        throw new Error('No gauges found');
+      }
+
+      gfhSettings.forEach(async (gfhStationDetails) => {
+        const { dateString } = getFormattedDate();
+        const stationName = gfhStationDetails.STATION_NAME;
+        // Step 3: Check data are already fetched
+        const hasExistingRecord = await this.sourceService.findGfhData(
+          stationName,
+          dateString,
+        );
+        if (hasExistingRecord) {
+          this.logger.log(
+            `Global flood data for ${stationName} on ${dateString} already exists.`,
+          );
+          return;
+        }
+
+        // Step 4: Match stations to gauges
+        const [stationGaugeMapping, uniqueGaugeIds] =
+          this.gfhService.matchStationToGauge(gauges, gfhStationDetails);
+
+        // Step 5: Process gauge data
+        const gaugeDataCache =
+          await this.gfhService.processGaugeData(uniqueGaugeIds);
+
+        // Step 6: Build final output
+        const output = this.gfhService.buildFinalOutput(
+          stationGaugeMapping,
+          gaugeDataCache,
+        );
+
+        // Step 7: Filter and process the output
+        const [stationKey, stationData] = Object.entries(output)[0] || [];
+        if (!stationKey || !stationData) {
+          throw new Error('No station data found');
+        }
+
+        // Step 8: Format the data
+        const gfhData = this.gfhService.formateGfhStationData(
+          dateString,
+          stationData,
+          stationName,
+        );
+
+        // Step 9: Save the data in Global Flood Hub
+        const res = await this.gfhService.saveDataInGfh(
+          SourceType.WATER_LEVEL,
+          stationName,
+          gfhData,
+        );
+        if (res) {
+          this.logger.log(
+            `Global flood data saved successfully for ${stationName}`,
+          );
+        } else {
+          this.logger.warn(`Failed to Global flood data for ${stationName}`);
+        }
+      });
+    } catch (error) {
+      Logger.error(`Error in main execution: ${error}`);
+      throw error;
     }
   }
 

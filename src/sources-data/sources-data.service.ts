@@ -358,6 +358,10 @@ export class SourcesDataService {
       throw new RpcException('River basin is required');
     }
 
+    if (source === DataSource.GFH) {
+      return this.getGfhWaterLevels(payload);
+    }
+
     if (source !== DataSource.DHM) {
       return this.getGlofasWaterLevels(payload);
     }
@@ -473,6 +477,13 @@ export class SourcesDataService {
     return data;
   }
 
+  async getGfhWaterLevels(payload: GetSouceDataDto) {
+    const { riverBasin } = payload;
+
+    const date = getFormattedDate();
+    return await this.findGfhData(riverBasin, date.dateString);
+  }
+
   aggregateDataByTime(history: any[]) {
     const hourlyData: Record<
       string,
@@ -581,6 +592,22 @@ export class SourcesDataService {
         source: {
           riverBasin,
         },
+        info: {
+          path: ['forecastDate'],
+          equals: forecastDate,
+        },
+      },
+    });
+    return recordExists;
+  }
+
+  async findGfhData(riverBasin: string, forecastDate: string) {
+    const recordExists = await this.prisma.sourcesData.findFirst({
+      where: {
+        source: {
+          riverBasin,
+        },
+        dataSource: DataSource.GFH,
         info: {
           path: ['forecastDate'],
           equals: forecastDate,
