@@ -1036,6 +1036,7 @@ export class ActivityService {
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;
+      subject: string;
     }>;
 
     const selectedCommunication = parsedCommunications.find(
@@ -1062,13 +1063,20 @@ export class ActivityService {
     );
 
     let messageContent: string;
-    if (transportDetails.data.type === TransportType.VOICE) {
+    let messageSubject: string;
+
+    const isVoice = transportDetails.data.type === TransportType.VOICE;
+    const isSMTP = transportDetails.data.type === TransportType.SMTP;
+
+    if (isVoice) {
       const msg = selectedCommunication.message as {
         mediaURL: string;
         fileName: string;
       };
+      messageSubject = 'INFO';
       messageContent = msg.mediaURL;
     } else {
+      messageSubject = isSMTP ? selectedCommunication.subject : 'INFO';
       messageContent = selectedCommunication.message as string;
     }
 
@@ -1079,7 +1087,7 @@ export class ActivityService {
       message: {
         content: messageContent,
         meta: {
-          subject: 'INFO',
+          subject: messageSubject,
         },
       },
       options: {},

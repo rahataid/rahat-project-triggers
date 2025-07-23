@@ -282,6 +282,18 @@ model Application {
   @@map("tbl_applications")
 }
 
+model Stats {
+  name  String  @id @unique
+  data  Json
+  group String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt()
+
+  @@map("tbl_stats")
+}
+
+
 // ++++++++++++++++++ START: @rumsan/settings +++++++++++++++++++++++++++
 model Setting {
   name           String          @id @unique
