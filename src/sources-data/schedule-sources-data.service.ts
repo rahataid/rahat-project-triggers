@@ -95,14 +95,15 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
           }
         } catch (dbError) {
           // If history data fetch fails, save only the station data
-          await this.dhmService.saveDataInDhm(
-            SourceType.WATER_LEVEL,
-            LOCATION,
-            {
-              ...stationData,
-            },
-          );
-
+          if (stationData) {
+            await this.dhmService.saveDataInDhm(
+              SourceType.WATER_LEVEL,
+              LOCATION,
+              {
+                ...stationData,
+              },
+            );
+          }
           this.logger.error(
             `Error while fetching river watch history data ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
           );
@@ -224,7 +225,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       return targettedData;
     } catch (error) {
       this.logger.warn('Error fetching river station:', error);
-      throw error;
+      return null;
     }
   }
 
