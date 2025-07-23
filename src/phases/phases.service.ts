@@ -677,22 +677,32 @@ export class PhasesService {
     for (const trigger of phase.Trigger) {
       const { repeatKey } = trigger;
       if (trigger.source === DataSource.MANUAL) {
-        await this.triggerService.create(appId, {
-          title: trigger.title,
-          isMandatory: trigger.isMandatory,
-          phaseId: trigger.phaseId,
-          source: trigger.source,
-        });
+        await this.triggerService.create(
+          appId,
+          {
+            title: trigger.title,
+            description: trigger?.description,
+            isMandatory: trigger.isMandatory,
+            phaseId: trigger.phaseId,
+            source: trigger.source,
+          },
+          trigger.createdBy,
+        );
       } else {
-        await this.triggerService.create(appId, {
-          title: trigger.title,
-          triggerStatement: JSON.parse(
-            JSON.stringify(trigger.triggerStatement),
-          ),
-          isMandatory: trigger.isMandatory,
-          phaseId: trigger.phaseId,
-          source: trigger.source,
-        });
+        await this.triggerService.create(
+          appId,
+          {
+            title: trigger.title,
+            description: trigger?.description,
+            triggerStatement: JSON.parse(
+              JSON.stringify(trigger.triggerStatement),
+            ),
+            isMandatory: trigger.isMandatory,
+            phaseId: trigger.phaseId,
+            source: trigger.source,
+          },
+          trigger.createdBy,
+        );
       }
 
       await this.triggerService.archive(repeatKey);

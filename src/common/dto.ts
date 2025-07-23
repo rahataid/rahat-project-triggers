@@ -63,6 +63,9 @@ export class AddTriggerJobDto {
   title: string;
 
   @IsString()
+  description?: string;
+
+  @IsString()
   source: string;
 
   @IsString()

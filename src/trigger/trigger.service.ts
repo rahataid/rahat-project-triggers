@@ -27,7 +27,7 @@ export class TriggerService {
     >,
   ) {}
 
-  async create(appId: string, dto: CreateTriggerDto) {
+  async create(appId: string, dto: CreateTriggerDto, createdBy: string) {
     this.logger.log(`Creating trigger for app: ${appId}`);
     try {
       /*
@@ -42,10 +42,11 @@ export class TriggerService {
           `User requested MANUAL Trigger, So creating manul trigger`,
         );
         delete dto.triggerDocuments?.type;
-        trigger = await this.createManualTrigger(appId, dto);
+        trigger = await this.createManualTrigger(appId, dto, createdBy);
       } else {
         const sanitizedPayload = {
           title: dto.title,
+          description: dto.description,
           triggerStatement: dto.triggerStatement,
           phaseId: dto.phaseId,
           isMandatory: dto.isMandatory,
@@ -53,6 +54,7 @@ export class TriggerService {
           riverBasin: dto.riverBasin,
           repeatEvery: '30000',
           notes: dto.notes,
+          createdBy,
         };
         trigger = await this.scheduleJob(sanitizedPayload);
       }
@@ -62,6 +64,7 @@ export class TriggerService {
         trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
         phase: trigger.phase.name,
         title: trigger.title,
+        description: trigger.description,
         source: trigger.source,
         river_basin: trigger.phase.riverBasin,
         params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
@@ -95,7 +98,7 @@ export class TriggerService {
     }
   }
 
-  async bulkCreate(appId: string, payload) {
+  async bulkCreate(appId: string, payload, createdBy: string) {
     try {
       const k = await Promise.all(
         payload.map(async (item) => {
@@ -103,7 +106,11 @@ export class TriggerService {
             this.logger.log(
               `User requested MANUAL Trigger, So creating manul trigger`,
             );
-            return await this.createManualTrigger(payload.appId, item);
+            return await this.createManualTrigger(
+              payload.appId,
+              item,
+              createdBy,
+            );
           }
 
           const sanitizedPayload = {
@@ -115,6 +122,8 @@ export class TriggerService {
             riverBasin: item.riverBasin,
             repeatEvery: '30000',
             notes: item.notes,
+            createdBy,
+            description: item.description,
           };
 
           return await this.scheduleJob(sanitizedPayload);
@@ -126,6 +135,7 @@ export class TriggerService {
           trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
           phase: trigger.phase.name,
           title: trigger.title,
+          description: trigger.description,
           source: trigger.source,
           river_basin: trigger.phase.riverBasin,
           params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
@@ -215,6 +225,7 @@ export class TriggerService {
         title: payload.title || trigger.title,
         triggerStatement: payload.triggerStatement || trigger.triggerStatement,
         notes: payload.notes ?? trigger.notes,
+        description: payload.description ?? trigger.description,
         isMandatory: payload.isMandatory ?? trigger.isMandatory,
       };
 
@@ -263,10 +274,10 @@ export class TriggerService {
     try {
       const { riverBasin, activeYear, ...dto } = payload;
 
-      if (!riverBasin || !activeYear) {
-        this.logger.warn('riverBasin or activeYear not provided');
-        throw new RpcException('riverBasin or activeYear not provided');
-      }
+      // if (!riverBasin || !activeYear) {
+      //   this.logger.warn('riverBasin or activeYear not provided');
+      //   throw new RpcException('riverBasin or activeYear not provided');
+      // }
 
       return paginate(
         this.prisma.trigger,
@@ -274,11 +285,13 @@ export class TriggerService {
           where: {
             isDeleted: false,
             phase: {
-              activeYear,
-              riverBasin: {
-                contains: riverBasin,
-                mode: 'insensitive',
-              },
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                riverBasin: {
+                  contains: riverBasin,
+                  mode: 'insensitive',
+                },
+              }),
             },
           },
           include: {
@@ -331,7 +344,11 @@ export class TriggerService {
     );
   }
 
-  async createManualTrigger(appId: string, dto: CreateTriggerDto) {
+  async createManualTrigger(
+    appId: string,
+    dto: CreateTriggerDto,
+    createdBy: string,
+  ) {
     this.logger.log(`Creating manual trigger for app: ${appId}`);
     try {
       const { phaseId, ...rest } = dto;
@@ -352,6 +369,7 @@ export class TriggerService {
         source: DataSource.MANUAL,
         isDeleted: false,
         repeatKey: randomUUID(),
+        createdBy,
       };
 
       const trigger = await this.prisma.trigger.create({
@@ -360,8 +378,6 @@ export class TriggerService {
           phase: true,
         },
       });
-
-      return trigger;
 
       return trigger;
     } catch (error) {
@@ -512,6 +528,7 @@ export class TriggerService {
           },
         },
         source,
+        createdBy: payload.createdBy,
         isDeleted: false,
       };
       const trigger = await this.prisma.trigger.create({

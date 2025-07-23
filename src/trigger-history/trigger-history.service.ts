@@ -67,6 +67,7 @@ export class TriggerHistoryService {
             phaseId: phase.uuid,
           },
           data: {
+            notes: null,
             triggeredAt: null,
             triggeredBy: null,
             isTriggered: false,

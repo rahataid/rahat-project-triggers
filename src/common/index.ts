@@ -15,8 +15,18 @@ export function parseGlofasData(content: string) {
   const $ = cheerio.load(content);
 
   // 2 yr return period table
-  const rpTable = $(
+  const rpTable2yr = $(
     'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 2 yr RP"]',
+  );
+
+  // 5 yr return period table
+  const rpTable5yr = $(
+    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 5 yr RP"]',
+  );
+
+  // 20 yr return period table
+  const rpTable20yr = $(
+    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 20 yr RP"]',
   );
 
   // point forecast table
@@ -27,19 +37,24 @@ export function parseGlofasData(content: string) {
   );
 
   if (
-    rpTable.length === 0 ||
+    rpTable2yr.length === 0 ||
+    rpTable5yr.length === 0 ||
+    rpTable20yr.length === 0 ||
     pfTable.length === 0 ||
     hydrographElement.length === 0
   ) {
     return;
   }
 
-  const returnPeriodTable = parseReturnPeriodTable(rpTable, $);
+  const returnPeriodTable2yr = parseReturnPeriodTable(rpTable2yr, $);
+  const returnPeriodTable5yr = parseReturnPeriodTable(rpTable5yr, $); 
+  const returnPeriodTable20yr = parseReturnPeriodTable(rpTable20yr, $);
   const pointForecastData = parsePointForecast(pfTable, $);
   const hydrographImageUrl = hydrographElement.attr('src');
-
   return {
-    returnPeriodTable,
+    returnPeriodTable2yr,
+    returnPeriodTable5yr,
+    returnPeriodTable20yr,
     pointForecastData,
     hydrographImageUrl,
   };
@@ -56,8 +71,8 @@ function parseReturnPeriodTable(
     .map((_, element) => $(element).text().trim())
     .toArray();
 
-  // first 5 data row (excluding the header) , data from latest day
-  const dataRow = rpTable.find('tr').slice(1, 6);
+  // first 10 data row (excluding the header) , data from latest day
+  const dataRow = rpTable.find('tr').slice(1, 11);
   const returnPeriodData = [];
 
   for (const row of dataRow) {
@@ -158,7 +173,9 @@ export const getTriggerAndActivityCompletionTimeDifference = (
 
 export function buildQueryParams(seriesId: number, from = null, to = null) {
   const currentDate = new Date().toISOString().split('T')[0];
-  from = from ? new Date(from).toISOString().split('T')[0] : null;
+  const endOfFrom = from ? new Date(from.setHours(23, 59, 59, 999)) : null;
+
+  from = endOfFrom ? endOfFrom.toISOString().split('T')[0] : null;
   to = to ? new Date(to).toISOString().split('T')[0] : null;
 
   return {
@@ -166,4 +183,88 @@ export function buildQueryParams(seriesId: number, from = null, to = null) {
     date_from: from || currentDate,
     date_to: to || currentDate,
   };
+}
+
+export function scrapeDataFromHtml(html: string): { [key: string]: any }[] {
+  if (!html?.trim()) return [];
+
+  const results: { [key: string]: any }[] = [];
+
+  // Pre-compiled regex patterns for better performance
+  const headerRegex = /<th[^>]*>(.*?)<\/th>/gs;
+  const htmlTagRegex = /<[^>]*>/g;
+  const whitespaceRegex = /\s+/g;
+
+  // Extract headers first
+  const headers: string[] = [];
+  let headerMatch: RegExpExecArray | null;
+
+  while ((headerMatch = headerRegex.exec(html)) !== null) {
+    const headerText = headerMatch[1]
+      .replace(htmlTagRegex, '')
+      .replace(whitespaceRegex, ' ')
+      .trim();
+
+    if (headerText) {
+      headers.push(headerText);
+    }
+  }
+
+  // If no headers found, return empty array
+  if (headers.length === 0) return [];
+
+  // Create dynamic regex pattern based on number of headers
+  const cellPattern = '<td[^>]*>(.*?)</td>\\s*';
+  const tableRowRegex = new RegExp(
+    `<tr[^>]*>\\s*${cellPattern.repeat(headers.length)}</tr>`,
+    'gs',
+  );
+
+  let match: RegExpExecArray | null;
+
+  while ((match = tableRowRegex.exec(html)) !== null) {
+    const rowData: { [key: string]: any } = {};
+    let hasValidData = false;
+
+    // Process each cell according to its header
+    for (let i = 0; i < headers.length; i++) {
+      const cellRaw = match[i + 1]
+        ?.replace(htmlTagRegex, '')
+        .replace(whitespaceRegex, ' ')
+        .trim();
+
+      if (!cellRaw) continue;
+
+      const header = headers[i];
+      const headerLower = header.toLowerCase();
+
+      // Handle different data types based on header name
+      if (headerLower.includes('date') || headerLower.includes('time')) {
+        // Handle date/time columns
+        const date = new Date(cellRaw);
+        if (!isNaN(date.getTime())) {
+          rowData[header] = date.toISOString();
+          hasValidData = true;
+        }
+      } else {
+        // Try to parse as number first
+        const numericValue = parseFloat(cellRaw);
+        if (!isNaN(numericValue)) {
+          rowData[header] = numericValue;
+          hasValidData = true;
+        } else {
+          // Keep as string if not numeric
+          rowData[header] = cellRaw;
+          hasValidData = true;
+        }
+      }
+    }
+
+    // Only add row if we have at least one valid data point
+    if (hasValidData && Object.keys(rowData).length > 0) {
+      results.push(rowData);
+    }
+  }
+
+  return results;
 }
