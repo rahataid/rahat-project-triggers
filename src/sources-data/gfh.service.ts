@@ -390,19 +390,23 @@ export class GfhService {
     const stationDetails: gfhStationDetails = {
       forecastDate: dateString,
       source: stationData?.source || '',
-      latitude: stationData?.gaugeLocation?.latitude,
-      longitude: stationData?.gaugeLocation?.longitude,
+      latitude: stationData?.gaugeLocation?.latitude?.toFixed(6),
+      longitude: stationData?.gaugeLocation?.longitude?.toFixed(6),
       stationName: stationName || '',
-      warningLevel: stationData.model_metadata?.thresholds?.warningLevel || '',
-      dangerLevel: stationData.model_metadata?.thresholds?.dangerLevel || '',
+      warningLevel:
+        stationData.model_metadata?.thresholds?.warningLevel?.toFixed(2) || '',
+      dangerLevel:
+        stationData.model_metadata?.thresholds?.dangerLevel?.toFixed(2) || '',
       extremeDangerLevel:
-        stationData.model_metadata?.thresholds?.extremeDangerLevel || '',
+        stationData.model_metadata?.thresholds?.extremeDangerLevel?.toFixed(
+          2,
+        ) || '',
       basinSize: stationData.model_metadata?.thresholds?.basinSize || 0,
       riverGaugeId: stationData?.gaugeId || '',
     };
 
     const history = (stationData?.forecasts || []).map((forecast) => ({
-      value: forecast.value,
+      value: forecast.value?.toFixed(1) || 0,
       datetime: forecast.forecastStartTime,
     }));
 
