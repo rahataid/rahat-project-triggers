@@ -53,6 +53,10 @@ export const JOBS = {
       'aa.jobs.stellar.updateTriggerParamsOnChainQueue_' + PROJECT_ID,
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
+  STATS: {
+    GET_STATS: 'ms.jobs.triggers.get_stats',
+    GET_ONE: 'aa.jobs.stats.getOne',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {

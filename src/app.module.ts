@@ -21,6 +21,7 @@ import { SettingsModule } from '@rumsan/settings';
 import { CommsModule } from './comms/comms.module';
 import { SourceModule } from './source/source.module';
 import { TriggerHistoryModule } from './trigger-history/trigger-history.module';
+import { StatsModule } from './stats/stat.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { TriggerHistoryModule } from './trigger-history/trigger-history.module';
     CommsModule.forRoot(),
     SourceModule,
     TriggerHistoryModule,
+    StatsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
