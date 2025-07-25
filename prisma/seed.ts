@@ -14,11 +14,11 @@ const config: DataSourceConfig = {
       {
         [SourceType.RAINFALL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: 13067,
+          SERIESID: [29785, 29608, 5726, 29689], // Jyamirkhali, AWS at Parsia, Santipur Belauri, Kallagoth (Krishnapur),
         },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: 29089,
+          SERIESID: [29089],
         },
       },
     ],

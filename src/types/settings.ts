@@ -4,11 +4,11 @@ import { GlofasStationInfo } from 'src/sources-data/dto';
 export type RainfallWaterLevelConfig = {
   [SourceType.RAINFALL]: {
     LOCATION: string;
-    SERIESID: number;
+    SERIESID: number[];
   };
   [SourceType.WATER_LEVEL]: {
     LOCATION: string;
-    SERIESID: number;
+    SERIESID: number[];
   };
 };
 
