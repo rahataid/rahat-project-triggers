@@ -54,62 +54,72 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     try {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
-      dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
-        const riverWatchQueryParam = buildQueryParams(SERIESID);
-        const stationData = await this.fetchRiverStation(SERIESID);
-        if (!stationData || !riverWatchQueryParam) {
-          this.logger.warn(
-            `Missing station data or query params for ${LOCATION}`,
-          );
-          return;
-        }
-        try {
-          const data = await this.dhmService.getDhmRiverWatchData({
-            date: riverWatchQueryParam.date_from,
-            period: SourceDataTypeEnum.POINT.toString(),
-            seriesid: SERIESID.toString(),
-            location: LOCATION,
-          });
 
-          const normalizedData =
-            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
-              data as InputItem[],
+      for (const {
+        WATER_LEVEL: { LOCATION, SERIESID },
+      } of dhmSettings) {
+        for (const seriesId of SERIESID) {
+          const riverWatchQueryParam = buildQueryParams(seriesId);
+          const stationData = await this.fetchRiverStation(seriesId);
+
+          if (!stationData || !riverWatchQueryParam) {
+            this.logger.warn(
+              `Missing station data or query params for ${LOCATION}`,
             );
-
-          const waterLevelData: RiverStationData = {
-            ...stationData,
-            history: normalizedData,
-          };
-
-          const res = await this.dhmService.saveDataInDhm(
-            SourceType.WATER_LEVEL,
-            LOCATION,
-            waterLevelData,
-          );
-
-          if (res) {
-            this.logger.log(
-              `Water level data saved successfully for ${LOCATION}`,
-            );
-          } else {
-            this.logger.warn(`Failed to save water level data for ${LOCATION}`);
+            continue;
           }
-        } catch (dbError) {
-          // If history data fetch fails, save only the station data
-          if (stationData) {
-            await this.dhmService.saveDataInDhm(
+
+          try {
+            const data = await this.dhmService.getDhmRiverWatchData({
+              date: riverWatchQueryParam.date_from,
+              period: SourceDataTypeEnum.POINT.toString(),
+              seriesid: seriesId.toString(),
+              location: LOCATION,
+            });
+
+            const normalizedData =
+              await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+                data as InputItem[],
+              );
+
+            const waterLevelData: RiverStationData = {
+              ...stationData,
+              history: normalizedData,
+            };
+
+            const res = await this.dhmService.saveDataInDhm(
               SourceType.WATER_LEVEL,
               LOCATION,
-              {
-                ...stationData,
-              },
+              waterLevelData,
+            );
+
+            if (res) {
+              this.logger.log(
+                `Water level data saved successfully for ${LOCATION}`,
+              );
+            } else {
+              this.logger.warn(
+                `Failed to save water level data for ${LOCATION}`,
+              );
+            }
+          } catch (dbError) {
+            // If history data fetch fails, save only the station data
+            if (stationData) {
+              await this.dhmService.saveDataInDhm(
+                SourceType.WATER_LEVEL,
+                LOCATION,
+                {
+                  ...stationData,
+                },
+              );
+            }
+
+            this.logger.error(
+              `Error while fetching river watch history data ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
             );
           }
-          this.logger.error(
-            `Error while fetching river watch history data ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
-          );
         }
-      });
+      }
     } catch (error) {
       console.log('error', error);
       this.logger.error(
@@ -127,53 +137,58 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
 
-      dhmSettings.forEach(async ({ RAINFALL: { LOCATION, SERIESID } }) => {
-        try {
-          const rainfallQueryParams = buildQueryParams(SERIESID);
-          const stationData = await this.fetchRainfallStation(SERIESID);
+      for (const {
+        RAINFALL: { LOCATION, SERIESID },
+      } of dhmSettings) {
+        for (const seriesId of SERIESID) {
+          try {
+            const rainfallQueryParams = buildQueryParams(seriesId);
+            const stationData = await this.fetchRainfallStation(seriesId);
 
-          if (!stationData || !rainfallQueryParams) {
-            this.logger.warn(
-              `Missing station data or query params for ${LOCATION}`,
+            if (!stationData || !rainfallQueryParams) {
+              this.logger.warn(
+                `Missing station data or query params for ${LOCATION}`,
+              );
+              continue;
+            }
+
+            const data = await this.dhmService.getDhmRainfallWatchData({
+              date: rainfallQueryParams.date_from,
+              period: SourceDataTypeEnum.HOURLY.toString(),
+              seriesid: seriesId.toString(),
+              location: LOCATION,
+            });
+
+            const normalizedData =
+              await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+                data as InputItem[],
+              );
+
+            const rainfallData: RainfallStationData = {
+              ...stationData,
+              history: normalizedData,
+            };
+
+            const res = await this.dhmService.saveDataInDhm(
+              SourceType.RAINFALL,
+              LOCATION,
+              rainfallData,
             );
-            return;
+
+            if (res) {
+              this.logger.log(
+                `Rainfall data saved successfully for ${LOCATION}`,
+              );
+            } else {
+              this.logger.warn(`Failed to save rainfall data for ${LOCATION}`);
+            }
+          } catch (dbError) {
+            this.logger.error(
+              `Error while fetching rainfall history data for ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
+            );
           }
-
-          const data = await this.dhmService.getDhmRainfallWatchData({
-            date: rainfallQueryParams.date_from,
-            period: SourceDataTypeEnum.HOURLY.toString(),
-            seriesid: SERIESID.toString(),
-            location: LOCATION,
-          });
-
-          const normalizedData =
-            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
-              data as InputItem[],
-            );
-
-          const rainfallData: RainfallStationData = {
-            ...stationData,
-            history: normalizedData,
-          };
-
-          const res = await this.dhmService.saveDataInDhm(
-            SourceType.RAINFALL,
-            LOCATION,
-            rainfallData,
-          );
-          if (res) {
-            this.logger.log(`Rainfall data saved successfully for ${LOCATION}`);
-          } else {
-            this.logger.warn(
-              `Failed to Rainfall water level data for ${LOCATION}`,
-            );
-          }
-        } catch (dbError) {
-          this.logger.error(
-            `Error while fetching rainfall history data for ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
-          );
         }
-      });
+      }
     } catch (error) {
       this.logger.error(
         'Error fetching rainfall data:',
