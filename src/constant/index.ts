@@ -56,6 +56,7 @@ export const JOBS = {
   STATS: {
     GET_STATS: 'ms.jobs.triggers.get_stats',
     GET_ONE: 'aa.jobs.stats.getOne',
+    MS_TRIGGERS_STATS: 'rahat.jobs.ms.trigggers.stats',
   },
 };
 
