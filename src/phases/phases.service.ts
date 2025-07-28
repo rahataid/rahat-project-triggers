@@ -19,7 +19,7 @@ import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { GetPhaseByName, GetPhaseDto } from './dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
@@ -544,19 +544,30 @@ export class PhasesService {
           for (const appId of appIds) {
             try {
               const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
+
+              // Add timeout to prevent hanging
               const stellerDistrub = await firstValueFrom(
                 // TODO: EVM Change
-                this.client.send(
-                  {
-                    // cmd: JOBS.STELLAR.DISBURSE,
-                    cmd: JOBS.CHAIN.DISBURSE,
-                    uuid: appId,
-                  },
-                  {
-                    dName: disburseName,
-                  },
-                ),
-              );
+                this.client
+                  .send(
+                    {
+                      // cmd: JOBS.STELLAR.DISBURSE,
+                      cmd: JOBS.CHAIN.DISBURSE,
+                      uuid: appId,
+                    },
+                    {
+                      dName: disburseName,
+                    },
+                  )
+                  .pipe(timeout(30000)), // 30 second timeout
+              ).catch((error) => {
+                this.logger.error(
+                  `Microservice call failed for appId ${appId}:`,
+                  error,
+                );
+                throw error;
+              });
+
               this.logger.log(`Disbursement for ${appId}`, stellerDistrub);
             } catch (error) {
               this.logger.error(
@@ -569,35 +580,32 @@ export class PhasesService {
         }
       }
 
-      // Only activate phase if disbursement was completed successfully
-      if (disbursementCompleted) {
-        const updatedPhase = await this.prisma.phase.update({
-          where: {
-            uuid: uuid,
-          },
-          data: {
-            isActive: true,
-            activatedAt: new Date(),
-          },
-        });
+      // Activate phase regardless of disbursement status, but log the result
+      const updatedPhase = await this.prisma.phase.update({
+        where: {
+          uuid: uuid,
+        },
+        data: {
+          isActive: true,
+          activatedAt: new Date(),
+        },
+      });
 
-        this.logger.log(`Phase ${uuid} activated successfully`);
+      this.logger.log(`Phase ${uuid} activated successfully`);
 
-        // event to calculate reporting
-        // TODO: Need to add feature to calcualte the Stats when phase changes.
-        this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
-          phaseId: phaseDetails.uuid,
-        });
+      // event to calculate reporting
+      // TODO: Need to add feature to calcualte the Stats when phase changes.
+      this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
+        phaseId: phaseDetails.uuid,
+      });
 
-        return updatedPhase;
-      } else {
-        this.logger.error(
-          `Phase ${uuid} activation failed due to disbursement errors`,
-        );
-        throw new RpcException(
-          `Phase activation failed due to disbursement errors`,
+      if (!disbursementCompleted) {
+        this.logger.warn(
+          `Phase ${uuid} activated but disbursement had errors. Check logs for details.`,
         );
       }
+
+      return updatedPhase;
     } catch (error) {
       this.logger.error('Error while activating phase', error);
       throw new RpcException(`Failed to activate phase: ${error.message}`);
