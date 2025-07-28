@@ -32,6 +32,19 @@ const config: DataSourceConfig = {
         TIMESTRING: '2023-10-01T00:00:00Z',
       },
     ],
+    [DataSource.GFH]: [
+      {
+        STATION_NAME: 'Doda river at East-West Highway',
+        RIVER_NAME: 'doda',
+        STATION_ID: 'G10165',
+        POINT_ID: 'SI002576',
+        LISFLOOD_DRAINAGE_AREA: 432,
+        'LISFLOOD_X_(DEG)': 80.425,
+        'LISFLOOD_Y_[DEG]': 28.875,
+        LATITUDE: 28.853,
+        LONGITUDE: 80.434,
+      },
+    ],
   },
   isPrivate: false,
 };
