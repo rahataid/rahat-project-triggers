@@ -460,8 +460,9 @@ export class SourcesDataService {
 
     // DHM uses Doda for Dhoda where as Glofas uses Dhoda
     riverBasin = riverBasin.replace('Dhoda', 'Doda');
-
-    const date = getFormattedDate();
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const date = getFormattedDate(yesterdayDate);
 
     const data = await this.findGlofasData(riverBasin, date.dateString);
 
