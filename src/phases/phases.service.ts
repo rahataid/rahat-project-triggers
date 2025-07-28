@@ -441,8 +441,18 @@ export class PhasesService {
       },
     });
 
+    if (!phase) {
+      this.logger.warn(`No phase found with uuid ${phaseId}`);
+      return [];
+    }
+
+    if (!phase.Activity || phase.Activity.length === 0) {
+      this.logger.warn(`No activities found for phase ${phaseId}`);
+      return [];
+    }
+
     const appIds = Array.from(
-      new Set(phase.Activity.map((activity) => activity.app)),
+      new Set(phase.Activity.map((activity) => activity.app).filter(Boolean)),
     );
 
     return appIds;
@@ -516,6 +526,8 @@ export class PhasesService {
         `${phaseActivities.length} activities completed for phase ${uuid}`,
       );
 
+      let disbursementCompleted = true;
+
       if (phaseDetails.canTriggerPayout) {
         this.logger.log(
           `Phase ${phaseDetails.uuid} has active payout so, assigning token to ${phaseDetails.source.riverBasin}`,
@@ -524,45 +536,71 @@ export class PhasesService {
         const appIds = await this.getAppIdByPhase(phaseDetails.uuid);
         this.logger.log(`Running disbursement for ${appIds.length} apps`);
 
-        for (const appId of appIds) {
-          const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
-          const stellerDistrub = await firstValueFrom(
-            // TODO: EVM Change
-            this.client.send(
-              {
-                // cmd: JOBS.STELLAR.DISBURSE,
-                cmd: JOBS.CHAIN.DISBURSE,
-                uuid: appId,
-              },
-              {
-                dName: disburseName,
-              },
-            ),
+        if (appIds.length === 0) {
+          this.logger.warn(
+            `No appIds found for phase ${phaseDetails.uuid}, skipping disbursement`,
           );
-          this.logger.log(`Disbursement for ${appId}`, stellerDistrub);
+        } else {
+          for (const appId of appIds) {
+            try {
+              const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
+              const stellerDistrub = await firstValueFrom(
+                // TODO: EVM Change
+                this.client.send(
+                  {
+                    // cmd: JOBS.STELLAR.DISBURSE,
+                    cmd: JOBS.CHAIN.DISBURSE,
+                    uuid: appId,
+                  },
+                  {
+                    dName: disburseName,
+                  },
+                ),
+              );
+              this.logger.log(`Disbursement for ${appId}`, stellerDistrub);
+            } catch (error) {
+              this.logger.error(
+                `Error during disbursement for appId ${appId}:`,
+                error,
+              );
+              disbursementCompleted = false;
+            }
+          }
         }
       }
-      const updatedPhase = await this.prisma.phase.update({
-        where: {
-          uuid: uuid,
-        },
-        data: {
-          isActive: true,
-          activatedAt: new Date(),
-        },
-      });
 
-      this.logger.log(`Phase ${uuid} activated successfully`);
+      // Only activate phase if disbursement was completed successfully
+      if (disbursementCompleted) {
+        const updatedPhase = await this.prisma.phase.update({
+          where: {
+            uuid: uuid,
+          },
+          data: {
+            isActive: true,
+            activatedAt: new Date(),
+          },
+        });
 
-      // event to calculate reporting
-      // TODO: Need to add feature to calcualte the Stats when phase changes.
-      this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
-        phaseId: phaseDetails.uuid,
-      });
+        this.logger.log(`Phase ${uuid} activated successfully`);
 
-      return updatedPhase;
+        // event to calculate reporting
+        // TODO: Need to add feature to calcualte the Stats when phase changes.
+        this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
+          phaseId: phaseDetails.uuid,
+        });
+
+        return updatedPhase;
+      } else {
+        this.logger.error(
+          `Phase ${uuid} activation failed due to disbursement errors`,
+        );
+        throw new RpcException(
+          `Phase activation failed due to disbursement errors`,
+        );
+      }
     } catch (error) {
       this.logger.error('Error while activating phase', error);
+      throw new RpcException(`Failed to activate phase: ${error.message}`);
     }
   }
 
