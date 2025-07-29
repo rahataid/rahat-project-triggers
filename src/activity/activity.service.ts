@@ -651,7 +651,7 @@ export class ActivityService {
         throw new RpcException(`Activity not found: ${uuid}`);
       }
 
-      const docs = activityDocuments?.length
+      const docs = activityDocuments
         ? activityDocuments
         : activity?.activityDocuments || [];
 
