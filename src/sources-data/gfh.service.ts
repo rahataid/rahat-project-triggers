@@ -394,12 +394,12 @@ export class GfhService {
       longitude: stationData?.gaugeLocation?.longitude?.toFixed(6),
       stationName: stationName || '',
       warningLevel:
-        stationData.model_metadata?.thresholds?.warningLevel?.toFixed(2) || '',
+        stationData.model_metadata?.thresholds?.warningLevel?.toFixed(3) || '',
       dangerLevel:
-        stationData.model_metadata?.thresholds?.dangerLevel?.toFixed(2) || '',
+        stationData.model_metadata?.thresholds?.dangerLevel?.toFixed(3) || '',
       extremeDangerLevel:
         stationData.model_metadata?.thresholds?.extremeDangerLevel?.toFixed(
-          2,
+          3,
         ) || '',
       basinSize: stationData.model_metadata?.thresholds?.basinSize || 0,
       riverGaugeId: stationData?.gaugeId || '',

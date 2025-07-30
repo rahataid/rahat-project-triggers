@@ -340,7 +340,9 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         return;
       }
       glofasSettings.forEach(async (glofasStation: GlofasStationInfo) => {
-        const { dateString, dateTimeString } = getFormattedDate();
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const { dateString, dateTimeString } = getFormattedDate(yesterdayDate);
 
         const riverBasin = glofasStation['LOCATION'];
 
