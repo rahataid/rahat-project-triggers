@@ -149,7 +149,7 @@ export class ActivityService {
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {});
+      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: appId });
 
       return newActivity;
     } catch (err) {
@@ -651,7 +651,7 @@ export class ActivityService {
         throw new RpcException(`Activity not found: ${uuid}`);
       }
 
-      const docs = activityDocuments?.length
+      const docs = activityDocuments
         ? activityDocuments
         : activity?.activityDocuments || [];
 

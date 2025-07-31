@@ -242,41 +242,58 @@ export class DhmService implements AbstractSource {
             source: {
               riverBasin,
             },
+            info: {
+              path: ['series_id'],
+              equals: payload.series_id,
+            },
           },
         });
 
+        const payloadData = JSON.parse(JSON.stringify(payload));
+
         if (existingRecord) {
-          return await tx.sourcesData.update({
-            where: { id: existingRecord.id },
-            data: {
-              info: {
-                ...(existingRecord.info &&
-                  JSON.parse(JSON.stringify(existingRecord.info))),
-                ...JSON.parse(JSON.stringify(payload)),
+          const existingInfo = JSON.parse(JSON.stringify(existingRecord.info));
+
+          if (existingInfo.series_id === payloadData.series_id) {
+            this.logger.log(`Found existing series: ${payloadData.name}`);
+
+            return tx.sourcesData.update({
+              where: { id: existingRecord.id },
+              data: {
+                info: {
+                  ...existingInfo,
+                  ...payloadData,
+                },
+                updatedAt: new Date(),
               },
-              updatedAt: new Date(),
-            },
-          });
+            });
+          }
+
+          this.logger.log(
+            `Series mismatch. Creating new for: ${payloadData.name}`,
+          );
         } else {
-          return await tx.sourcesData.create({
-            data: {
-              type,
-              dataSource: DataSource.DHM,
-              info: JSON.parse(JSON.stringify(payload)),
-              source: {
-                connectOrCreate: {
-                  where: {
-                    riverBasin,
-                  },
-                  create: {
-                    source: [DataSource.DHM],
-                    riverBasin,
-                  },
+          this.logger.log(
+            `No record found. Creating new for: ${payloadData.name}`,
+          );
+        }
+
+        return tx.sourcesData.create({
+          data: {
+            type,
+            dataSource: DataSource.DHM,
+            info: payloadData,
+            source: {
+              connectOrCreate: {
+                where: { riverBasin },
+                create: {
+                  riverBasin,
+                  source: [DataSource.DHM],
                 },
               },
             },
-          });
-        }
+          },
+        });
       });
     } catch (err) {
       this.logger.error(`Error saving data for ${riverBasin}:`, err);

@@ -12,14 +12,12 @@ import { DhmService } from './dhm.service';
 import { GlofasService } from './glofas.service';
 import { HttpService } from '@nestjs/axios';
 import {
-  hydrologyObservationUrl,
   rainfallStationUrl,
   riverStationUrl,
 } from 'src/constant/datasourceUrls';
 import * as https from 'https';
 import {
   RiverStationItem,
-  RiverWaterHistoryItem,
   RiverStationData,
   RainfallStationItem,
   RainfallStationData,
@@ -28,6 +26,7 @@ import {
 } from 'src/types/data-source';
 import { DataSource, SourceType } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
+import { GfhService } from './gfh.service';
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
@@ -39,11 +38,13 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     private readonly dhmService: DhmService,
     private readonly glofasService: GlofasService,
     private readonly httpService: HttpService,
+    private readonly gfhService: GfhService,
   ) {}
   onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();
     this.synchronizeGlofas();
+    this.syncGlobalFloodHub();
   }
 
   // run every 15 minutes
@@ -53,62 +54,72 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     try {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
-      dhmSettings.forEach(async ({ WATER_LEVEL: { LOCATION, SERIESID } }) => {
-        const riverWatchQueryParam = buildQueryParams(SERIESID);
-        const stationData = await this.fetchRiverStation(SERIESID);
-        if (!stationData || !riverWatchQueryParam) {
-          this.logger.warn(
-            `Missing station data or query params for ${LOCATION}`,
-          );
-          return;
-        }
-        try {
-          const data = await this.dhmService.getDhmRiverWatchData({
-            date: riverWatchQueryParam.date_from,
-            period: SourceDataTypeEnum.POINT.toString(),
-            seriesid: SERIESID.toString(),
-            location: LOCATION,
-          });
 
-          const normalizedData =
-            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
-              data as InputItem[],
+      for (const {
+        WATER_LEVEL: { LOCATION, SERIESID },
+      } of dhmSettings) {
+        for (const seriesId of SERIESID) {
+          const riverWatchQueryParam = buildQueryParams(seriesId);
+          const stationData = await this.fetchRiverStation(seriesId);
+
+          if (!stationData || !riverWatchQueryParam) {
+            this.logger.warn(
+              `Missing station data or query params for ${LOCATION}`,
             );
-
-          const waterLevelData: RiverStationData = {
-            ...stationData,
-            history: normalizedData,
-          };
-
-          const res = await this.dhmService.saveDataInDhm(
-            SourceType.WATER_LEVEL,
-            LOCATION,
-            waterLevelData,
-          );
-
-          if (res) {
-            this.logger.log(
-              `Water level data saved successfully for ${LOCATION}`,
-            );
-          } else {
-            this.logger.warn(`Failed to save water level data for ${LOCATION}`);
+            continue;
           }
-        } catch (dbError) {
-          // If history data fetch fails, save only the station data
-          if (stationData) {
-            await this.dhmService.saveDataInDhm(
+
+          try {
+            const data = await this.dhmService.getDhmRiverWatchData({
+              date: riverWatchQueryParam.date_from,
+              period: SourceDataTypeEnum.POINT.toString(),
+              seriesid: seriesId.toString(),
+              location: LOCATION,
+            });
+
+            const normalizedData =
+              await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+                data as InputItem[],
+              );
+
+            const waterLevelData: RiverStationData = {
+              ...stationData,
+              history: normalizedData,
+            };
+
+            const res = await this.dhmService.saveDataInDhm(
               SourceType.WATER_LEVEL,
               LOCATION,
-              {
-                ...stationData,
-              },
+              waterLevelData,
+            );
+
+            if (res) {
+              this.logger.log(
+                `Water level data saved successfully for ${LOCATION}`,
+              );
+            } else {
+              this.logger.warn(
+                `Failed to save water level data for ${LOCATION}`,
+              );
+            }
+          } catch (dbError) {
+            // If history data fetch fails, save only the station data
+            if (stationData) {
+              await this.dhmService.saveDataInDhm(
+                SourceType.WATER_LEVEL,
+                LOCATION,
+                {
+                  ...stationData,
+                },
+              );
+            }
+
+            this.logger.error(
+              `Error while fetching river watch history data ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
             );
           }
-          this.logger.error(
-            `Error while fetching river watch history data ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
-          );
         }
-      });
+      }
     } catch (error) {
       console.log('error', error);
       this.logger.error(
@@ -126,58 +137,145 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
 
-      dhmSettings.forEach(async ({ RAINFALL: { LOCATION, SERIESID } }) => {
-        try {
-          const rainfallQueryParams = buildQueryParams(SERIESID);
-          const stationData = await this.fetchRainfallStation(SERIESID);
+      for (const {
+        RAINFALL: { LOCATION, SERIESID },
+      } of dhmSettings) {
+        for (const seriesId of SERIESID) {
+          try {
+            const rainfallQueryParams = buildQueryParams(seriesId);
+            const stationData = await this.fetchRainfallStation(seriesId);
 
-          if (!stationData || !rainfallQueryParams) {
-            this.logger.warn(
-              `Missing station data or query params for ${LOCATION}`,
+            if (!stationData || !rainfallQueryParams) {
+              this.logger.warn(
+                `Missing station data or query params for ${LOCATION}`,
+              );
+              continue;
+            }
+
+            const data = await this.dhmService.getDhmRainfallWatchData({
+              date: rainfallQueryParams.date_from,
+              period: SourceDataTypeEnum.HOURLY.toString(),
+              seriesid: seriesId.toString(),
+              location: LOCATION,
+            });
+
+            const normalizedData =
+              await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+                data as InputItem[],
+              );
+
+            const rainfallData: RainfallStationData = {
+              ...stationData,
+              history: normalizedData,
+            };
+
+            const res = await this.dhmService.saveDataInDhm(
+              SourceType.RAINFALL,
+              LOCATION,
+              rainfallData,
             );
-            return;
+
+            if (res) {
+              this.logger.log(
+                `Rainfall data saved successfully for ${LOCATION}`,
+              );
+            } else {
+              this.logger.warn(`Failed to save rainfall data for ${LOCATION}`);
+            }
+          } catch (dbError) {
+            this.logger.error(
+              `Error while fetching rainfall history data for ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
+            );
           }
-
-          const data = await this.dhmService.getDhmRainfallWatchData({
-            date: rainfallQueryParams.date_from,
-            period: SourceDataTypeEnum.HOURLY.toString(),
-            seriesid: SERIESID.toString(),
-            location: LOCATION,
-          });
-
-          const normalizedData =
-            await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
-              data as InputItem[],
-            );
-
-          const rainfallData: RainfallStationData = {
-            ...stationData,
-            history: normalizedData,
-          };
-
-          const res = await this.dhmService.saveDataInDhm(
-            SourceType.RAINFALL,
-            LOCATION,
-            rainfallData,
-          );
-          if (res) {
-            this.logger.log(`Rainfall data saved successfully for ${LOCATION}`);
-          } else {
-            this.logger.warn(
-              `Failed to Rainfall water level data for ${LOCATION}`,
-            );
-          }
-        } catch (dbError) {
-          this.logger.error(
-            `Error while fetching rainfall history data for ${LOCATION}: '${dbError?.response?.data?.message || dbError.message}'`,
-          );
         }
-      });
+      }
     } catch (error) {
       this.logger.error(
         'Error fetching rainfall data:',
         error?.response?.data?.message || error.message,
       );
+    }
+  }
+
+  //run every 24 hours
+  @Cron('0 0 * * *')
+  async syncGlobalFloodHub() {
+    this.logger.log('Starting flood data fetching process...');
+    try {
+      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
+      const gfhSettings = dataSource[DataSource.GFH];
+
+      // Step 1 : Check if GFH settings are available
+      if (!gfhSettings || gfhSettings.length === 0) {
+        this.logger.warn('GFH settings not found or empty');
+        return;
+      }
+
+      // Step 2: Fetch all gauges
+      const gauges = await this.gfhService.fetchAllGauges();
+      if (gauges.length === 0) {
+        throw new Error('No gauges found');
+      }
+
+      gfhSettings.forEach(async (gfhStationDetails) => {
+        const { dateString } = getFormattedDate();
+        const stationName = gfhStationDetails.STATION_NAME;
+        // Step 3: Check data are already fetched
+        const hasExistingRecord = await this.sourceService.findGfhData(
+          stationName,
+          dateString,
+        );
+        if (hasExistingRecord) {
+          this.logger.log(
+            `Global flood data for ${stationName} on ${dateString} already exists.`,
+          );
+          return;
+        }
+
+        // Step 4: Match stations to gauges
+        const [stationGaugeMapping, uniqueGaugeIds] =
+          this.gfhService.matchStationToGauge(gauges, gfhStationDetails);
+
+        // Step 5: Process gauge data
+        const gaugeDataCache =
+          await this.gfhService.processGaugeData(uniqueGaugeIds);
+
+        // Step 6: Build final output
+        const output = this.gfhService.buildFinalOutput(
+          stationGaugeMapping,
+          gaugeDataCache,
+        );
+
+        // Step 7: Filter and process the output
+        const [stationKey, stationData] = Object.entries(output)[0] || [];
+        if (!stationKey || !stationData) {
+          throw new Error('No station data found');
+        }
+
+        // Step 8: Format the data
+        const gfhData = this.gfhService.formateGfhStationData(
+          dateString,
+          stationData,
+          stationName,
+        );
+
+        // Step 9: Save the data in Global Flood Hub
+        const res = await this.gfhService.saveDataInGfh(
+          SourceType.WATER_LEVEL,
+          stationName,
+          gfhData,
+        );
+        if (res) {
+          this.logger.log(
+            `Global flood data saved successfully for ${stationName}`,
+          );
+        } else {
+          this.logger.warn(`Failed to Global flood data for ${stationName}`);
+        }
+      });
+    } catch (error) {
+      Logger.error(`Error in main execution: ${error}`);
+      throw error;
     }
   }
 
@@ -242,7 +340,9 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         return;
       }
       glofasSettings.forEach(async (glofasStation: GlofasStationInfo) => {
-        const { dateString, dateTimeString } = getFormattedDate();
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const { dateString, dateTimeString } = getFormattedDate(yesterdayDate);
 
         const riverBasin = glofasStation['LOCATION'];
 

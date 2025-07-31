@@ -14,11 +14,11 @@ const config: DataSourceConfig = {
       {
         [SourceType.RAINFALL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: 13067,
+          SERIESID: [29785, 29608, 5726, 29689], // Jyamirkhali, AWS at Parsia, Santipur Belauri, Kallagoth (Krishnapur),
         },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: 29089,
+          SERIESID: [29089],
         },
       },
     ],
@@ -30,6 +30,19 @@ const config: DataSourceConfig = {
         I: '227', //coordinate for station
         J: '67',
         TIMESTRING: '2023-10-01T00:00:00Z',
+      },
+    ],
+    [DataSource.GFH]: [
+      {
+        STATION_NAME: 'Doda river at East-West Highway',
+        RIVER_NAME: 'doda',
+        STATION_ID: 'G10165',
+        POINT_ID: 'SI002576',
+        LISFLOOD_DRAINAGE_AREA: 432,
+        'LISFLOOD_X_(DEG)': 80.425,
+        'LISFLOOD_Y_[DEG]': 28.875,
+        LATITUDE: 28.853,
+        LONGITUDE: 80.434,
       },
     ],
   },
