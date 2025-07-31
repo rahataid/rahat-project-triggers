@@ -6,6 +6,7 @@ export const BQUEUE = {
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
 };
+export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
 export const JOBS = {
   SCHEDULE: {
@@ -47,11 +48,14 @@ export const JOBS = {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
   STELLAR: {
-    ADD_ONCHAIN_TRIGGER_QUEUE: (PROJECT_ID) =>
-      'aa.jobs.stellar.getTriggerOnChainQueue_' + PROJECT_ID,
-    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: (PROJECT_ID) =>
-      'aa.jobs.stellar.updateTriggerParamsOnChainQueue_' + PROJECT_ID,
+    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
     DISBURSE: 'aa.jobs.stellar.disburse',
+  },
+  STATS: {
+    GET_STATS: 'ms.jobs.triggers.get_stats',
+    GET_ONE: 'aa.jobs.stats.getOne',
+    MS_TRIGGERS_STATS: 'rahat.jobs.ms.trigggers.stats',
   },
 };
 
@@ -85,6 +89,7 @@ export const MS_TRIGGERS_JOBS = {
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
     GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
+    GET_GFH: 'ms.jobs.waterLevels.getGfh',
   },
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
