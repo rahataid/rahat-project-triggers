@@ -6,6 +6,7 @@ export const BQUEUE = {
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
 };
+export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
 export const JOBS = {
   SCHEDULE: {
@@ -47,10 +48,8 @@ export const JOBS = {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
   },
   STELLAR: {
-    ADD_ONCHAIN_TRIGGER_QUEUE: (PROJECT_ID) =>
-      'aa.jobs.stellar.getTriggerOnChainQueue_' + PROJECT_ID,
-    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: (PROJECT_ID) =>
-      'aa.jobs.stellar.updateTriggerParamsOnChainQueue_' + PROJECT_ID,
+    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
   STATS: {
