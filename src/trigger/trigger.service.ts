@@ -594,21 +594,6 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
-      const res = await lastValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
-            uuid: appId,
-          },
-          {
-            ...jobDetails,
-          },
-        ),
-      );
-
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-        `);
 
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
@@ -647,6 +632,35 @@ export class TriggerService {
 
       this.logger.log(`
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
+        `);
+
+      const phaseId = updatedTrigger.phaseId;
+      const appIds = await this.prisma.activity.findFirst({
+        where: {
+          phaseId,
+        }
+      })
+
+      if(!appId && !appIds?.app) {
+        this.logger.warn('No appId or appIds found. Skipping stellar onChain queue update.');
+
+        return updatedTrigger;
+      }
+
+      const res = await lastValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+            uuid: appId ? appId : appIds?.app,
+          },
+          {
+            ...jobDetails,
+          },
+        ),
+      );
+
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
         `);
 
       return updatedTrigger;
