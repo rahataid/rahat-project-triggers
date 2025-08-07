@@ -19,7 +19,7 @@ jobs:
 
       - name: npm install, make test-coverage
         run: |
-          pnpm test-coverage
+          pnpm test:coverage
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
 
