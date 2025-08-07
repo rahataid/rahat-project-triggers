@@ -13,11 +13,9 @@ import {
   RainfallStationItem,
   RiverStationData,
   RiverStationItem,
-  RiverWaterHistoryItem,
   SourceDataTypeEnum,
 } from 'src/types/data-source';
 import {
-  hydrologyObservationUrl,
   rainfallStationUrl,
   riverStationUrl,
 } from 'src/constant/datasourceUrls';
@@ -43,7 +41,7 @@ export class SourcesDataService {
       `Creating new sourcedata with source: ${source} river_basin: ${riverBasin}`,
     );
     try {
-      return this.prisma.sourcesData.create({
+      return await this.prisma.sourcesData.create({
         data: {
           info,
           type,
@@ -70,13 +68,13 @@ export class SourcesDataService {
     }
   }
 
-  findAll(appId: string, dto: PaginationDto) {
+  async findAll(appId: string, dto: PaginationDto) {
     const orderBy: Record<string, 'asc' | 'desc'> = {};
     const { order, sort, page, perPage } = dto;
     orderBy[sort] = order;
     this.logger.log(`Fetching sourceData`);
     try {
-      return paginate(
+      return await paginate(
         this.prisma.sourcesData,
         {
           orderBy,
@@ -92,10 +90,10 @@ export class SourcesDataService {
     }
   }
 
-  findOne(id: number) {
+  async findOne(id: number) {
     try {
       this.logger.log(`Fetching sourceData with uuid: ${id}`);
-      return this.prisma.sourcesData.findUnique({
+      return await this.prisma.sourcesData.findUnique({
         where: {
           id,
         },
@@ -109,13 +107,13 @@ export class SourcesDataService {
     }
   }
 
-  update(dto: UpdateSourcesDataDto) {
+  async update(dto: UpdateSourcesDataDto) {
     const { id, info, source, riverBasin } = dto;
     this.logger.log(
       `Updating  existing sourcedata info with source: ${source} river_basin: ${riverBasin}`,
     );
     try {
-      return this.prisma.sourcesData.update({
+      return await this.prisma.sourcesData.update({
         where: {
           id,
         },

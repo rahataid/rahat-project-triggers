@@ -375,7 +375,6 @@ export class DailyMonitoringService {
 
       return results;
     } catch (error) {
-      console.error('Error in upsert operation:', error);
       throw error;
     }
   }
