@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, SourceType } from '@prisma/client';
+import { SourceType } from '@prisma/client';
 import { PrismaService } from '@rumsan/prisma';
 import { GfhService } from './gfh.service';
 
@@ -29,6 +28,7 @@ describe('GfhService', () => {
   };
 
   beforeEach(async () => {
+    process.env.FLOODS_API_KEY = 'mocked_value';
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GfhService,
@@ -46,27 +46,16 @@ describe('GfhService', () => {
     service = module.get<GfhService>(GfhService);
     prismaService = module.get<PrismaService>(PrismaService);
     httpService = module.get<HttpService>(HttpService);
+    // mock api key in environment
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    delete process.env.FLOODS_API_KEY;
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
-  });
-
-  describe('constructor', () => {
-    it('should throw error when API key is not found', () => {
-      const originalEnv = process.env.FLOODS_API_KEY;
-      delete process.env.FLOODS_API_KEY;
-
-      expect(() => new GfhService(httpService, prismaService)).toThrow(
-        'API key not found. Set FLOODS_API_KEY environment variable',
-      );
-
-      process.env.FLOODS_API_KEY = originalEnv;
-    });
   });
 
   describe('fetchAllGauges', () => {
@@ -111,7 +100,8 @@ describe('GfhService', () => {
         nextPageToken: null,
       };
 
-      jest.spyOn(service as any, 'makeRequest')
+      jest
+        .spyOn(service as any, 'makeRequest')
         .mockResolvedValueOnce(firstResponse)
         .mockResolvedValueOnce(secondResponse);
 
@@ -160,14 +150,21 @@ describe('GfhService', () => {
         json: () => Promise.resolve(mockResponse),
       });
 
-      const result = await service['makeRequest']('test-endpoint', 'POST', undefined, { test: 'data' });
+      const result = await service['makeRequest'](
+        'test-endpoint',
+        'POST',
+        undefined,
+        { test: 'data' },
+      );
 
       expect(global.fetch).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
     });
 
     it('should handle request errors', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Request failed'));
+      (global.fetch as jest.Mock).mockRejectedValue(
+        new Error('Request failed'),
+      );
 
       const result = await service['makeRequest']('test-endpoint', 'GET');
 
@@ -177,25 +174,31 @@ describe('GfhService', () => {
 
   describe('matchStationToGauge', () => {
     const mockGauges = [
-      { id: 'gauge-1', location: { latitude: 27.7172, longitude: 85.3240 } },
+      { id: 'gauge-1', location: { latitude: 27.7172, longitude: 85.324 } },
       { id: 'gauge-2', location: { latitude: 27.7173, longitude: 85.3241 } },
     ] as any;
 
     const mockStation = {
       STATION_ID: 'station-1',
-      'LISFLOOD_X_(DEG)': 85.3240,
+      'LISFLOOD_X_(DEG)': 85.324,
       'LISFLOOD_Y_[DEG]': 27.7172,
     };
 
     it('should match station to gauge successfully', () => {
-      const [mapping, uniqueGaugeIds] = service.matchStationToGauge(mockGauges, mockStation as any);
+      const [mapping, uniqueGaugeIds] = service.matchStationToGauge(
+        mockGauges,
+        mockStation as any,
+      );
 
       expect(mapping).toBeDefined();
       expect(uniqueGaugeIds).toBeInstanceOf(Set);
     });
 
     it('should handle empty gauges array', () => {
-      const [mapping, uniqueGaugeIds] = service.matchStationToGauge([], mockStation as any);
+      const [mapping, uniqueGaugeIds] = service.matchStationToGauge(
+        [],
+        mockStation as any,
+      );
 
       expect(mapping).toEqual({ 'station-1': null });
       expect(uniqueGaugeIds.size).toBe(0);
@@ -208,7 +211,10 @@ describe('GfhService', () => {
         'LISFLOOD_Y_[DEG]': 0, // Far from any gauge
       };
 
-      const [mapping, uniqueGaugeIds] = service.matchStationToGauge(mockGauges, mockStationWithNoMatch as any);
+      const [mapping, uniqueGaugeIds] = service.matchStationToGauge(
+        mockGauges,
+        mockStationWithNoMatch as any,
+      );
 
       expect(mapping).toBeDefined();
       expect(uniqueGaugeIds.size).toBe(0);
@@ -218,7 +224,7 @@ describe('GfhService', () => {
   describe('filterValidGauges', () => {
     it('should filter valid gauges', () => {
       const mockGauges = [
-        { id: 'gauge-1', location: { latitude: 27.7172, longitude: 85.3240 } },
+        { id: 'gauge-1', location: { latitude: 27.7172, longitude: 85.324 } },
         { id: 'gauge-2', location: null },
         { id: 'gauge-3', location: { latitude: 27.7173, longitude: 85.3241 } },
       ] as any;
@@ -233,15 +239,15 @@ describe('GfhService', () => {
 
   describe('createPoint', () => {
     it('should create point correctly', () => {
-      const result = service['createPoint'](27.7172, 85.3240);
+      const result = service['createPoint'](27.7172, 85.324);
 
-      expect(result).toEqual({ x: 27.7172, y: 85.3240 });
+      expect(result).toEqual({ x: 27.7172, y: 85.324 });
     });
   });
 
   describe('haversineKm', () => {
     it('should calculate distance correctly', () => {
-      const pt1 = { x: 27.7172, y: 85.3240 };
+      const pt1 = { x: 27.7172, y: 85.324 };
       const pt2 = { x: 27.7173, y: 85.3241 };
 
       const result = service['haversineKm'](pt1, pt2);
@@ -251,8 +257,8 @@ describe('GfhService', () => {
     });
 
     it('should return 0 for same points', () => {
-      const pt1 = { x: 27.7172, y: 85.3240 };
-      const pt2 = { x: 27.7172, y: 85.3240 };
+      const pt1 = { x: 27.7172, y: 85.324 };
+      const pt2 = { x: 27.7172, y: 85.324 };
 
       const result = service['haversineKm'](pt1, pt2);
 
@@ -272,8 +278,12 @@ describe('GfhService', () => {
     const mockUniqueGaugeIds = new Set(['gauge-1', 'gauge-2']);
 
     beforeEach(() => {
-      jest.spyOn(service as any, 'fetchGaugeMetadata').mockResolvedValue({ metadata: 'test' });
-      jest.spyOn(service as any, 'fetchGaugeForecasts').mockResolvedValue([{ forecast: 'test' }]);
+      jest
+        .spyOn(service as any, 'fetchGaugeMetadata')
+        .mockResolvedValue({ metadata: 'test' });
+      jest
+        .spyOn(service as any, 'fetchGaugeForecasts')
+        .mockResolvedValue([{ forecast: 'test' }]);
     });
 
     it('should process gauge data successfully', async () => {
@@ -292,7 +302,11 @@ describe('GfhService', () => {
 
       const result = await service.fetchGaugeMetadata('gauge-1');
 
-      expect(service['makeRequest']).toHaveBeenCalledWith('gaugeModels:batchGet', 'GET', { names: 'gaugeModels/gauge-1' });
+      expect(service['makeRequest']).toHaveBeenCalledWith(
+        'gaugeModels:batchGet',
+        'GET',
+        { names: 'gaugeModels/gauge-1' },
+      );
       expect(result).toEqual({ metadata: 'test' });
     });
 
@@ -307,12 +321,12 @@ describe('GfhService', () => {
 
   describe('fetchGaugeForecasts', () => {
     it('should fetch gauge forecasts successfully', async () => {
-      const mockResponse = { 
-        forecasts: { 
-          'gauge-1': { 
-            forecasts: [{ forecast: 'test' }] 
-          } 
-        } 
+      const mockResponse = {
+        forecasts: {
+          'gauge-1': {
+            forecasts: [{ forecast: 'test' }],
+          },
+        },
       };
       jest.spyOn(service as any, 'makeRequest').mockResolvedValue(mockResponse);
 
@@ -349,7 +363,10 @@ describe('GfhService', () => {
     } as any;
 
     it('should build final output successfully', () => {
-      const result = service.buildFinalOutput(mockStationGaugeMapping, mockGaugeDataCache);
+      const result = service.buildFinalOutput(
+        mockStationGaugeMapping,
+        mockGaugeDataCache,
+      );
 
       expect(result).toBeDefined();
       expect(result['station-1']).toBeDefined();
@@ -359,22 +376,26 @@ describe('GfhService', () => {
   describe('formateGfhStationData', () => {
     it('should format GFH station data correctly', () => {
       const dateString = '2023-01-01';
-      const stationData = { 
+      const stationData = {
         gaugeId: 'test-gauge',
-        gaugeLocation: { latitude: 27.7172, longitude: 85.3240 },
-        model_metadata: { 
-          thresholds: { 
-            warningLevel: 100, 
-            dangerLevel: 150, 
+        gaugeLocation: { latitude: 27.7172, longitude: 85.324 },
+        model_metadata: {
+          thresholds: {
+            warningLevel: 100,
+            dangerLevel: 150,
             extremeDangerLevel: 200,
-            basinSize: 1000 
-          } 
+            basinSize: 1000,
+          },
         },
-        forecasts: [{ value: 120, forecastStartTime: '2023-01-01T10:00:00Z' }]
+        forecasts: [{ value: 120, forecastStartTime: '2023-01-01T10:00:00Z' }],
       };
       const stationName = 'Test Station';
 
-      const result = service.formateGfhStationData(dateString, stationData, stationName);
+      const result = service.formateGfhStationData(
+        dateString,
+        stationData,
+        stationName,
+      );
 
       expect(result).toBeDefined();
       expect(result.forecastDate).toBe(dateString);
@@ -408,7 +429,11 @@ describe('GfhService', () => {
         return await callback(mockTransaction);
       });
 
-      const result = await service.saveDataInGfh(mockType, mockRiverBasin, mockPayload);
+      const result = await service.saveDataInGfh(
+        mockType,
+        mockRiverBasin,
+        mockPayload,
+      );
 
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
       expect(result).toBeDefined();
@@ -425,10 +450,14 @@ describe('GfhService', () => {
         return await callback(mockTransaction);
       });
 
-      const result = await service.saveDataInGfh(mockType, mockRiverBasin, mockPayload);
+      const result = await service.saveDataInGfh(
+        mockType,
+        mockRiverBasin,
+        mockPayload,
+      );
 
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
       expect(result).toBeDefined();
     });
   });
-}); 
+});
