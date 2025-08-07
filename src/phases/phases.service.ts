@@ -133,8 +133,16 @@ export class PhasesService {
       },
     );
 
+    // Handle case where data might be undefined or empty
+    if (!paginatedData?.data || paginatedData.data.length === 0) {
+      return {
+        ...paginatedData,
+        data: [],
+      };
+    }
+
     const newData = await Promise.all(
-      paginatedData?.data.map(async (phase: any) => {
+      paginatedData.data.map(async (phase: any) => {
         const phaseStats = await this.generatePhaseTriggersStats(phase.uuid);
         return {
           ...phase,
@@ -470,7 +478,7 @@ export class PhasesService {
 
       if (!phaseDetails) {
         this.logger.warn(`No phase found with uuid ${uuid} to activate`);
-        throw new RpcException(`No phase found with uuid ${uuid} to activate`);
+        return undefined;
       }
 
       const phaseActivities = phaseDetails.Activity;
@@ -561,6 +569,7 @@ export class PhasesService {
       return updatedPhase;
     } catch (error) {
       this.logger.error('Error while activating phase', error);
+      return undefined;
     }
   }
 
@@ -679,6 +688,7 @@ export class PhasesService {
           appId,
           {
             title: trigger.title,
+            description: trigger?.description,
             isMandatory: trigger.isMandatory,
             phaseId: trigger.phaseId,
             source: trigger.source,
@@ -690,6 +700,7 @@ export class PhasesService {
           appId,
           {
             title: trigger.title,
+            description: trigger?.description,
             triggerStatement: JSON.parse(
               JSON.stringify(trigger.triggerStatement),
             ),

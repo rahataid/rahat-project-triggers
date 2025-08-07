@@ -8,14 +8,14 @@ import { RpcException } from '@nestjs/microservices';
 import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
 import { DataSource, SourceType } from '@prisma/client';
 import {
+  InputItem,
   RainfallStationData,
   RainfallStationItem,
   RiverStationData,
   RiverStationItem,
-  RiverWaterHistoryItem,
+  SourceDataTypeEnum,
 } from 'src/types/data-source';
 import {
-  hydrologyObservationUrl,
   rainfallStationUrl,
   riverStationUrl,
 } from 'src/constant/datasourceUrls';
@@ -23,15 +23,16 @@ import * as https from 'https';
 import { buildQueryParams, getFormattedDate } from 'src/common';
 import { SettingsService } from '@rumsan/settings';
 import { DataSourceValue } from 'src/types/settings';
+import { DhmService } from './dhm.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
 export class SourcesDataService {
   logger = new Logger(SourcesDataService.name);
-  dhmService: any;
   constructor(
     private prisma: PrismaService,
+    private readonly dhmService: DhmService,
     private readonly httpService: HttpService,
   ) {}
   async create(dto: CreateSourcesDataDto) {
@@ -40,7 +41,7 @@ export class SourcesDataService {
       `Creating new sourcedata with source: ${source} river_basin: ${riverBasin}`,
     );
     try {
-      return this.prisma.sourcesData.create({
+      return await this.prisma.sourcesData.create({
         data: {
           info,
           type,
@@ -67,13 +68,13 @@ export class SourcesDataService {
     }
   }
 
-  findAll(appId: string, dto: PaginationDto) {
+  async findAll(appId: string, dto: PaginationDto) {
     const orderBy: Record<string, 'asc' | 'desc'> = {};
     const { order, sort, page, perPage } = dto;
     orderBy[sort] = order;
     this.logger.log(`Fetching sourceData`);
     try {
-      return paginate(
+      return await paginate(
         this.prisma.sourcesData,
         {
           orderBy,
@@ -89,10 +90,10 @@ export class SourcesDataService {
     }
   }
 
-  findOne(id: number) {
+  async findOne(id: number) {
     try {
       this.logger.log(`Fetching sourceData with uuid: ${id}`);
-      return this.prisma.sourcesData.findUnique({
+      return await this.prisma.sourcesData.findUnique({
         where: {
           id,
         },
@@ -106,13 +107,13 @@ export class SourcesDataService {
     }
   }
 
-  update(dto: UpdateSourcesDataDto) {
+  async update(dto: UpdateSourcesDataDto) {
     const { id, info, source, riverBasin } = dto;
     this.logger.log(
       `Updating  existing sourcedata info with source: ${source} river_basin: ${riverBasin}`,
     );
     try {
-      return this.prisma.sourcesData.update({
+      return await this.prisma.sourcesData.update({
         where: {
           id,
         },
@@ -155,7 +156,9 @@ export class SourcesDataService {
       return await this.getLevels(payload, SourceType.WATER_LEVEL);
     } catch (error) {
       this.logger.error(`Error while getting water levels: ${error}`);
-      throw new RpcException('Failed to fetch water levels');
+      throw new RpcException(
+        `Failed to fetch water levels: '${error.message}'`,
+      );
     }
   }
 
@@ -170,82 +173,99 @@ export class SourcesDataService {
   }
 
   async fetchRainfallLevelData(payload: {
-    seriesId: number;
+    seriesId: number[];
     location: string;
     from: Date;
     to: Date;
+    dataType: string;
   }) {
-    const { seriesId, location, from, to } = payload;
-    try {
-      const rainfallQueryParams = buildQueryParams(seriesId, from, to);
-      const stationData = await this.fetchRainfallStation(seriesId);
+    const { seriesId, location, from, to, dataType } = payload;
 
-      if (!stationData || !rainfallQueryParams) {
-        this.logger.warn(
-          `Missing station data or query params for ${location}`,
-        );
-        return;
+    const results: RainfallStationData[] = [];
+
+    for (const id of seriesId) {
+      try {
+        const rainfallQueryParams = buildQueryParams(id, new Date(from), to);
+        const stationData = await this.fetchRainfallStation(id);
+
+        if (!stationData || !rainfallQueryParams) {
+          this.logger.warn(
+            `Missing station data or query params for ${location}`,
+          );
+          return;
+        }
+
+        const data = await this.dhmService.getDhmRainfallWatchData({
+          date: rainfallQueryParams.date_from,
+          period: SourceDataTypeEnum[dataType],
+          seriesid: id.toString(),
+          location: location,
+        });
+
+        const normalizedData =
+          await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+            data as InputItem[],
+          );
+
+        results.push({
+          ...stationData,
+          history: normalizedData,
+        });
+      } catch (Error) {
+        this.logger.error(`Error for ${location}: ${Error.message}`, Error);
       }
-
-      const rainfallHistory = await this.httpService.axiosRef.get(
-        hydrologyObservationUrl,
-        {
-          params: rainfallQueryParams,
-        },
-      );
-
-      const rainfallData: RainfallStationData = {
-        ...stationData,
-        history: rainfallHistory.data.data,
-      };
-
-      return rainfallData;
-    } catch (Error) {
-      this.logger.error(`Error for ${location}: ${Error.message}`, Error);
     }
+
+    return results;
   }
 
   async fetchRiverLevelData(payload: {
-    seriesId: number;
+    seriesId: number[];
     location: string;
     from: Date;
     to: Date;
+    dataType: string;
   }) {
-    const { seriesId, location, from, to } = payload;
-    try {
-      const riverWatchQueryParam = buildQueryParams(seriesId, from, to);
-      const stationData = await this.fetchRiverStation(seriesId);
+    const { seriesId, location, from, to, dataType } = payload;
 
-      if (!stationData || !riverWatchQueryParam) {
-        this.logger.warn(
-          `Missing station data or query params for ${location}`,
+    const results: RiverStationData[] = [];
+
+    for (const id of seriesId) {
+      try {
+        const riverWatchQueryParam = buildQueryParams(id, new Date(from), to);
+        const stationData = await this.fetchRiverStation(id);
+
+        if (!stationData || !riverWatchQueryParam) {
+          this.logger.warn(
+            `Missing station data or query params for ${location}`,
+          );
+          return;
+        }
+
+        const data = await this.dhmService.getDhmRiverWatchData({
+          date: riverWatchQueryParam.date_from,
+          period: SourceDataTypeEnum[dataType],
+          seriesid: id.toString(),
+          location: location,
+        });
+
+        const normalizedData =
+          await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
+            data as InputItem[],
+          );
+
+        results.push({
+          ...stationData,
+          history: normalizedData,
+        });
+      } catch (Error) {
+        this.logger.error(
+          `Database error for ${location}: ${Error.message}`,
+          Error,
         );
-        return;
       }
-
-      const {
-        data: { data },
-      } = (await this.httpService.axiosRef.get(hydrologyObservationUrl, {
-        params: riverWatchQueryParam,
-      })) as { data: { data: RiverWaterHistoryItem[] } };
-
-      if (!data || data.length === 0) {
-        this.logger.warn(`No history data returned for ${location}`);
-        return;
-      }
-
-      const waterLevelData: RiverStationData = {
-        ...stationData,
-        history: data,
-      };
-
-      return waterLevelData;
-    } catch (Error) {
-      this.logger.error(
-        `Database error for ${location}: ${Error.message}`,
-        Error,
-      );
     }
+    return results;
   }
 
   async fetchRainfallStation(
@@ -296,6 +316,20 @@ export class SourcesDataService {
     }
   }
 
+  isDateWithinLast14Days(date: Date): boolean {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return false;
+
+    const today = new Date();
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(today.getDate() - 14);
+
+    date.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    fourteenDaysAgo.setHours(0, 0, 0, 0);
+
+    return date >= fourteenDaysAgo && date <= today;
+  }
+
   isToday(from: Date, to: Date) {
     const today = new Date();
     const startOfToday = new Date(today.setHours(0, 0, 0, 0));
@@ -305,14 +339,18 @@ export class SourcesDataService {
   }
 
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
-    const { riverBasin, from, to, type: dataType } = payload;
+    const { riverBasin, from, to, type: dataType, source } = payload;
 
-      if (!riverBasin) {
-        this.logger.warn('River basin is not passed in the payload');
-        throw new RpcException('River basin is required');
-      }
+    if (!riverBasin) {
+      this.logger.warn('River basin is not passed in the payload');
+      throw new RpcException('River basin is required');
+    }
 
-    if (payload.source !== DataSource.DHM) {
+    if (source === DataSource.GFH) {
+      return this.getGfhWaterLevels(payload);
+    }
+
+    if (source !== DataSource.DHM) {
       return this.getGlofasWaterLevels(payload);
     }
 
@@ -321,24 +359,17 @@ export class SourcesDataService {
       throw new RpcException('Type is required');
     }
 
-    const isToday = await this.isToday(new Date(from), new Date(to));
+    const isToday = this.isToday(new Date(from), new Date(to));
 
-    let response;
-
-    const dataInfo = await this.prisma.sourcesData.findFirst({
+    const sourcesData = await this.prisma.sourcesData.findMany({
       where: {
         type,
-        dataSource: payload.source,
-        source: {
-          riverBasin,
-        },
+        dataSource: source,
+        source: { riverBasin },
       },
       include: {
         source: {
-          select: {
-            riverBasin: true,
-            source: true,
-          },
+          select: { riverBasin: true, source: true },
         },
       },
       orderBy: {
@@ -346,47 +377,79 @@ export class SourcesDataService {
       },
     });
 
-    if (!isToday || !dataInfo) {
-      const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
-      const dhmSettings = dataSource[DataSource.DHM];
-
-      const item = dhmSettings.find((item) => {
-        return item?.WATER_LEVEL?.LOCATION === riverBasin;
-      });
-
-      if(!item){
-        this.logger.warn(`No data found for ${riverBasin}`);
-        return null;
-      }
-
-      if (type === 'WATER_LEVEL') {
-        response = await this.fetchRiverLevelData({
-          seriesId: item.WATER_LEVEL.SERIESID,
-          location: item.WATER_LEVEL.LOCATION,
-          from: from || new Date(),
-          to: to || new Date(),
-        });
-      } else {
-        response = await this.fetchRainfallLevelData({
-          seriesId: item.RAINFALL.SERIESID,
-          location: item.RAINFALL.LOCATION,
-          from: from || new Date(),
-          to: to || new Date(),
-        });
-      }
+    if (!sourcesData.length) {
+      this.logger.error(
+        `No sourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+      );
+      throw new RpcException(
+        `No sourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+      );
     }
 
-    if(!response && !dataInfo){
+    const infos = sourcesData?.map((item) => item.info);
+
+    const dataInfos = { ...sourcesData[0], info: infos };
+
+    const isRealTime =
+      (type === SourceType.WATER_LEVEL &&
+        dataType === SourceDataType.Point &&
+        isToday) ||
+      (type === SourceType.RAINFALL &&
+        dataType === SourceDataType.Hourly &&
+        isToday);
+
+    if (isRealTime) {
+      return dataInfos;
+    }
+
+    if (
+      !this.isDateWithinLast14Days(new Date(from)) ||
+      !this.isDateWithinLast14Days(new Date(to))
+    ) {
+      this.logger.error('Dates must be within the last 14 days');
+      throw new RpcException('Dates must be within the last 14 days');
+    }
+
+    const dhmSettings = (
+      SettingsService.get('DATASOURCE') as DataSourceValue
+    )?.[DataSource.DHM];
+    const item = dhmSettings?.find(
+      (i) => i?.WATER_LEVEL?.LOCATION === riverBasin,
+    );
+
+    if (!item) {
+      this.logger.warn(
+        `No DHM data config found for river basin: ${riverBasin}`,
+      );
       return null;
     }
 
-    const aggregatedInfo = await this.processDataByType(
+    const fetchPayload = {
+      seriesId:
+        type === SourceType.WATER_LEVEL
+          ? item.WATER_LEVEL.SERIESID
+          : item.RAINFALL.SERIESID,
+      location:
+        type === SourceType.WATER_LEVEL
+          ? item.WATER_LEVEL.LOCATION
+          : item.RAINFALL.LOCATION,
+      from: from || new Date(),
+      to: to || new Date(),
       dataType,
-      response ?? dataInfo.info,
-    );
+    };
+
+    const response =
+      type === SourceType.WATER_LEVEL
+        ? await this.fetchRiverLevelData(fetchPayload)
+        : await this.fetchRainfallLevelData(fetchPayload);
+
+    if (!response) {
+      this.logger.warn('Live data fetch failed');
+    }
+
     return {
-      ...dataInfo,
-      info: aggregatedInfo,
+      ...dataInfos,
+      info: response,
     };
   }
 
@@ -395,15 +458,20 @@ export class SourcesDataService {
 
     // DHM uses Doda for Dhoda where as Glofas uses Dhoda
     riverBasin = riverBasin.replace('Dhoda', 'Doda');
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const date = getFormattedDate(yesterdayDate);
 
-    const date = getFormattedDate();
-
-    const data = await this.findGlofasData(
-      riverBasin,
-      date.dateString,
-    );
+    const data = await this.findGlofasData(riverBasin, date.dateString);
 
     return data;
+  }
+
+  async getGfhWaterLevels(payload: GetSouceDataDto) {
+    const { riverBasin } = payload;
+
+    const date = getFormattedDate();
+    return await this.findGfhData(riverBasin, date.dateString);
   }
 
   aggregateDataByTime(history: any[]) {
@@ -514,6 +582,22 @@ export class SourcesDataService {
         source: {
           riverBasin,
         },
+        info: {
+          path: ['forecastDate'],
+          equals: forecastDate,
+        },
+      },
+    });
+    return recordExists;
+  }
+
+  async findGfhData(riverBasin: string, forecastDate: string) {
+    const recordExists = await this.prisma.sourcesData.findFirst({
+      where: {
+        source: {
+          riverBasin,
+        },
+        dataSource: DataSource.GFH,
         info: {
           path: ['forecastDate'],
           equals: forecastDate,

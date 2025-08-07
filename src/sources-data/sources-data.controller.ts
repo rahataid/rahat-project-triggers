@@ -73,6 +73,14 @@ export class SourcesDataController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GFH,
+  })
+  async getGfhWaterLevels(payload: GetSouceDataDto): Promise<any> {
+    payload.source = 'GFH';
+    return this.sourceDataService.getWaterLevels(payload);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.RAINFALL_LEVELS.GET_DHM,
   })
   async getDhmRainfallLevels(payload: GetSouceDataDto): Promise<any> {

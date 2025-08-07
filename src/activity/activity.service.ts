@@ -149,7 +149,7 @@ export class ActivityService {
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {});
+      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: appId });
 
       return newActivity;
     } catch (err) {
@@ -646,7 +646,12 @@ export class ActivityService {
         },
       });
 
-      const docs = activityDocuments?.length
+      if (!activity) {
+        this.logger.warn(`Activity not found: ${uuid}`);
+        throw new RpcException(`Activity not found: ${uuid}`);
+      }
+
+      const docs = activityDocuments
         ? activityDocuments
         : activity?.activityDocuments || [];
 
@@ -1031,6 +1036,7 @@ export class ActivityService {
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;
+      subject: string;
     }>;
 
     const selectedCommunication = parsedCommunications.find(
@@ -1057,13 +1063,20 @@ export class ActivityService {
     );
 
     let messageContent: string;
-    if (transportDetails.data.type === TransportType.VOICE) {
+    let messageSubject: string;
+
+    const isVoice = transportDetails.data.type === TransportType.VOICE;
+    const isSMTP = transportDetails.data.type === TransportType.SMTP;
+
+    if (isVoice) {
       const msg = selectedCommunication.message as {
         mediaURL: string;
         fileName: string;
       };
+      messageSubject = 'INFO';
       messageContent = msg.mediaURL;
     } else {
+      messageSubject = isSMTP ? selectedCommunication.subject : 'INFO';
       messageContent = selectedCommunication.message as string;
     }
 
@@ -1074,7 +1087,7 @@ export class ActivityService {
       message: {
         content: messageContent,
         meta: {
-          subject: 'INFO',
+          subject: messageSubject,
         },
       },
       options: {},
@@ -1133,9 +1146,10 @@ export class ActivityService {
             ) {
               // Extract last 10 digits of the phone number
 
-              return stakeholder.phone.substring(
-                +stakeholder.phone.length - 10,
-              );
+              // return stakeholder.phone.substring(
+              //   +stakeholder.phone.length - 10,
+              // );
+              return stakeholder.phone;
             } else if (validationAddress === ValidationAddress.ANY) {
               // Fallback: use phone number if available
               if (stakeholder.phone) {
@@ -1160,9 +1174,10 @@ export class ActivityService {
             ) {
               // Extract last 10 digits of the phone number
 
-              return beneficiary.Beneficiary?.pii?.phone.substring(
-                +beneficiary.Beneficiary?.pii?.phone?.length - 10,
-              );
+              // return beneficiary.Beneficiary?.pii?.phone.substring(
+              //   +beneficiary.Beneficiary?.pii?.phone?.length - 10,
+              // );
+              return beneficiary.Beneficiary?.pii?.phone;
             } else if (validationAddress === ValidationAddress.ANY) {
               // Fallback: use phone number if available
               if (beneficiary.Beneficiary?.pii?.phone) {
@@ -1179,12 +1194,15 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStatsByGroup() {
+  async getTransportSessionStatsByGroup(appId: string) {
     this.logger.log(`Fetching transport session stats by group`);
 
     try {
       // Step 1: Fetch all activities with their related communications
       const activities = await this.prisma.activity.findMany({
+        where: {
+          app: appId,
+        },
         select: {
           activityCommunication: true,
         },

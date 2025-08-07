@@ -9,6 +9,7 @@ import {
 } from './dto';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { GaugeForecastDto } from './dto/list-gaugeForecast.dto';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
@@ -151,6 +152,176 @@ export class DailyMonitoringService {
     }
   }
 
+  async getGaugeReading() {
+    this.logger.log('Fetching all gauge reading data');
+    try {
+      const gaugeReadingData = await this.prisma.dailyMonitoring.findMany({
+        where: {
+          dataSource: 'Gauge Reading',
+          isDeleted: false,
+        },
+        include: {
+          source: {
+            select: {
+              riverBasin: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+      const groupedData =
+        this.groupGaugeReadingsByDateAndStation(gaugeReadingData);
+      return groupedData;
+    } catch (error) {
+      this.logger.error('Error fetching gauge reading data:', error);
+      throw new RpcException('Failed to fetch gauge reading data');
+    }
+  }
+
+  private groupGaugeReadingsByDateAndStation(data: any[]) {
+    const grouped = new Map<string, any>();
+    data.forEach((item) => {
+      const { sourceId, dateKey, station, gaugeReading, gaugeForecast } =
+        this.extractGaugeReadingInfo(item);
+      const groupKey = `${sourceId}_${station}_${dateKey}_${gaugeForecast}`;
+
+      if (!grouped.has(groupKey)) {
+        grouped.set(
+          groupKey,
+          this.createNewGaugeReadingGroup(
+            item,
+            sourceId,
+            dateKey,
+            station,
+            gaugeReading,
+            gaugeForecast,
+          ),
+        );
+      }
+    });
+
+    return Array.from(grouped.values());
+  }
+
+  private extractGaugeReadingInfo(item: any) {
+    const createdDate = new Date(item.createdAt);
+    const dateKey = createdDate.toISOString().split('T')[0];
+    const sourceId = item.sourceId;
+    const station = item.info?.station || '';
+    const gaugeForecast = item.info?.gaugeForecast || '';
+    const gaugeReading = parseFloat(item.info?.gaugeReading) || 0;
+    return { sourceId, dateKey, station, gaugeReading, gaugeForecast };
+  }
+
+  private createNewGaugeReadingGroup(
+    item: any,
+    sourceId: number,
+    dateKey: string,
+    station: string,
+    gaugeReading: number,
+    gaugeForecast: string,
+  ) {
+    return {
+      sourceId: sourceId,
+      date: dateKey,
+      station: station,
+      dataEntryBy: item.dataEntryBy,
+      riverBasin: item.source?.riverBasin,
+      gaugeForecast,
+      latestGaugeReading: gaugeReading,
+      createdBy: item.createdBy,
+      isDeleted: item.isDeleted,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  async getGaugeForecast(payload: GaugeForecastDto) {
+    this.logger.log(
+      `Fetching gauge reading data by date: ${JSON.stringify(payload)}`,
+    );
+
+    try {
+      const whereConditions: any = {
+        dataSource: 'Gauge Reading',
+        isDeleted: false,
+        AND: [],
+      };
+
+      // Add sourceId filter if provided
+      if (payload?.sourceId) {
+        whereConditions.sourceId = Number(payload.sourceId);
+      }
+
+      // Add station filter if provided
+      if (payload?.station) {
+        whereConditions.AND.push({
+          info: {
+            path: ['station'],
+            equals: payload?.station,
+          },
+        });
+      }
+
+      // Add gaugeForecast filter if provided
+      if (payload?.gaugeForecast) {
+        whereConditions.AND.push({
+          info: {
+            path: ['gaugeForecast'],
+            equals: payload?.gaugeForecast,
+          },
+        });
+      }
+
+      // Add date filter if provided
+      if (payload.date) {
+        const startDate = new Date(payload.date);
+        const endDate = new Date(payload.date);
+        endDate.setDate(endDate.getDate() + 1);
+
+        whereConditions.createdAt = {
+          gte: startDate,
+          lt: endDate,
+        };
+      }
+
+      // Remove AND array if it's empty to avoid Prisma issues
+      if (whereConditions.AND.length === 0) {
+        delete whereConditions.AND;
+      }
+
+      const rawData = await this.prisma.dailyMonitoring.findMany({
+        where: whereConditions,
+        include: {
+          source: {
+            select: { riverBasin: true },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      return rawData.map((item) => {
+        const info = item?.info as Record<string, any>;
+        const gaugeReading =
+          typeof info === 'object' && info?.gaugeReading
+            ? info.gaugeReading
+            : '0';
+
+        return {
+          value: gaugeReading,
+          datetime: item?.createdAt,
+        };
+      });
+    } catch (error) {
+      this.logger.error('Error fetching gauge forecast data:', error.message);
+      throw new RpcException('Failed to fetch gauge forecast data');
+    }
+  }
+
   async update(payload: UpdateDailyMonitoringDto) {
     const { uuid, riverBasin, data, user: dataEntryBy } = payload;
     this.logger.log(`Updating daily monitoring data with groupkey: ${uuid}`);
@@ -204,7 +375,6 @@ export class DailyMonitoringService {
 
       return results;
     } catch (error) {
-      console.error('Error in upsert operation:', error);
       throw error;
     }
   }

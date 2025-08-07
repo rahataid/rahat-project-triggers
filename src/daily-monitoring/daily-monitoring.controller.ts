@@ -8,6 +8,7 @@ import {
   ListDailyMonitoringDto,
   UpdateDailyMonitoringDto,
 } from './dto';
+import { GaugeForecastDto } from './dto/list-gaugeForecast.dto';
 
 @Controller('daily-monitoring')
 export class DailyMonitoringController {
@@ -34,6 +35,20 @@ export class DailyMonitoringController {
   })
   async getOne(payload: { uuid: string }) {
     return this.dailyMonitoringService.findOne(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.DAILY_MONITORING.GET_Gauge_Reading,
+  })
+  async getGaugeReading() {
+    return this.dailyMonitoringService.getGaugeReading();
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.DAILY_MONITORING.GET_Gauge_Forecast,
+  })
+  async getGaugeForecast(payload: GaugeForecastDto) {
+    return this.dailyMonitoringService.getGaugeForecast(payload);
   }
 
   @MessagePattern({

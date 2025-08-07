@@ -42,3 +42,4 @@ lerna-debug.log*
 # Ignore docker-compose.yml
 docker-compose.yml
 .qodo
+/tools/config
