@@ -140,7 +140,7 @@ export class StatsService {
       for (const group of groupedActivities) {
         const appId = group.app;
         // const k = await this.activityService.getCommsStats(appId);
-        const k = await this.activityService.getTransportSessionStatsByGroup();
+        const k = await this.activityService.getTransportSessionStatsByGroup(appId);
         await this.save({
           name: `COMMS_STATS_${appId}`,
           group: 'commsStats',

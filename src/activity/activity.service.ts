@@ -1194,12 +1194,15 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStatsByGroup() {
+  async getTransportSessionStatsByGroup(appId: string) {
     this.logger.log(`Fetching transport session stats by group`);
 
     try {
       // Step 1: Fetch all activities with their related communications
       const activities = await this.prisma.activity.findMany({
+        where: {
+          app: appId,
+        },
         select: {
           activityCommunication: true,
         },
