@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/github/rahataid/rahat-project-triggers/badge.svg?branch=main)](https://coveralls.io/github/rahataid/rahat-project-triggers?branch=main)
+
 # Rahat Triggers - Anticipatory Action Platform
 A decentralized platform for managing anticipatory action projects to enhance community resilience against climate shocks.
 
