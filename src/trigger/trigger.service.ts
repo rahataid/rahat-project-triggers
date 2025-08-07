@@ -101,7 +101,7 @@ export class TriggerService {
               `User requested MANUAL Trigger, So creating manul trigger`,
             );
             return await this.createManualTrigger(
-              payload.appId,
+              appId,
               item,
               createdBy,
             );
@@ -151,6 +151,7 @@ export class TriggerService {
       return k;
     } catch (error) {
       console.log(error);
+      throw new RpcException(error.message);
     }
   }
 

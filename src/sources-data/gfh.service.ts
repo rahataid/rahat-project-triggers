@@ -33,7 +33,10 @@ export class GfhService {
     private prisma: PrismaService,
   ) {
     this.apiKey = process.env.FLOODS_API_KEY || '';
-    1;
+    console.log("process.env.FLOODS_API_KEY", process.env);
+
+    console.log('api key', this.apiKey);
+
     if (!this.apiKey) {
       throw new Error(
         'API key not found. Set FLOODS_API_KEY environment variable',
