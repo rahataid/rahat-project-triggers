@@ -54,6 +54,8 @@ describe('SourcesDataModule', () => {
   };
 
   beforeEach(async () => {
+    process.env.FLOODS_API_KEY = 'mocked_value';
+
     module = await Test.createTestingModule({
       imports: [
         SourcesDataModule,
@@ -73,22 +75,31 @@ describe('SourcesDataModule', () => {
       .compile();
   });
 
+  afterEach(() => {
+    delete process.env.FLOODS_API_KEY;
+  });
+
   it('should be defined', () => {
     expect(module).toBeDefined();
   });
 
   it('should have SourcesDataService defined', () => {
-    const sourcesDataService = module.get<SourcesDataService>(SourcesDataService);
+    const sourcesDataService =
+      module.get<SourcesDataService>(SourcesDataService);
     expect(sourcesDataService).toBeDefined();
   });
 
   it('should have SourcesDataController defined', () => {
-    const sourcesDataController = module.get<SourcesDataController>(SourcesDataController);
+    const sourcesDataController = module.get<SourcesDataController>(
+      SourcesDataController,
+    );
     expect(sourcesDataController).toBeDefined();
   });
 
   it('should have ScheduleSourcesDataService defined', () => {
-    const scheduleSourcesDataService = module.get<ScheduleSourcesDataService>(ScheduleSourcesDataService);
+    const scheduleSourcesDataService = module.get<ScheduleSourcesDataService>(
+      ScheduleSourcesDataService,
+    );
     expect(scheduleSourcesDataService).toBeDefined();
   });
 
@@ -114,13 +125,18 @@ describe('SourcesDataModule', () => {
 
   describe('Module Exports', () => {
     it('should export SourcesDataService', () => {
-      const sourcesDataService = module.get<SourcesDataService>(SourcesDataService);
+      const sourcesDataService =
+        module.get<SourcesDataService>(SourcesDataService);
       expect(sourcesDataService).toBeInstanceOf(SourcesDataService);
     });
 
     it('should export ScheduleSourcesDataService', () => {
-      const scheduleSourcesDataService = module.get<ScheduleSourcesDataService>(ScheduleSourcesDataService);
-      expect(scheduleSourcesDataService).toBeInstanceOf(ScheduleSourcesDataService);
+      const scheduleSourcesDataService = module.get<ScheduleSourcesDataService>(
+        ScheduleSourcesDataService,
+      );
+      expect(scheduleSourcesDataService).toBeInstanceOf(
+        ScheduleSourcesDataService,
+      );
     });
 
     it('should export DhmService', () => {
@@ -155,4 +171,4 @@ describe('SourcesDataModule', () => {
       expect(configService).toBeDefined();
     });
   });
-}); 
+});
