@@ -506,7 +506,7 @@ describe('ActivityController', () => {
 
       jest.spyOn(mockActivityService, 'getTransportSessionStatsByGroup').mockResolvedValue(mockResult);
 
-      const result = await controller.getTransportSessionStatsByGroup();
+      const result = await controller.getTransportSessionStatsByGroup({ appId: 'app-id' });
 
       expect(mockActivityService.getTransportSessionStatsByGroup).toHaveBeenCalled();
       expect(result).toEqual(mockResult);
@@ -516,7 +516,7 @@ describe('ActivityController', () => {
       const error = new Error('Service error');
       jest.spyOn(mockActivityService, 'getTransportSessionStatsByGroup').mockRejectedValue(error);
 
-      await expect(controller.getTransportSessionStatsByGroup()).rejects.toThrow(error);
+      await expect(controller.getTransportSessionStatsByGroup({ appId: 'app-id' })).rejects.toThrow(error);
     });
   });
 });

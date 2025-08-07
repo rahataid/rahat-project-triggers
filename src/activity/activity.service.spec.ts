@@ -719,10 +719,11 @@ describe('ActivityService', () => {
         mockBroadcastResponse,
       );
 
-      const result = await service.getTransportSessionStatsByGroup();
+      const result = await service.getTransportSessionStatsByGroup('app-id');
 
       expect(mockPrismaService.activity.findMany).toHaveBeenCalledWith({
         select: { activityCommunication: true },
+        where: { app: 'app-id' },
       });
       expect(mockCommsClient.transport.get).toHaveBeenCalledWith('transport-1');
       expect(mockCommsClient.session.broadcastCount).toHaveBeenCalledWith({
