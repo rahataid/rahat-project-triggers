@@ -87,6 +87,8 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
               history: normalizedData,
             };
 
+            console.log('waterLevelData', waterLevelData);
+
             const res = await this.dhmService.saveDataInDhm(
               SourceType.WATER_LEVEL,
               LOCATION,
@@ -240,11 +242,14 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         const gaugeDataCache =
           await this.gfhService.processGaugeData(uniqueGaugeIds);
 
+        console.log('gaugeDataCache', gaugeDataCache);
+
         // Step 6: Build final output
         const output = this.gfhService.buildFinalOutput(
           stationGaugeMapping,
           gaugeDataCache,
         );
+
 
         // Step 7: Filter and process the output
         const [stationKey, stationData] = Object.entries(output)[0] || [];
@@ -371,12 +376,20 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         this.logger.log(
           `GLOFAS: Parsed data for ${riverBasin} on ${dateString}`,
         );
-        return this.sourceService.create({
+        const res = await this.sourceService.create({
           source: 'GLOFAS',
           riverBasin: riverBasin,
           type: SourceType.RAINFALL,
           info: { ...glofasData, forecastDate: dateString },
         });
+
+        if (res) {
+          this.logger.log(
+            `GLOFAS: Data saved successfully for ${riverBasin} on ${dateString}`,
+          );
+        } else {
+          this.logger.warn(`GLOFAS: Failed to save data for ${riverBasin} on ${dateString}`);
+        }
       });
     } catch (err) {
       this.logger.error('GLOFAS Err:', err.message);
