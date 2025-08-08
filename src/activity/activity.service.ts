@@ -524,7 +524,7 @@ export class ActivityService {
           manager: true,
         },
         orderBy: {
-          createdAt: 'desc',
+          updatedAt: 'desc',
         },
       };
 

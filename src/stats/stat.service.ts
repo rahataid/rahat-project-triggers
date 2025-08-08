@@ -5,6 +5,12 @@ import { ActivityStatus } from '@prisma/client';
 import { RpcException } from '@nestjs/microservices';
 import { ActivityService } from 'src/activity/activity.service';
 
+interface ActivityCommunicationItem {
+  groupId: string;
+  groupType: string;
+  sessionId?: string; // optional, since some might be missing it
+  // other fields if needed
+}
 @Injectable()
 export class StatsService {
   private readonly logger = new Logger(StatsService.name);
@@ -155,17 +161,64 @@ export class StatsService {
     }
   }
 
+  async countSessionPerGroup() {
+    const groupSessionMap: Record<string, Set<string>> = {};
+
+    const activities = await this.prisma.activity.findMany({
+      where: {
+        isDeleted: false,
+        activityCommunication: {
+          not: [],
+        },
+      },
+      select: {
+        app: true,
+        activityCommunication: true,
+      },
+    });
+
+    for (const activity of activities) {
+      const { app, activityCommunication } = activity;
+
+      if (Array.isArray(activityCommunication)) {
+        const comms =
+          activityCommunication as unknown as ActivityCommunicationItem[];
+
+        for (const comm of comms) {
+          const key = `${app}:${comm.groupType}`;
+          if (!groupSessionMap[key]) groupSessionMap[key] = new Set();
+          if (comm.sessionId) groupSessionMap[key].add(comm.sessionId);
+        }
+      }
+    }
+
+    // Save each (appId + groupType) stat separately
+    for (const [key, sessionSet] of Object.entries(groupSessionMap)) {
+      const [appId, groupType] = key.split(':');
+
+      await this.save({
+        name: `${groupType}_${appId}`,
+        group: 'commsStats',
+        data: { sessionCount: sessionSet.size },
+      });
+    }
+
+    this.logger.log('Communication stats calculated and saved successfully.');
+  }
+
   async calculateAllStats() {
     const [
       calculatePhaseActivities,
       calculateActivitiesAutomated,
       calculateActivitiesWithCommunication,
       calculateCommsStatsForAllApps,
+      countSessionPerGroup,
     ] = await Promise.all([
       this.calculatePhaseActivities(),
       this.calculateActivitiesAutomated(),
       this.calculateActivitiesWithCommunication(),
       this.calculateCommsStatsForAllApps(),
+      this.countSessionPerGroup(),
     ]);
 
     return {
@@ -173,6 +226,7 @@ export class StatsService {
       calculateActivitiesAutomated,
       calculateActivitiesWithCommunication,
       calculateCommsStatsForAllApps,
+      countSessionPerGroup,
     };
   }
 
