@@ -288,11 +288,13 @@ export class ActivityService {
           };
 
           let sessionStatus = SessionStatus.NEW;
+          let completedAt = null;
           if (communication.sessionId) {
             const sessionDetails = await this.commsClient.session.get(
               communication.sessionId,
             );
             sessionStatus = sessionDetails.data.status;
+            completedAt = sessionDetails.data.updatedAt;
           }
           // const transport = await this.commsClient.transport.get(
           //   communication.transportId,
@@ -320,6 +322,7 @@ export class ActivityService {
             groupName: groupName,
             transportName: transportName,
             sessionStatus,
+            completedAt,
             ...(communication.sessionId && {
               sessionId: communication.sessionId,
             }),
