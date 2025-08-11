@@ -113,6 +113,11 @@ interface Location {
 }
 
 export interface GfhStationDetails {
+  RIVER_BASIN: string;
+  STATION_LOCATIONS_DETAILS: StationLoacationDetails[];
+}
+
+export interface StationLoacationDetails {
   LATITUDE: number;
   POINT_ID: string;
   RIVER_GAUGE_ID?: string;
