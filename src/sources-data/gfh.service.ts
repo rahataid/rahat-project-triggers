@@ -471,10 +471,20 @@ export class GfhService {
             source: {
               riverBasin,
             },
-            info: {
-              path: ['stationName'],
-              equals: stationName,
-            },
+            AND: [
+              {
+                info: {
+                  path: ['stationName'],
+                  equals: stationName,
+                },
+              },
+              {
+                info: {
+                  path: ['forecastDate'],
+                  equals: payload.forecastDate,
+                },
+              },
+            ],
           },
         });
 
