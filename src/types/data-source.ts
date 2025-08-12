@@ -115,6 +115,7 @@ interface Location {
 export interface GfhStationDetails {
   LATITUDE: number;
   POINT_ID: string;
+  RIVER_GAUGE_ID?: string;
   LONGITUDE: number;
   RIVER_NAME: string;
   STATION_ID: string;

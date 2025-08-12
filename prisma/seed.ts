@@ -35,6 +35,7 @@ const config: DataSourceConfig = {
     [DataSource.GFH]: [
       {
         STATION_NAME: 'Doda river at East-West Highway',
+        RIVER_GAUGE_ID: 'hybas_4120803470',
         RIVER_NAME: 'doda',
         STATION_ID: 'G10165',
         POINT_ID: 'SI002576',

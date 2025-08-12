@@ -33,7 +33,7 @@ export class GfhService {
     private prisma: PrismaService,
   ) {
     this.apiKey = process.env.FLOODS_API_KEY || '';
-    1;
+
     if (!this.apiKey) {
       throw new Error(
         'API key not found. Set FLOODS_API_KEY environment variable',
@@ -135,6 +135,44 @@ export class GfhService {
     const uniqueGaugeIds = new Set<string>();
 
     try {
+      if (station.RIVER_GAUGE_ID) {
+        // If the station has a specific gauge ID, prioritize it
+        this.logger.log(
+          `Station ${station.STATION_ID} has specific gauge ID ${station.RIVER_GAUGE_ID}`,
+        );
+
+        const matchedGauge = validGauges.find(
+          (g) => g.gaugeId === station.RIVER_GAUGE_ID,
+        );
+        if (matchedGauge) {
+          const stationPoint = this.createPoint(
+            station['LISFLOOD_X_(DEG)'],
+            station['LISFLOOD_Y_[DEG]'],
+          );
+
+          const gaugePoint = this.createPoint(
+            matchedGauge.location.longitude,
+            matchedGauge.location.latitude,
+          );
+
+          const distance = this.haversineKm(stationPoint, gaugePoint);
+
+          stationGaugeMapping[station.STATION_ID] = {
+            gaugeId: matchedGauge.gaugeId,
+            distance,
+            source: matchedGauge.source || '',
+            gaugeLocation: matchedGauge.location,
+            qualityVerified: matchedGauge.qualityVerified || false,
+          };
+          uniqueGaugeIds.add(matchedGauge.gaugeId);
+          this.logger.log(
+            `Station ${station.STATION_ID} matched to gauge ${matchedGauge.gaugeId} (${distance.toFixed(2)}km)`,
+          );
+
+          return [stationGaugeMapping, uniqueGaugeIds];
+        }
+      }
+
       const stationPoint = this.createPoint(
         station['LISFLOOD_X_(DEG)'],
         station['LISFLOOD_Y_[DEG]'],

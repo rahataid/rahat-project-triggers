@@ -1,19 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
-
-class MonitoringDataDto {
-  [key: string]: any;
-}
+import { IsArray, IsOptional, IsString } from 'class-validator';
 
 export class AddDailyMonitoringDto {
   @IsString()
   riverBasin: string;
 
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => MonitoringDataDto)
-  data: MonitoringDataDto[];
+  data: any[];
 
   user: any;
 
