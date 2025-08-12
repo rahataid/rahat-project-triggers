@@ -479,6 +479,107 @@ export class ActivityService {
     }
   }
 
+  async getComms(payload: GetActivityHavingCommsDto) {
+    this.logger.log('Fetching activities having communications');
+    try {
+      const { page, perPage, appId, filters = {} } = payload;
+
+      let results = await this.prisma.$queryRawUnsafe<
+        {
+          communication_title: string;
+          sessionId: string;
+          transportId: string;
+          app: string;
+          group_id: string;
+          group_type: string;
+          file_name: string | null;
+          media_url: string | null;
+          timestamp: Date;
+        }[]
+      >(
+        `
+          SELECT
+              a."title"               AS communication_title,
+              a."app"                 AS app,
+              comm_elem->>'message'   AS message,
+              comm_elem->>'subject'   AS subject,
+              comm_elem->>'sessionId'  AS "sessionId",
+              comm_elem->>'transportId'  AS "transportId",
+              comm_elem->>'communicationId'  AS "communicationId",
+              comm_elem->>'groupId'   AS group_id,
+              comm_elem->>'groupType' AS group_type,
+              comm_elem->'message'->>'fileName' AS file_name,
+              comm_elem->'message'->>'mediaURL' AS media_url,
+              a."createdAt"           AS timestamp
+          FROM
+              public.tbl_activities a
+          CROSS JOIN LATERAL
+              jsonb_array_elements(a."activityCommunication"::jsonb) AS comm_elem
+          WHERE
+              a."activityCommunication" IS NOT NULL
+            AND a."activityCommunication"::jsonb != '[]'
+            AND ($1::text IS NULL OR a."title" ILIKE '%' || $1 || '%')
+            AND ($2::text IS NULL OR a."app" ILIKE '%' || $2 || '%')
+            AND ($3::text IS NULL OR comm_elem->>'groupId' = $3)
+            AND ($4::text IS NULL OR comm_elem->>'groupType' ILIKE '%' || $4 || '%')
+       `,
+        filters.title,
+        appId,
+        filters.groupId,
+        filters.groupType,
+      );
+
+      const transportCache = new Map();
+      const { data } = await this.commsClient.transport.list();
+
+      data.forEach((item) => {
+        transportCache.set(item.cuid, item.name);
+      });
+
+      results = results.map((item) => {
+        return {
+          ...item,
+          transportName: transportCache.get(item.transportId),
+        };
+      });
+
+      results = await Promise.all(
+        results.map(async (comm) => {
+          if (!comm.sessionId) {
+            return {
+              ...comm,
+              sessionStatus: 'Not Started',
+            };
+          }
+
+          try {
+            const { data } = await this.commsClient.session.get(comm.sessionId);
+            return {
+              ...comm,
+              sessionStatus: data.status,
+            };
+          } catch (error) {
+            this.logger.warn(
+              `Failed to fetch session status for sessionId: ${comm.sessionId}`,
+            );
+            return {
+              ...comm,
+              sessionStatus: 'WORK IN PROGRESS',
+            };
+          }
+        }),
+      );
+
+      return results;
+    } catch (error) {
+      this.logger.error(
+        'Something went wrong while fetching activities having communications',
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
   async getHavingComms(payload: GetActivityHavingCommsDto) {
     this.logger.log('Fetching activities having communications');
     try {

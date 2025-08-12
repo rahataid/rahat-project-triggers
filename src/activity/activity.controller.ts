@@ -43,6 +43,15 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_COMMS,
+  })
+  async getComms(
+    @Payload() payload: GetActivityHavingCommsDto,
+  ): Promise<any> {
+    return this.activityService.getComms(payload);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ONE,
   })
   async getOne(@Payload() payload: { uuid: string; appId: string }) {

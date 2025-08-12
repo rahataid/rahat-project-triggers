@@ -103,6 +103,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.activities.getOne',
     GET_ALL: 'ms.jobs.activities.getAll',
     GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
+    GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
