@@ -51,6 +51,7 @@ export interface RainfallStationData extends RainfallStationItem {
 }
 
 export interface gfhStationDetails {
+  riverBasin: string;
   source: string;
   latitude: number;
   longitude: number;

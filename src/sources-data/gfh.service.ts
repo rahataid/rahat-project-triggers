@@ -424,8 +424,10 @@ export class GfhService {
     dateString: string,
     stationData: any,
     stationName: string,
+    riverBasin: string,
   ) {
     const stationDetails: gfhStationDetails = {
+      riverBasin,
       forecastDate: dateString,
       source: stationData?.source || '',
       latitude: stationData?.gaugeLocation?.latitude?.toFixed(6),

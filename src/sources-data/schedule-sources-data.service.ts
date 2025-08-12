@@ -224,11 +224,12 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
 
         // get one station location details
         gfhStationDetails.STATION_LOCATIONS_DETAILS.forEach(
-          async (stationDeatils) => {
-            const stationName = stationDeatils.STATION_NAME;
+          async (stationDetails) => {
+            const riverBasin = gfhStationDetails.RIVER_BASIN;
+            const stationName = stationDetails.STATION_NAME;
             // Step 3: Check data are already fetched
             const hasExistingRecord = await this.sourceService.findGfhData(
-              gfhStationDetails.RIVER_BASIN,
+              riverBasin,
               dateString,
               stationName,
             );
@@ -241,7 +242,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
 
             // Step 4: Match stations to gauges
             const [stationGaugeMapping, uniqueGaugeIds] =
-              this.gfhService.matchStationToGauge(gauges, stationDeatils);
+              this.gfhService.matchStationToGauge(gauges, stationDetails);
 
             // Step 5: Process gauge data
             const gaugeDataCache =
@@ -264,12 +265,13 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
               dateString,
               stationData,
               stationName,
+              riverBasin,
             );
 
             // Step 9: Save the data in Global Flood Hub
             const res = await this.gfhService.saveDataInGfh(
               SourceType.WATER_LEVEL,
-              gfhStationDetails.RIVER_BASIN,
+              riverBasin,
               gfhData,
               stationName,
             );
