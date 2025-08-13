@@ -16,7 +16,7 @@ import {
   GetActivityHavingCommsDto,
   UpdateActivityDto,
 } from './dto';
-import { costumePaginate } from 'src/utils/pagination';
+import { paginateResult } from 'src/utils/pagination';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -530,7 +530,7 @@ export class ActivityService {
         });
       }
 
-      return costumePaginate(results, page, perPage);
+      return paginateResult(results, page, perPage);
     } catch (error) {
       this.logger.error(
         'Something went wrong while fetching activities having communications',
@@ -653,10 +653,10 @@ export class ActivityService {
 
     const [beneficiaryGroups, stakeholderGroups] = await Promise.all([
       beneficiaryGroupIds.length > 0
-        ? this.fetchBeneficiaryGroups(appId)
+        ? this.fetchBeneficiaryGroups(appId, beneficiaryGroupIds)
         : Promise.resolve([]),
       stakeholderGroupIds.length > 0
-        ? this.fetchStakeholderGroups(appId)
+        ? this.fetchStakeholderGroups(appId, stakeholderGroupIds)
         : Promise.resolve([]),
     ]);
 
@@ -689,36 +689,49 @@ export class ActivityService {
     };
   }
 
-  private async fetchBeneficiaryGroups(appId: string) {
+  private async fetchBeneficiaryGroups(
+    appId: string,
+    beneficiaryGroupIds: string[],
+  ) {
     try {
       const response = await firstValueFrom(
         this.client.send(
           {
-            cmd: JOBS.BENEFICIARY.GET_ALL_GROUPS,
+            cmd: JOBS.BENEFICIARY.GET_ALL_GROUPS_BY_UUIDS,
             uuid: appId,
           },
-          {},
+          {
+            uuids: beneficiaryGroupIds,
+            selectField: ['uuid', 'name'],
+          },
         ),
       );
-      return response?.data || [];
+
+      return response || [];
     } catch (error) {
       this.logger.warn('Failed to fetch beneficiary groups', error);
       return [];
     }
   }
 
-  private async fetchStakeholderGroups(appId: string) {
+  private async fetchStakeholderGroups(
+    appId: string,
+    stakeholderGroupIds: string[],
+  ) {
     try {
       const response = await firstValueFrom(
         this.client.send(
           {
-            cmd: JOBS.STAKEHOLDERS.GET_ALL_GROUPS,
+            cmd: JOBS.STAKEHOLDERS.GET_ALL_GROUPS_BY_UUIDS,
             uuid: appId,
           },
-          {},
+          {
+            uuids: stakeholderGroupIds,
+            selectField: ['uuid', 'name'],
+          },
         ),
       );
-      return response?.data || [];
+      return response || [];
     } catch (error) {
       this.logger.warn('Failed to fetch stakeholder groups', error);
       return [];

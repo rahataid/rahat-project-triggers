@@ -1,4 +1,18 @@
-export function costumePaginate(items, page = 1, perPage = 10) {
+export function paginateResult<T>(
+  items: T[],
+  page = 1,
+  perPage = 10,
+): {
+  data: T[];
+  meta: {
+    total: number;
+    lastPage: number;
+    currentPage: number;
+    perPage: number;
+    prev: number | null;
+    next: number | null;
+  };
+} {
   const total = items.length;
   const lastPage = Math.ceil(total / perPage) || 1;
   const currentPage = Math.min(Math.max(page, 1), lastPage);
