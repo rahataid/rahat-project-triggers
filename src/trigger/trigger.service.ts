@@ -77,7 +77,7 @@ export class TriggerService {
       const res = await lastValueFrom(
         this.client.send(
           { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-          [queueData],
+          { triggers: [queueData] },
         ),
       );
 
@@ -100,11 +100,7 @@ export class TriggerService {
             this.logger.log(
               `User requested MANUAL Trigger, So creating manul trigger`,
             );
-            return await this.createManualTrigger(
-              appId,
-              item,
-              createdBy,
-            );
+            return await this.createManualTrigger(appId, item, createdBy);
           }
 
           const sanitizedPayload = {
@@ -141,7 +137,7 @@ export class TriggerService {
       const res = await lastValueFrom(
         this.client.send(
           { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-          queueData,
+          { triggers: queueData },
         ),
       );
 
@@ -240,7 +236,7 @@ export class TriggerService {
             uuid: appId,
           },
           {
-            ...queueData,
+            trigger: queueData,
           },
         ),
       );
@@ -595,7 +591,6 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
-
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
           where: {
@@ -639,11 +634,13 @@ export class TriggerService {
       const appIds = await this.prisma.activity.findFirst({
         where: {
           phaseId,
-        }
-      })
+        },
+      });
 
-      if(!appId && !appIds?.app) {
-        this.logger.warn('No appId or appIds found. Skipping stellar onChain queue update.');
+      if (!appId && !appIds?.app) {
+        this.logger.warn(
+          'No appId or appIds found. Skipping stellar onChain queue update.',
+        );
 
         return updatedTrigger;
       }
@@ -655,7 +652,7 @@ export class TriggerService {
             uuid: appId ? appId : appIds?.app,
           },
           {
-            ...jobDetails,
+            trigger: jobDetails,
           },
         ),
       );
