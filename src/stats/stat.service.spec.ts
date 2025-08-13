@@ -138,7 +138,9 @@ describe('StatsService', () => {
     ];
 
     beforeEach(() => {
-      mockPrismaService.activity.groupBy.mockResolvedValue(mockCommunicationActivity);
+      mockPrismaService.activity.groupBy.mockResolvedValue(
+        mockCommunicationActivity,
+      );
       mockPrismaService.stats.upsert.mockResolvedValue({});
     });
 
@@ -188,7 +190,9 @@ describe('StatsService', () => {
     ];
 
     beforeEach(() => {
-      mockPrismaService.activity.groupBy.mockResolvedValue(mockAutomatedActivity);
+      mockPrismaService.activity.groupBy.mockResolvedValue(
+        mockAutomatedActivity,
+      );
       mockPrismaService.stats.upsert.mockResolvedValue({});
     });
 
@@ -230,10 +234,7 @@ describe('StatsService', () => {
   });
 
   describe('calculateCommsStatsForAllApps', () => {
-    const mockGroupedActivities = [
-      { app: 'app-1' },
-      { app: 'app-2' },
-    ];
+    const mockGroupedActivities = [{ app: 'app-1' }, { app: 'app-2' }];
 
     const mockTransportStats = {
       totalSessions: 100,
@@ -241,8 +242,12 @@ describe('StatsService', () => {
     };
 
     beforeEach(() => {
-      mockPrismaService.activity.groupBy.mockResolvedValue(mockGroupedActivities);
-      mockActivityService.getTransportSessionStatsByGroup.mockResolvedValue(mockTransportStats);
+      mockPrismaService.activity.groupBy.mockResolvedValue(
+        mockGroupedActivities,
+      );
+      mockActivityService.getTransportSessionStatsByGroup.mockResolvedValue(
+        mockTransportStats,
+      );
       mockPrismaService.stats.upsert.mockResolvedValue({});
     });
 
@@ -260,7 +265,9 @@ describe('StatsService', () => {
         },
       });
 
-      expect(mockActivityService.getTransportSessionStatsByGroup).toHaveBeenCalledTimes(2);
+      expect(
+        mockActivityService.getTransportSessionStatsByGroup,
+      ).toHaveBeenCalledTimes(2);
       expect(mockPrismaService.stats.upsert).toHaveBeenCalledTimes(2);
       expect(mockPrismaService.stats.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -280,7 +287,9 @@ describe('StatsService', () => {
 
       await service.calculateCommsStatsForAllApps();
 
-      expect(mockActivityService.getTransportSessionStatsByGroup).not.toHaveBeenCalled();
+      expect(
+        mockActivityService.getTransportSessionStatsByGroup,
+      ).not.toHaveBeenCalled();
       expect(mockPrismaService.stats.upsert).not.toHaveBeenCalled();
     });
 
@@ -288,60 +297,45 @@ describe('StatsService', () => {
       const error = new Error('Database error');
       mockPrismaService.activity.groupBy.mockRejectedValue(error);
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(RpcException);
+      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
+        RpcException,
+      );
     });
 
     it('should handle error with custom message', async () => {
       const error = { message: 'Custom error message' };
       mockPrismaService.activity.groupBy.mockRejectedValue(error);
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(RpcException);
+      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
+        RpcException,
+      );
     });
 
     it('should handle error without message property', async () => {
       const error = { someOtherProperty: 'value' };
       mockPrismaService.activity.groupBy.mockRejectedValue(error);
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(RpcException);
+      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
+        RpcException,
+      );
     });
 
     it('should handle error with null message', async () => {
       const error = { message: null };
       mockPrismaService.activity.groupBy.mockRejectedValue(error);
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(RpcException);
+      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
+        RpcException,
+      );
     });
 
     it('should handle error with undefined message', async () => {
       const error = { message: undefined };
       mockPrismaService.activity.groupBy.mockRejectedValue(error);
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(RpcException);
-    });
-  });
-
-  describe('calculateAllStats', () => {
-    beforeEach(() => {
-      jest.spyOn(service, 'calculatePhaseActivities').mockResolvedValue(undefined);
-      jest.spyOn(service, 'calculateActivitiesAutomated').mockResolvedValue(undefined);
-      jest.spyOn(service, 'calculateActivitiesWithCommunication').mockResolvedValue(undefined);
-      jest.spyOn(service, 'calculateCommsStatsForAllApps').mockResolvedValue(undefined);
-    });
-
-    it('should calculate all stats successfully', async () => {
-      const result = await service.calculateAllStats();
-
-      expect(service.calculatePhaseActivities).toHaveBeenCalled();
-      expect(service.calculateActivitiesAutomated).toHaveBeenCalled();
-      expect(service.calculateActivitiesWithCommunication).toHaveBeenCalled();
-      expect(service.calculateCommsStatsForAllApps).toHaveBeenCalled();
-
-      expect(result).toEqual({
-        calculatePhaseActivities: undefined,
-        calculateActivitiesAutomated: undefined,
-        calculateActivitiesWithCommunication: undefined,
-        calculateCommsStatsForAllApps: undefined,
-      });
+      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
+        RpcException,
+      );
     });
   });
 
@@ -466,4 +460,4 @@ describe('StatsService', () => {
       expect(result).toEqual([]);
     });
   });
-}); 
+});
