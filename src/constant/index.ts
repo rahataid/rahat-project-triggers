@@ -42,10 +42,12 @@ export const JOBS = {
   BENEFICIARY: {
     GET_BENEFICIARIES_COUNT: 'rahat.jobs.beneficiary.count',
     GET_ONE_GROUP: 'aa.jobs.beneficiary.getOneGroup',
+    GET_ALL_GROUPS: 'aa.jobs.beneficiary.getAllGroups',
   },
 
   STAKEHOLDERS: {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
+    GET_ALL_GROUPS: 'aa.jobs.stakeholders.getAllGroups',
   },
   STELLAR: {
     ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
