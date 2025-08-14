@@ -45,9 +45,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_COMMS,
   })
-  async getComms(
-    @Payload() payload: GetActivityHavingCommsDto,
-  ): Promise<any> {
+  async getComms(@Payload() payload: GetActivityHavingCommsDto): Promise<any> {
     return this.activityService.getComms(payload);
   }
 

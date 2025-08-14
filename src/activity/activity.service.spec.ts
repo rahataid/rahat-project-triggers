@@ -21,6 +21,7 @@ describe('ActivityService', () => {
   let mockCommsClient: jest.Mocked<any>;
 
   const mockPrismaServiceImplementation = {
+    $queryRawUnsafe: jest.fn(),
     activity: {
       create: jest.fn(),
       findUnique: jest.fn(),
@@ -74,6 +75,7 @@ describe('ActivityService', () => {
     },
     transport: {
       get: jest.fn(),
+      list: jest.fn(),
     },
     broadcast: {
       getReport: jest.fn(),
@@ -582,6 +584,231 @@ describe('ActivityService', () => {
         where: { uuid: mockPayload.activityId },
       });
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('getComms', () => {
+    const mockPayload: GetActivityHavingCommsDto = {
+      page: 1,
+      perPage: 10,
+      appId: 'test-app-id',
+      filters: {
+        transportName: 'SMS',
+        title: 'Test Activity',
+        groupId: 'group-1',
+        groupType: 'BENEFICIARY',
+        groupName: 'Test Group',
+        sessionStatus: 'COMPLETED',
+      },
+    };
+
+    const mockRawQueryResult = [
+      {
+        communication_title: 'Test Communication',
+        app: 'test-app-id',
+        message: 'Test message',
+        subject: 'Test subject',
+        sessionId: 'session-1',
+        transportId: 'transport-1',
+        communicationId: 'comm-1',
+        group_id: 'group-1',
+        group_type: 'BENEFICIARY',
+        file_name: null,
+        media_url: null,
+        timestamp: new Date(),
+      },
+    ];
+
+    const mockSessionData = {
+      data: {
+        status: 'COMPLETED',
+        updatedAt: new Date(),
+      },
+    };
+
+    const mockBeneficiaryGroup = {
+      uuid: 'group-1',
+      name: 'Test Group',
+    };
+
+    beforeEach(() => {
+      // Reset all mocks before each test
+      jest.clearAllMocks();
+
+      // Mock database query
+      mockPrismaServiceImplementation.$queryRawUnsafe = jest
+        .fn()
+        .mockResolvedValue(mockRawQueryResult);
+
+      // Mock transport list to provide transport data cache
+      mockCommsClientImplementation.transport = {
+        get: jest.fn(),
+        list: jest.fn().mockResolvedValue({
+          data: [
+            {
+              cuid: 'transport-1',
+              name: 'SMS',
+            },
+          ],
+        }),
+      };
+
+      // Mock session.get
+      mockCommsClientImplementation.session = {
+        get: jest.fn().mockResolvedValue(mockSessionData),
+        broadcastCount: jest.fn(),
+      };
+
+      // Mock client proxy for beneficiary groups
+      mockClientProxyImplementation.send = jest
+        .fn()
+        .mockReturnValue(of([mockBeneficiaryGroup]));
+    });
+    it('should successfully fetch and process communications data', async () => {
+      // Act
+      const result = await service.getComms(mockPayload);
+
+      // Assert Database Query
+      expect(
+        mockPrismaServiceImplementation.$queryRawUnsafe,
+      ).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT'),
+        expect.any(String), // title
+        expect.any(String), // appId
+        expect.any(String), // groupId
+        expect.any(String), // groupType
+      );
+
+      // Assert Transport Enrichment
+      expect(mockCommsClientImplementation.transport.list).toHaveBeenCalled();
+
+      // Verify session status lookup
+      expect(mockCommsClientImplementation.session.get).toHaveBeenCalledWith(
+        'session-1',
+      );
+
+      // Assert Group Data Lookup
+      expect(mockClientProxyImplementation.send).toHaveBeenCalledWith(
+        expect.objectContaining({ cmd: expect.any(String) }),
+        expect.objectContaining({ uuids: ['group-1'] }),
+      );
+
+      // Assert Final Result Structure
+      expect(result).toHaveProperty('data');
+      expect(result).toHaveProperty('meta');
+      expect(result.data[0]).toMatchObject({
+        communication_title: 'Test Communication',
+        transportName: 'SMS',
+        sessionStatus: 'COMPLETED',
+        groupName: 'Test Group',
+      });
+    });
+
+    it('should throw error when transport name is not provided', async () => {
+      const payloadWithoutTransport = {
+        ...mockPayload,
+        filters: { ...mockPayload.filters, transportName: undefined },
+      };
+
+      await expect(service.getComms(payloadWithoutTransport)).rejects.toThrow(
+        new RpcException('Transport name not found '),
+      );
+    });
+
+    it('should handle session fetch errors gracefully', async () => {
+      // Setup specific payload for this test
+      const testPayload = {
+        page: 1,
+        perPage: 10,
+        appId: 'test-app-id',
+        filters: {
+          transportName: 'SMS', // Must match the transport name in the list response
+        },
+      };
+
+      // Setup database to return data
+      mockPrismaServiceImplementation.$queryRawUnsafe.mockResolvedValue([
+        {
+          communication_title: 'Test Communication',
+          app: 'test-app-id',
+          message: 'Test message',
+          subject: 'Test subject',
+          sessionId: 'session-1',
+          transportId: 'transport-1',
+          communicationId: 'comm-1',
+          group_id: 'group-1',
+          group_type: 'BENEFICIARY',
+          timestamp: new Date(),
+        },
+      ]);
+
+      // Mock transport list to match the filter
+      mockCommsClientImplementation.transport.list.mockResolvedValue({
+        data: [
+          {
+            cuid: 'transport-1',
+            name: 'SMS',
+          },
+        ],
+      });
+
+      // Mock session.get to reject
+      mockCommsClientImplementation.session.get.mockRejectedValue(
+        new Error('Session fetch failed'),
+      );
+
+      // Mock beneficiary group response
+      mockClientProxyImplementation.send.mockReturnValue(
+        of([{ uuid: 'group-1', name: 'Test Group' }]),
+      );
+
+      const result = await service.getComms(testPayload);
+
+      // The result should still have data from the database query
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        communication_title: 'Test Communication',
+        transportName: 'SMS',
+        sessionStatus: 'WORK IN PROGRESS',
+        // Other fields should still be present
+        message: 'Test message',
+        subject: 'Test subject',
+        group_id: 'group-1',
+        group_type: 'BENEFICIARY',
+      });
+    });
+
+    it('should filter results by session status', async () => {
+      mockSessionData.data.status = 'IN_PROGRESS';
+      mockCommsClientImplementation.session.get.mockResolvedValue(
+        mockSessionData,
+      );
+
+      const result = await service.getComms({
+        ...mockPayload,
+        filters: { ...mockPayload.filters, sessionStatus: 'COMPLETED' },
+      });
+
+      expect(result.data).toHaveLength(0);
+    });
+
+    it('should filter results by group name', async () => {
+      const result = await service.getComms({
+        ...mockPayload,
+        filters: { ...mockPayload.filters, groupName: 'Non-existent Group' },
+      });
+
+      expect(result.data).toHaveLength(0);
+    });
+
+    it('should handle database query errors', async () => {
+      mockPrismaServiceImplementation.$queryRawUnsafe.mockRejectedValue(
+        new Error('Database error'),
+      );
+
+      await expect(service.getComms(mockPayload)).rejects.toThrow(
+        new RpcException('Database error'),
+      );
     });
   });
 
