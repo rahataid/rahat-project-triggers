@@ -9,7 +9,7 @@ import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
-import { lastValueFrom } from 'rxjs';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -639,7 +639,7 @@ export class TriggerService {
 
       if (!appId && !appIds?.app) {
         this.logger.warn(
-          'No appId or appIds found. Skipping stellar onChain queue update.',
+          'No appId or appIds found. Skipping stellar onChain queue update and notification creation.',
         );
 
         return updatedTrigger;
@@ -660,6 +660,23 @@ export class TriggerService {
       this.logger.log(`
         Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
         `);
+
+      const notification = await firstValueFrom(
+        this.client.send(
+          {
+            cmd: 'rahat.jobs.notification.create',
+          },
+          {
+            title: `${updatedTrigger.title} has been triggered`,
+            description: `${updatedTrigger.title} has been triggered by ${updatedTrigger.triggeredBy}`,
+            group: 'Trigger Statement',
+            projectId: appId ? appId : appIds?.app,
+            notify: true,
+          },
+        ),
+      );
+
+      this.logger.log('Notification created:', notification);
 
       return updatedTrigger;
     } catch (error) {
