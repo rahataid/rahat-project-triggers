@@ -6,7 +6,12 @@ import { PrismaService } from '@rumsan/prisma';
 import { ActivityController } from './activity.controller';
 import { ActivityService } from './activity.service';
 import { MS_TRIGGER_CLIENTS } from 'src/constant';
-import { CreateActivityDto, GetActivityDto, GetActivityHavingCommsDto, UpdateActivityDto } from './dto';
+import {
+  CreateActivityDto,
+  GetActivityDto,
+  GetActivityHavingCommsDto,
+  UpdateActivityDto,
+} from './dto';
 
 describe('ActivityController', () => {
   let controller: ActivityController;
@@ -133,7 +138,9 @@ describe('ActivityController', () => {
 
       const result = await controller.add(mockCreateActivityDto);
 
-      expect(mockActivityService.add).toHaveBeenCalledWith(mockCreateActivityDto);
+      expect(mockActivityService.add).toHaveBeenCalledWith(
+        mockCreateActivityDto,
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -141,7 +148,9 @@ describe('ActivityController', () => {
       const error = new Error('Service error');
       jest.spyOn(mockActivityService, 'add').mockRejectedValue(error);
 
-      await expect(controller.add(mockCreateActivityDto)).rejects.toThrow(error);
+      await expect(controller.add(mockCreateActivityDto)).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -178,7 +187,9 @@ describe('ActivityController', () => {
 
       const result = await controller.getAll(mockGetActivityDto);
 
-      expect(mockActivityService.getAll).toHaveBeenCalledWith(mockGetActivityDto);
+      expect(mockActivityService.getAll).toHaveBeenCalledWith(
+        mockGetActivityDto,
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -186,7 +197,9 @@ describe('ActivityController', () => {
       const error = new Error('Service error');
       jest.spyOn(mockActivityService, 'getAll').mockRejectedValue(error);
 
-      await expect(controller.getAll(mockGetActivityDto)).rejects.toThrow(error);
+      await expect(controller.getAll(mockGetActivityDto)).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -214,19 +227,27 @@ describe('ActivityController', () => {
         },
       };
 
-      jest.spyOn(mockActivityService, 'listProjectSpecific').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'listProjectSpecific')
+        .mockResolvedValue(mockResult);
 
       const result = await controller.listProjectSpecific(mockGetActivityDto);
 
-      expect(mockActivityService.listProjectSpecific).toHaveBeenCalledWith(mockGetActivityDto);
+      expect(mockActivityService.listProjectSpecific).toHaveBeenCalledWith(
+        mockGetActivityDto,
+      );
       expect(result).toEqual(mockResult);
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
-      jest.spyOn(mockActivityService, 'listProjectSpecific').mockRejectedValue(error);
+      jest
+        .spyOn(mockActivityService, 'listProjectSpecific')
+        .mockRejectedValue(error);
 
-      await expect(controller.listProjectSpecific(mockGetActivityDto)).rejects.toThrow(error);
+      await expect(
+        controller.listProjectSpecific(mockGetActivityDto),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -259,19 +280,29 @@ describe('ActivityController', () => {
         },
       };
 
-      jest.spyOn(mockActivityService, 'getHavingComms').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'getHavingComms')
+        .mockResolvedValue(mockResult);
 
-      const result = await controller.getHavingComms(mockGetActivityHavingCommsDto);
+      const result = await controller.getHavingComms(
+        mockGetActivityHavingCommsDto,
+      );
 
-      expect(mockActivityService.getHavingComms).toHaveBeenCalledWith(mockGetActivityHavingCommsDto);
+      expect(mockActivityService.getHavingComms).toHaveBeenCalledWith(
+        mockGetActivityHavingCommsDto,
+      );
       expect(result).toEqual(mockResult);
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
-      jest.spyOn(mockActivityService, 'getHavingComms').mockRejectedValue(error);
+      jest
+        .spyOn(mockActivityService, 'getHavingComms')
+        .mockRejectedValue(error);
 
-      await expect(controller.getHavingComms(mockGetActivityHavingCommsDto)).rejects.toThrow(error);
+      await expect(
+        controller.getHavingComms(mockGetActivityHavingCommsDto),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -349,19 +380,27 @@ describe('ActivityController', () => {
         message: 'Communication triggered',
       };
 
-      jest.spyOn(mockActivityService, 'triggerCommunication').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'triggerCommunication')
+        .mockResolvedValue(mockResult);
 
       const result = await controller.triggerCommunication(mockPayload);
 
-      expect(mockActivityService.triggerCommunication).toHaveBeenCalledWith(mockPayload);
+      expect(mockActivityService.triggerCommunication).toHaveBeenCalledWith(
+        mockPayload,
+      );
       expect(result).toEqual(mockResult);
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
-      jest.spyOn(mockActivityService, 'triggerCommunication').mockRejectedValue(error);
+      jest
+        .spyOn(mockActivityService, 'triggerCommunication')
+        .mockRejectedValue(error);
 
-      await expect(controller.triggerCommunication(mockPayload)).rejects.toThrow(error);
+      await expect(
+        controller.triggerCommunication(mockPayload),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -381,19 +420,27 @@ describe('ActivityController', () => {
         },
       ];
 
-      jest.spyOn(mockActivityService, 'getSessionLogs').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'getSessionLogs')
+        .mockResolvedValue(mockResult);
 
       const result = await controller.communicationLogs(mockPayload);
 
-      expect(mockActivityService.getSessionLogs).toHaveBeenCalledWith(mockPayload);
+      expect(mockActivityService.getSessionLogs).toHaveBeenCalledWith(
+        mockPayload,
+      );
       expect(result).toEqual(mockResult);
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
-      jest.spyOn(mockActivityService, 'getSessionLogs').mockRejectedValue(error);
+      jest
+        .spyOn(mockActivityService, 'getSessionLogs')
+        .mockRejectedValue(error);
 
-      await expect(controller.communicationLogs(mockPayload)).rejects.toThrow(error);
+      await expect(controller.communicationLogs(mockPayload)).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -419,11 +466,15 @@ describe('ActivityController', () => {
         status: ActivityStatus.COMPLETED,
       };
 
-      jest.spyOn(mockActivityService, 'updateStatus').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'updateStatus')
+        .mockResolvedValue(mockResult);
 
       const result = await controller.updateStatus(mockPayload);
 
-      expect(mockActivityService.updateStatus).toHaveBeenCalledWith(mockPayload);
+      expect(mockActivityService.updateStatus).toHaveBeenCalledWith(
+        mockPayload,
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -454,7 +505,9 @@ describe('ActivityController', () => {
 
       const result = await controller.update(mockUpdateActivityDto);
 
-      expect(mockActivityService.update).toHaveBeenCalledWith(mockUpdateActivityDto);
+      expect(mockActivityService.update).toHaveBeenCalledWith(
+        mockUpdateActivityDto,
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -462,7 +515,9 @@ describe('ActivityController', () => {
       const error = new Error('Service error');
       jest.spyOn(mockActivityService, 'update').mockRejectedValue(error);
 
-      await expect(controller.update(mockUpdateActivityDto)).rejects.toThrow(error);
+      await expect(controller.update(mockUpdateActivityDto)).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -478,11 +533,15 @@ describe('ActivityController', () => {
         failed: 2,
       };
 
-      jest.spyOn(mockActivityService, 'getCommsStats').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'getCommsStats')
+        .mockResolvedValue(mockResult);
 
       const result = await controller.getCommsStats(mockPayload);
 
-      expect(mockActivityService.getCommsStats).toHaveBeenCalledWith(mockPayload.appId);
+      expect(mockActivityService.getCommsStats).toHaveBeenCalledWith(
+        mockPayload.appId,
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -490,7 +549,9 @@ describe('ActivityController', () => {
       const error = new Error('Service error');
       jest.spyOn(mockActivityService, 'getCommsStats').mockRejectedValue(error);
 
-      await expect(controller.getCommsStats(mockPayload)).rejects.toThrow(error);
+      await expect(controller.getCommsStats(mockPayload)).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -504,19 +565,102 @@ describe('ActivityController', () => {
         },
       ];
 
-      jest.spyOn(mockActivityService, 'getTransportSessionStatsByGroup').mockResolvedValue(mockResult);
+      jest
+        .spyOn(mockActivityService, 'getTransportSessionStatsByGroup')
+        .mockResolvedValue(mockResult);
 
-      const result = await controller.getTransportSessionStatsByGroup({ appId: 'app-id' });
+      const result = await controller.getTransportSessionStatsByGroup({
+        appId: 'app-id',
+      });
 
-      expect(mockActivityService.getTransportSessionStatsByGroup).toHaveBeenCalled();
+      expect(
+        mockActivityService.getTransportSessionStatsByGroup,
+      ).toHaveBeenCalled();
       expect(result).toEqual(mockResult);
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
-      jest.spyOn(mockActivityService, 'getTransportSessionStatsByGroup').mockRejectedValue(error);
+      jest
+        .spyOn(mockActivityService, 'getTransportSessionStatsByGroup')
+        .mockRejectedValue(error);
 
-      await expect(controller.getTransportSessionStatsByGroup({ appId: 'app-id' })).rejects.toThrow(error);
+      await expect(
+        controller.getTransportSessionStatsByGroup({ appId: 'app-id' }),
+      ).rejects.toThrow(error);
+    });
+  });
+
+  describe('getComms', () => {
+    const mockGetCommsPayload: GetActivityHavingCommsDto = {
+      page: 1,
+      perPage: 10,
+      appId: 'test-app-id',
+      filters: {
+        transportName: 'SMS',
+        title: 'Test Activity',
+        groupId: 'group-1',
+        groupType: 'BENEFICIARY',
+        groupName: 'Test Group',
+        sessionStatus: 'COMPLETED',
+      },
+    };
+
+    it('should successfully get communications data', async () => {
+      const mockResult = {
+        data: [
+          {
+            communication_title: 'Test Communication',
+            transportName: 'SMS',
+            sessionStatus: 'COMPLETED',
+            groupName: 'Test Group',
+            message: 'Test message',
+            subject: 'Test subject',
+            group_id: 'group-1',
+            group_type: 'BENEFICIARY',
+          },
+        ],
+        meta: {
+          total: 1,
+          lastPage: 1,
+          currentPage: 1,
+          perPage: 10,
+          prev: null,
+          next: null,
+        },
+      };
+
+      jest.spyOn(mockActivityService, 'getComms').mockResolvedValue(mockResult);
+
+      const result = await controller.getComms(mockGetCommsPayload);
+
+      expect(mockActivityService.getComms).toHaveBeenCalledWith(
+        mockGetCommsPayload,
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should handle getComms service errors', async () => {
+      const error = new Error('Service error');
+      jest.spyOn(mockActivityService, 'getComms').mockRejectedValue(error);
+
+      await expect(controller.getComms(mockGetCommsPayload)).rejects.toThrow(
+        error,
+      );
+    });
+
+    it('should handle missing transport name in filters', async () => {
+      const payloadWithoutTransport = {
+        ...mockGetCommsPayload,
+        filters: { ...mockGetCommsPayload.filters, transportName: undefined },
+      };
+
+      const error = new Error('Transport name not found');
+      jest.spyOn(mockActivityService, 'getComms').mockRejectedValue(error);
+
+      await expect(
+        controller.getComms(payloadWithoutTransport),
+      ).rejects.toThrow(error);
     });
   });
 });
