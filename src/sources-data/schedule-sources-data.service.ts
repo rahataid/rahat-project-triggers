@@ -257,7 +257,8 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             // Step 7: Filter and process the output
             const [stationKey, stationData] = Object.entries(output)[0] || [];
             if (!stationKey || !stationData) {
-              throw new Error('No station data found');
+              this.logger.warn(`No data found for station ${stationName}`);
+              return;
             }
 
             // Step 8: Format the data
