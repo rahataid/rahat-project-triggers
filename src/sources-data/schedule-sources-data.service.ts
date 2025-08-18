@@ -219,64 +219,74 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
         throw new Error('No gauges found');
       }
 
-      gfhSettings.forEach(async (gfhStationDetails) => {
+      gfhSettings.forEach((gfhStationDetails) => {
         const { dateString } = getFormattedDate();
-        const stationName = gfhStationDetails.STATION_NAME;
-        // Step 3: Check data are already fetched
-        const hasExistingRecord = await this.sourceService.findGfhData(
-          stationName,
-          dateString,
+
+        // get one station location details
+        gfhStationDetails.STATION_LOCATIONS_DETAILS.forEach(
+          async (stationDetails) => {
+            const riverBasin = gfhStationDetails.RIVER_BASIN;
+            const stationName = stationDetails.STATION_NAME;
+            // Step 3: Check data are already fetched
+            const hasExistingRecord = await this.sourceService.findGfhData(
+              riverBasin,
+              dateString,
+              stationName,
+            );
+            if (hasExistingRecord?.length) {
+              this.logger.log(
+                `Global flood data for ${stationName} on ${dateString} already exists.`,
+              );
+              return;
+            }
+
+            // Step 4: Match stations to gauges
+            const [stationGaugeMapping, uniqueGaugeIds] =
+              this.gfhService.matchStationToGauge(gauges, stationDetails);
+
+            // Step 5: Process gauge data
+            const gaugeDataCache =
+              await this.gfhService.processGaugeData(uniqueGaugeIds);
+
+            // Step 6: Build final output
+            const output = this.gfhService.buildFinalOutput(
+              stationGaugeMapping,
+              gaugeDataCache,
+            );
+
+            // Step 7: Filter and process the output
+            const [stationKey, stationData] = Object.entries(output)[0] || [];
+            if (!stationKey || !stationData) {
+              this.logger.warn(`No data found for station ${stationName}`);
+              return;
+            }
+
+            // Step 8: Format the data
+            const gfhData = this.gfhService.formateGfhStationData(
+              dateString,
+              stationData,
+              stationName,
+              riverBasin,
+            );
+
+            // Step 9: Save the data in Global Flood Hub
+            const res = await this.gfhService.saveDataInGfh(
+              SourceType.WATER_LEVEL,
+              riverBasin,
+              gfhData,
+              stationName,
+            );
+            if (res) {
+              this.logger.log(
+                `Global flood data saved successfully for ${stationName}`,
+              );
+            } else {
+              this.logger.warn(
+                `Failed to Global flood data for ${stationName}`,
+              );
+            }
+          },
         );
-        if (hasExistingRecord) {
-          this.logger.log(
-            `Global flood data for ${stationName} on ${dateString} already exists.`,
-          );
-          return;
-        }
-
-        // Step 4: Match stations to gauges
-        const [stationGaugeMapping, uniqueGaugeIds] =
-          this.gfhService.matchStationToGauge(gauges, gfhStationDetails);
-
-        // Step 5: Process gauge data
-        const gaugeDataCache =
-          await this.gfhService.processGaugeData(uniqueGaugeIds);
-
-        console.log('gaugeDataCache', gaugeDataCache);
-
-        // Step 6: Build final output
-        const output = this.gfhService.buildFinalOutput(
-          stationGaugeMapping,
-          gaugeDataCache,
-        );
-
-
-        // Step 7: Filter and process the output
-        const [stationKey, stationData] = Object.entries(output)[0] || [];
-        if (!stationKey || !stationData) {
-          throw new Error('No station data found');
-        }
-
-        // Step 8: Format the data
-        const gfhData = this.gfhService.formateGfhStationData(
-          dateString,
-          stationData,
-          stationName,
-        );
-
-        // Step 9: Save the data in Global Flood Hub
-        const res = await this.gfhService.saveDataInGfh(
-          SourceType.WATER_LEVEL,
-          stationName,
-          gfhData,
-        );
-        if (res) {
-          this.logger.log(
-            `Global flood data saved successfully for ${stationName}`,
-          );
-        } else {
-          this.logger.warn(`Failed to Global flood data for ${stationName}`);
-        }
       });
     } catch (error) {
       Logger.error(`Error in main execution: ${error}`);
@@ -388,7 +398,9 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             `GLOFAS: Data saved successfully for ${riverBasin} on ${dateString}`,
           );
         } else {
-          this.logger.warn(`GLOFAS: Failed to save data for ${riverBasin} on ${dateString}`);
+          this.logger.warn(
+            `GLOFAS: Failed to save data for ${riverBasin} on ${dateString}`,
+          );
         }
       });
     } catch (err) {

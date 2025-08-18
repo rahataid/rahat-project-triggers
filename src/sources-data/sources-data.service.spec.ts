@@ -193,7 +193,7 @@ describe('SourcesDataService', () => {
 
     it('should return paginated results', async () => {
       const mockSourceData = [{ id: 1, info: { test: 'data' } }];
-      
+
       mockPrismaService.sourcesData.findMany.mockResolvedValue(mockSourceData);
       mockPrismaService.sourcesData.count.mockResolvedValue(1);
 
@@ -473,33 +473,68 @@ describe('SourcesDataService', () => {
       appId: 'test-app',
     };
 
-    beforeEach(() => {
-      mockPrismaService.sourcesData.findFirst.mockResolvedValue({
+    const mockGfhData = [
+      {
         id: 1,
-        info: { test: 'data' },
-      });
+        info: {
+          test: 'data',
+          forecastDate: expect.any(String),
+          stationName: 'Station 1',
+        },
+      },
+      {
+        id: 2,
+        info: {
+          test: 'data 2',
+          forecastDate: expect.any(String),
+          stationName: 'Station 2',
+        },
+      },
+    ];
+
+    beforeEach(() => {
+      mockPrismaService.sourcesData.findMany.mockResolvedValue(mockGfhData);
     });
 
     afterEach(() => {
       jest.restoreAllMocks();
     });
 
-    it('should return GFH water levels', async () => {
+    it('should return GFH water levels for all stations', async () => {
       const result = await service.getGfhWaterLevels(mockPayload);
 
-      expect(mockPrismaService.sourcesData.findFirst).toHaveBeenCalledWith({
+      expect(mockPrismaService.sourcesData.findMany).toHaveBeenCalledWith({
         where: {
           source: {
             riverBasin: 'test-basin',
           },
           dataSource: DataSource.GFH,
-          info: {
-            path: ['forecastDate'],
-            equals: expect.any(String),
-          },
+          AND: [
+            {
+              info: {
+                path: ['forecastDate'],
+                equals: expect.any(String),
+              },
+            },
+          ],
         },
       });
-      expect(result).toEqual({ id: 1, info: { test: 'data' } });
+      expect(result).toEqual(mockGfhData);
+    });
+
+    it('should handle empty result from findMany', async () => {
+      mockPrismaService.sourcesData.findMany.mockResolvedValue([]);
+      const result = await service.getGfhWaterLevels(mockPayload);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle database errors', async () => {
+      const error = new Error('Database error');
+      mockPrismaService.sourcesData.findMany.mockRejectedValue(error);
+
+      await expect(service.getGfhWaterLevels(mockPayload)).rejects.toThrow(
+        error,
+      );
     });
   });
 });

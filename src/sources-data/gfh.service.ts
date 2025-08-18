@@ -10,12 +10,12 @@ import {
   GaugeInfo,
   gfhStationData,
   gfhStationDetails,
-  GfhStationDetails,
   Point,
   ProcessedForecast,
   QueryForecastsResponse,
   SearchGaugesRequest,
   SearchGaugesResponse,
+  StationLoacationDetails,
   StationResult,
 } from 'src/types/data-source';
 
@@ -124,7 +124,7 @@ export class GfhService {
 
   matchStationToGauge(
     gauges: Gauge[],
-    station: GfhStationDetails,
+    station: StationLoacationDetails,
   ): [Record<string, GaugeInfo | null>, Set<string>] {
     this.logger.log(
       `Matching station ${station.STATION_ID} to gauges within ${this.matchRadiusKm}km...`,
@@ -424,8 +424,10 @@ export class GfhService {
     dateString: string,
     stationData: any,
     stationName: string,
+    riverBasin: string,
   ) {
     const stationDetails: gfhStationDetails = {
+      riverBasin,
       forecastDate: dateString,
       source: stationData?.source || '',
       latitude: stationData?.gaugeLocation?.latitude?.toFixed(6),
@@ -458,6 +460,7 @@ export class GfhService {
     type: SourceType,
     riverBasin: string,
     payload: gfhStationData,
+    stationName,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -468,6 +471,20 @@ export class GfhService {
             source: {
               riverBasin,
             },
+            AND: [
+              {
+                info: {
+                  path: ['stationName'],
+                  equals: stationName,
+                },
+              },
+              {
+                info: {
+                  path: ['forecastDate'],
+                  equals: payload.forecastDate,
+                },
+              },
+            ],
           },
         });
 
