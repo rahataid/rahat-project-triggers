@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
-import { SourceType } from '@prisma/client';
+import { DataSource, SourceType } from '@prisma/client';
 import { PrismaService } from '@rumsan/prisma';
 import { GfhService } from './gfh.service';
+import { gfhStationData } from 'src/types/data-source';
 
 describe('GfhService', () => {
   let service: GfhService;
@@ -376,6 +377,7 @@ describe('GfhService', () => {
   describe('formateGfhStationData', () => {
     it('should format GFH station data correctly', () => {
       const dateString = '2023-01-01';
+      const riverStation = 'Doda River Basin';
       const stationData = {
         gaugeId: 'test-gauge',
         gaugeLocation: { latitude: 27.7172, longitude: 85.324 },
@@ -395,6 +397,7 @@ describe('GfhService', () => {
         dateString,
         stationData,
         stationName,
+        riverStation,
       );
 
       expect(result).toBeDefined();
@@ -408,23 +411,47 @@ describe('GfhService', () => {
   describe('saveDataInGfh', () => {
     const mockType = SourceType.WATER_LEVEL;
     const mockRiverBasin = 'test-basin';
-    const mockPayload = { station: 'test-station', data: 'test-data' } as any;
+    const mockStationName = 'test-station';
+    const mockPayload: gfhStationData = {
+      riverBasin: 'test-basin',
+      source: 'mock-source',
+      latitude: 27.123,
+      longitude: 85.456,
+      riverGaugeId: 'mock-gauge-id',
+      stationName: 'test-station',
+      warningLevel: '5',
+      dangerLevel: '7',
+      extremeDangerLevel: '9',
+      basinSize: 100,
+      forecastDate: '2023-01-01',
+      history: [],
+    };
 
     beforeEach(() => {
-      mockPrismaService.source.findFirst.mockResolvedValue({ id: 1 });
-      mockPrismaService.sourcesData.create.mockResolvedValue({ id: 1 });
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return await callback(mockPrismaService);
       });
     });
 
-    it('should save data successfully when source exists', async () => {
-      const mockTransaction = {
-        sourcesData: {
-          findFirst: jest.fn().mockResolvedValue({ id: 1 }),
-          update: jest.fn().mockResolvedValue({ id: 1 }),
+    it('should update existing record when found', async () => {
+      const existingRecord = {
+        id: 1,
+        info: {
+          oldData: 'value',
+          forecastDate: '2023-01-01',
         },
       };
+
+      const mockTransaction = {
+        sourcesData: {
+          findFirst: jest.fn().mockResolvedValue(existingRecord),
+          update: jest.fn().mockResolvedValue({
+            id: 1,
+            info: { ...mockPayload, oldData: 'value' },
+          }),
+        },
+      };
+
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return await callback(mockTransaction);
       });
@@ -433,19 +460,54 @@ describe('GfhService', () => {
         mockType,
         mockRiverBasin,
         mockPayload,
+        mockStationName,
       );
 
-      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(mockTransaction.sourcesData.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: mockType,
+          dataSource: DataSource.GFH,
+          source: {
+            riverBasin: mockRiverBasin,
+          },
+          AND: [
+            {
+              info: {
+                path: ['stationName'],
+                equals: mockStationName,
+              },
+            },
+            {
+              info: {
+                path: ['forecastDate'],
+                equals: mockPayload.forecastDate,
+              },
+            },
+          ],
+        },
+      });
+
+      expect(mockTransaction.sourcesData.update).toHaveBeenCalledWith({
+        where: { id: existingRecord.id },
+        data: {
+          info: expect.objectContaining({
+            ...JSON.parse(JSON.stringify(mockPayload)),
+          }),
+          updatedAt: expect.any(Date),
+        },
+      });
+
       expect(result).toBeDefined();
     });
 
-    it('should create source and save data when source does not exist', async () => {
+    it('should create new record when no existing record found', async () => {
       const mockTransaction = {
         sourcesData: {
           findFirst: jest.fn().mockResolvedValue(null),
-          create: jest.fn().mockResolvedValue({ id: 1 }),
+          create: jest.fn().mockResolvedValue({ id: 1, info: mockPayload }),
         },
       };
+
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return await callback(mockTransaction);
       });
@@ -454,10 +516,49 @@ describe('GfhService', () => {
         mockType,
         mockRiverBasin,
         mockPayload,
+        mockStationName,
       );
 
-      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(mockTransaction.sourcesData.create).toHaveBeenCalledWith({
+        data: {
+          type: mockType,
+          dataSource: DataSource.GFH,
+          info: JSON.parse(JSON.stringify(mockPayload)),
+          source: {
+            connectOrCreate: {
+              where: {
+                riverBasin: mockRiverBasin,
+              },
+              create: {
+                source: [DataSource.DHM],
+                riverBasin: mockRiverBasin,
+              },
+            },
+          },
+        },
+      });
+
       expect(result).toBeDefined();
+    });
+
+    it('should handle database errors', async () => {
+      const error = new Error('Database error');
+      mockPrismaService.$transaction.mockRejectedValue(error);
+      const loggerSpy = jest.spyOn(service['logger'], 'error');
+
+      await expect(
+        service.saveDataInGfh(
+          mockType,
+          mockRiverBasin,
+          mockPayload,
+          mockStationName,
+        ),
+      ).rejects.toThrow(error);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        `Error saving data for ${mockRiverBasin}:`,
+        error,
+      );
     });
   });
 });
