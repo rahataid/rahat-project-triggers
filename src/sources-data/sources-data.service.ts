@@ -579,6 +579,7 @@ export class SourcesDataService {
   async findGlofasData(riverBasin: string, forecastDate: string) {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
+        dataSource: DataSource.GLOFAS,
         source: {
           riverBasin,
         },
