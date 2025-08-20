@@ -274,7 +274,6 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
               SourceType.WATER_LEVEL,
               riverBasin,
               gfhData,
-              stationName,
             );
             if (res) {
               this.logger.log(
