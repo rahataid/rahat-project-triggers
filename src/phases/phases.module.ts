@@ -1,13 +1,12 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { PhasesService } from './phases.service';
-import { PhasesController } from './phases.controller';
-import { PrismaModule } from '@rumsan/prisma';
 import { BullModule } from '@nestjs/bull';
+import { forwardRef, Module } from '@nestjs/common';
+import { PrismaModule } from '@rumsan/prisma';
 import { BQUEUE, MS_TRIGGER_CLIENTS } from 'src/constant';
-// import { BeneficiaryModule } from 'src/beneficiary/beneficiary.module';
+import { PhasesController } from './phases.controller';
+import { PhasesService } from './phases.service';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TriggerModule } from 'src/trigger/trigger.module';
 import { PhasesStatsService } from './phases.stats.service';
-import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
   imports: [

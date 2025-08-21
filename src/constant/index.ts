@@ -6,6 +6,7 @@ export const BQUEUE = {
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
 };
+export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
 export const JOBS = {
   SCHEDULE: {
@@ -41,22 +42,27 @@ export const JOBS = {
   BENEFICIARY: {
     GET_BENEFICIARIES_COUNT: 'rahat.jobs.beneficiary.count',
     GET_ONE_GROUP: 'aa.jobs.beneficiary.getOneGroup',
+    GET_ALL_GROUPS_BY_UUIDS: 'aa.jobs.beneficiary.getAllGroupsByUuids',
   },
 
   STAKEHOLDERS: {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
+    GET_ALL_GROUPS_BY_UUIDS: 'aa.jobs.stakeholders.getAllGroupsByUuids',
   },
   STELLAR: {
-    ADD_ONCHAIN_TRIGGER_QUEUE: (PROJECT_ID) =>
-      'aa.jobs.stellar.getTriggerOnChainQueue_' + PROJECT_ID,
-    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: (PROJECT_ID) =>
-      'aa.jobs.stellar.updateTriggerParamsOnChainQueue_' + PROJECT_ID,
+    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
   CHAIN: {
     DISBURSE: 'aa.jobs.chain.disburse',
     SEND_OTP: 'aa.jobs.chain.sendOtp',
     SEND_ASSET: 'aa.jobs.chain.sendAsset',
+  },
+  STATS: {
+    GET_STATS: 'ms.jobs.triggers.get_stats',
+    GET_ONE: 'aa.jobs.stats.getOne',
+    MS_TRIGGERS_STATS: 'rahat.jobs.ms.trigggers.stats',
   },
 };
 
@@ -90,6 +96,7 @@ export const MS_TRIGGERS_JOBS = {
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
     GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
+    GET_GFH: 'ms.jobs.waterLevels.getGfh',
   },
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
@@ -103,6 +110,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.activities.getOne',
     GET_ALL: 'ms.jobs.activities.getAll',
     GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
+    GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',

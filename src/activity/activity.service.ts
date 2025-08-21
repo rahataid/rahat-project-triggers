@@ -16,6 +16,7 @@ import {
   GetActivityHavingCommsDto,
   UpdateActivityDto,
 } from './dto';
+import { paginateResult } from 'src/utils/pagination';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -149,7 +150,7 @@ export class ActivityService {
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {});
+      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: appId });
 
       return newActivity;
     } catch (err) {
@@ -288,11 +289,13 @@ export class ActivityService {
           };
 
           let sessionStatus = SessionStatus.NEW;
+          let completedAt = null;
           if (communication.sessionId) {
             const sessionDetails = await this.commsClient.session.get(
               communication.sessionId,
             );
             sessionStatus = sessionDetails.data.status;
+            completedAt = sessionDetails.data.updatedAt;
           }
           // const transport = await this.commsClient.transport.get(
           //   communication.transportId,
@@ -320,6 +323,7 @@ export class ActivityService {
             groupName: groupName,
             transportName: transportName,
             sessionStatus,
+            completedAt,
             ...(communication.sessionId && {
               sessionId: communication.sessionId,
             }),
@@ -476,6 +480,279 @@ export class ActivityService {
     }
   }
 
+  async getComms(payload: GetActivityHavingCommsDto) {
+    this.logger.log('Fetching activities having communications');
+    try {
+      const { page, perPage, appId, filters = {} } = payload;
+
+      if (!filters.transportName) {
+        throw new RpcException('Transport name not found ');
+      }
+
+      // Get base communication data
+      let results = await this.fetchCommunicationData(filters, appId);
+
+      // Enrich with transport information
+      results = await this.enrichWithTransportData(
+        results,
+        filters.transportName,
+      );
+
+      // Enrich with session status
+      results = await this.enrichWithSessionStatus(results);
+
+      // filter by communication status if exit
+      if (filters?.sessionStatus) {
+        results = results.filter((data) => {
+          return (
+            data.sessionStatus.toLowerCase() ===
+            filters.sessionStatus.toLowerCase()
+          );
+        });
+      }
+
+      // prefer updateAt when available, otherwise fallback to timestamp.
+      results = results.sort((a, b) => {
+        const dateA = new Date(a.updateAt || a.timestamp).getTime();
+        const dateB = new Date(b.updateAt || b.timestamp).getTime();
+        return dateB - dateA;
+      });
+
+      // Enrich with group information
+      results = await this.enrichWithGroupData(results, appId);
+
+      // filter base on group name
+      if (filters?.groupName) {
+        results = results.filter((item) => {
+          return item.groupName
+            ?.toLowerCase()
+            .includes(filters.groupName.toLowerCase());
+        });
+      }
+
+      return paginateResult(results, page, perPage);
+    } catch (error) {
+      this.logger.error(
+        'Something went wrong while fetching activities having communications',
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
+  private async fetchCommunicationData(filters: any, appId: string) {
+    return await this.prisma.$queryRawUnsafe<any[]>(
+      `
+      SELECT
+          a."title"               AS communication_title,
+          a."app"                 AS app,
+          comm_elem->>'message'   AS message,
+          comm_elem->>'subject'   AS subject,
+          comm_elem->>'sessionId' AS "sessionId",
+          comm_elem->>'transportId' AS "transportId",
+          comm_elem->>'communicationId' AS "communicationId",
+          comm_elem->>'groupId'   AS group_id,
+          comm_elem->>'groupType' AS group_type,
+          comm_elem->'message'->>'fileName' AS file_name,
+          comm_elem->'message'->>'mediaURL' AS media_url,
+          a."createdAt"           AS timestamp
+      FROM
+          public.tbl_activities a
+      CROSS JOIN LATERAL
+          jsonb_array_elements(a."activityCommunication"::jsonb) AS comm_elem
+      WHERE
+          a."activityCommunication" IS NOT NULL
+        AND a."activityCommunication"::jsonb != '[]'
+        AND ($1::text IS NULL OR a."title" ILIKE '%' || $1 || '%')
+        AND ($2::text IS NULL OR a."app" ILIKE '%' || $2 || '%')
+        AND ($3::text IS NULL OR comm_elem->>'groupId' = $3)
+        AND ($4::text IS NULL OR comm_elem->>'groupType' ILIKE '%' || $4 || '%')
+    `,
+      filters.title,
+      appId,
+      filters.groupId,
+      filters.groupType,
+    );
+  }
+
+  private async enrichWithTransportData(results: any[], transportName: string) {
+    const transportCache = await this.buildTransportCache();
+
+    const enrichedResults = results.map((item) => ({
+      ...item,
+      transportName: transportCache.get(item.transportId),
+    }));
+
+    // Filter by transport name early to reduce subsequent processing
+    return enrichedResults.filter(
+      (data) =>
+        data?.transportName?.toLowerCase() === transportName.toLowerCase(),
+    );
+  }
+
+  private async enrichWithSessionStatus(results: any[]) {
+    // Group by sessionId to reduce API calls
+    const sessionIds = [
+      ...new Set(results.map((r) => r.sessionId).filter(Boolean)),
+    ];
+    const sessionDataCache = await this.fetchSessionData(sessionIds);
+
+    return results.map((comm) => {
+      if (!comm.sessionId) {
+        return {
+          ...comm,
+          sessionStatus: 'Not Started',
+        };
+      }
+
+      const sessionData = sessionDataCache.get(comm.sessionId);
+      return {
+        ...comm,
+        sessionStatus: sessionData?.status || 'WORK IN PROGRESS',
+        updateAt: sessionData?.updatedAt,
+      };
+    });
+  }
+
+  private async fetchSessionData(
+    sessionIds: string[],
+  ): Promise<Map<string, any>> {
+    const sessionCache = new Map();
+
+    // Batch fetch session data to reduce API calls
+    const sessionPromises = sessionIds.map(async (sessionId) => {
+      try {
+        const { data } = await this.commsClient.session.get(sessionId);
+        sessionCache.set(sessionId, data);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to fetch session status for sessionId: ${sessionId}`,
+        );
+        sessionCache.set(sessionId, { status: 'WORK IN PROGRESS' });
+      }
+    });
+
+    await Promise.all(sessionPromises);
+    return sessionCache;
+  }
+
+  private async buildTransportCache(): Promise<Map<string, string>> {
+    const transportCache = new Map();
+    const { data } = await this.commsClient.transport.list();
+
+    data.forEach((item) => {
+      transportCache.set(item.cuid, item.name);
+    });
+
+    return transportCache;
+  }
+
+  private async enrichWithGroupData(results: any[], appId: string) {
+    const { beneficiaryGroupIds, stakeholderGroupIds } =
+      this.categorizeGroupIds(results);
+
+    const [beneficiaryGroups, stakeholderGroups] = await Promise.all([
+      beneficiaryGroupIds.length > 0
+        ? this.fetchBeneficiaryGroups(appId, beneficiaryGroupIds)
+        : Promise.resolve([]),
+      stakeholderGroupIds.length > 0
+        ? this.fetchStakeholderGroups(appId, stakeholderGroupIds)
+        : Promise.resolve([]),
+    ]);
+
+    const groupNameMap = this.buildGroupNameMap(
+      beneficiaryGroups,
+      stakeholderGroups,
+    );
+
+    return results.map((comm) => ({
+      ...comm,
+      groupName: groupNameMap.get(comm.group_id) || null,
+    }));
+  }
+
+  private categorizeGroupIds(results: any[]) {
+    const beneficiaryGroupIds = new Set<string>();
+    const stakeholderGroupIds = new Set<string>();
+
+    results.forEach((data) => {
+      if (data?.group_type === 'BENEFICIARY' && data?.group_id) {
+        beneficiaryGroupIds.add(data.group_id);
+      } else if (data?.group_type === 'STAKEHOLDERS' && data?.group_id) {
+        stakeholderGroupIds.add(data.group_id);
+      }
+    });
+
+    return {
+      beneficiaryGroupIds: Array.from(beneficiaryGroupIds),
+      stakeholderGroupIds: Array.from(stakeholderGroupIds),
+    };
+  }
+
+  private async fetchBeneficiaryGroups(
+    appId: string,
+    beneficiaryGroupIds: string[],
+  ) {
+    try {
+      const response = await firstValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.BENEFICIARY.GET_ALL_GROUPS_BY_UUIDS,
+            uuid: appId,
+          },
+          {
+            uuids: beneficiaryGroupIds,
+            selectField: ['uuid', 'name'],
+          },
+        ),
+      );
+
+      return response || [];
+    } catch (error) {
+      this.logger.warn('Failed to fetch beneficiary groups', error);
+      return [];
+    }
+  }
+
+  private async fetchStakeholderGroups(
+    appId: string,
+    stakeholderGroupIds: string[],
+  ) {
+    try {
+      const response = await firstValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.STAKEHOLDERS.GET_ALL_GROUPS_BY_UUIDS,
+            uuid: appId,
+          },
+          {
+            uuids: stakeholderGroupIds,
+            selectField: ['uuid', 'name'],
+          },
+        ),
+      );
+      return response || [];
+    } catch (error) {
+      this.logger.warn('Failed to fetch stakeholder groups', error);
+      return [];
+    }
+  }
+
+  private buildGroupNameMap(
+    beneficiaryGroups: any[],
+    stakeholderGroups: any[],
+  ): Map<string, string> {
+    const groupNameMap = new Map<string, string>();
+
+    [...beneficiaryGroups, ...stakeholderGroups].forEach((group) => {
+      if (group.uuid && group.name) {
+        groupNameMap.set(group.uuid, group.name);
+      }
+    });
+
+    return groupNameMap;
+  }
+
   async getHavingComms(payload: GetActivityHavingCommsDto) {
     this.logger.log('Fetching activities having communications');
     try {
@@ -521,7 +798,7 @@ export class ActivityService {
           manager: true,
         },
         orderBy: {
-          createdAt: 'desc',
+          updatedAt: 'desc',
         },
       };
 
@@ -651,7 +928,7 @@ export class ActivityService {
         throw new RpcException(`Activity not found: ${uuid}`);
       }
 
-      const docs = activityDocuments?.length
+      const docs = activityDocuments
         ? activityDocuments
         : activity?.activityDocuments || [];
 
@@ -1036,6 +1313,7 @@ export class ActivityService {
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;
+      subject: string;
     }>;
 
     const selectedCommunication = parsedCommunications.find(
@@ -1062,13 +1340,20 @@ export class ActivityService {
     );
 
     let messageContent: string;
-    if (transportDetails.data.type === TransportType.VOICE) {
+    let messageSubject: string;
+
+    const isVoice = transportDetails.data.type === TransportType.VOICE;
+    const isSMTP = transportDetails.data.type === TransportType.SMTP;
+
+    if (isVoice) {
       const msg = selectedCommunication.message as {
         mediaURL: string;
         fileName: string;
       };
+      messageSubject = 'INFO';
       messageContent = msg.mediaURL;
     } else {
+      messageSubject = isSMTP ? selectedCommunication.subject : 'INFO';
       messageContent = selectedCommunication.message as string;
     }
 
@@ -1079,7 +1364,7 @@ export class ActivityService {
       message: {
         content: messageContent,
         meta: {
-          subject: 'INFO',
+          subject: messageSubject,
         },
       },
       options: {},
@@ -1186,12 +1471,15 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStatsByGroup() {
+  async getTransportSessionStatsByGroup(appId: string) {
     this.logger.log(`Fetching transport session stats by group`);
 
     try {
       // Step 1: Fetch all activities with their related communications
       const activities = await this.prisma.activity.findMany({
+        where: {
+          app: appId,
+        },
         select: {
           activityCommunication: true,
         },

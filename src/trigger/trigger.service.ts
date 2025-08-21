@@ -4,11 +4,12 @@ import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { DataSource } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
-import { BQUEUE, JOBS } from 'src/constant';
+import { BQUEUE, CORE_MODULE, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
-import { RpcException } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
+import { lastValueFrom } from 'rxjs';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -16,6 +17,7 @@ const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 export class TriggerService {
   logger = new Logger(TriggerService.name);
   constructor(
+    @Inject(CORE_MODULE) private readonly client: ClientProxy,
     private prisma: PrismaService,
     @Inject(forwardRef(() => PhasesService))
     private readonly phasesService: PhasesService,
@@ -72,23 +74,15 @@ export class TriggerService {
         notes: trigger.notes,
       };
 
-      //TODO: EVM Change - low priority
-      this.stellarQueue.add(
-        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
-        {
-          triggers: [queueData],
-        },
-        {
-          attempts: 3,
-          removeOnComplete: true,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
+      const res = await lastValueFrom(
+        this.client.send(
+          { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
+          { triggers: [queueData] },
+        ),
       );
+
       this.logger.log(`
-        Trigger added to stellar queue action: ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId)} with id: ${queueData.id} for AA ${appId}
+        Trigger added to stellar queue action: ${res?.name} with id: ${queueData.id} for AA ${appId}
         `);
 
       return trigger;
@@ -106,11 +100,7 @@ export class TriggerService {
             this.logger.log(
               `User requested MANUAL Trigger, So creating manul trigger`,
             );
-            return await this.createManualTrigger(
-              payload.appId,
-              item,
-              createdBy,
-            );
+            return await this.createManualTrigger(appId, item, createdBy);
           }
 
           const sanitizedPayload = {
@@ -144,27 +134,20 @@ export class TriggerService {
         };
       });
 
-      // TODO: EVM Change
-      this.stellarQueue.add(
-        JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId),
-        {
-          triggers: queueData,
-        },
-        {
-          attempts: 3,
-          removeOnComplete: true,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
+      const res = await lastValueFrom(
+        this.client.send(
+          { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
+          { triggers: queueData },
+        ),
       );
+
       this.logger.log(`
-        Total ${k.length} triggers added for action: ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE(appId)} to stellar queue for AA ${appId}
+        Total ${k.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
         `);
       return k;
     } catch (error) {
       console.log(error);
+      throw new RpcException(error.message);
     }
   }
 
@@ -246,21 +229,20 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
-      // TODO: EVM Change
-      this.stellarQueue.add(
-        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
-        queueData,
-        {
-          attempts: 3,
-          removeOnComplete: true,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
+      const res = await lastValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+            uuid: appId,
           },
-        },
+          {
+            trigger: queueData,
+          },
+        ),
       );
+
       this.logger.log(`
-        Trigger added to stellar queue with id: ${queueData.id} for AA ${appId}
+        Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
         `);
       return updatedTrigger;
     } catch (error) {
@@ -609,25 +591,6 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
-      // TODO: EVM Change
-      this.stellarQueue.add(
-        JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId),
-        jobDetails,
-        {
-          attempts: 3,
-          removeOnComplete: true,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
-      );
-
-      // TODO: EVM Change
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE(appId)} for appId ${appId}
-        `);
-
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
           where: {
@@ -666,6 +629,37 @@ export class TriggerService {
 
       this.logger.log(`
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
+        `);
+
+      const phaseId = updatedTrigger.phaseId;
+      const appIds = await this.prisma.activity.findFirst({
+        where: {
+          phaseId,
+        },
+      });
+
+      if (!appId && !appIds?.app) {
+        this.logger.warn(
+          'No appId or appIds found. Skipping stellar onChain queue update.',
+        );
+
+        return updatedTrigger;
+      }
+
+      const res = await lastValueFrom(
+        this.client.send(
+          {
+            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+            uuid: appId ? appId : appIds?.app,
+          },
+          {
+            trigger: jobDetails,
+          },
+        ),
+      );
+
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
         `);
 
       return updatedTrigger;

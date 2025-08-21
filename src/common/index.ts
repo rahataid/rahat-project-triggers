@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
-export const getFormattedDate = () => {
-  const date = new Date();
-  date.setDate(date.getDate() - 1); // Set date to previous day
+export const getFormattedDate = (date: Date = new Date()) => {
+  // const date = new Date();
+  // date.setDate(date.getDate() - 1); // Set date to previous day
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0'); // getMonth() returns 0-based month, hence add 1
   const day = String(date.getDate()).padStart(2, '0');
@@ -47,7 +47,7 @@ export function parseGlofasData(content: string) {
   }
 
   const returnPeriodTable2yr = parseReturnPeriodTable(rpTable2yr, $);
-  const returnPeriodTable5yr = parseReturnPeriodTable(rpTable5yr, $); 
+  const returnPeriodTable5yr = parseReturnPeriodTable(rpTable5yr, $);
   const returnPeriodTable20yr = parseReturnPeriodTable(rpTable20yr, $);
   const pointForecastData = parsePointForecast(pfTable, $);
   const hydrographImageUrl = hydrographElement.attr('src');

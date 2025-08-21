@@ -43,6 +43,13 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_COMMS,
+  })
+  async getComms(@Payload() payload: GetActivityHavingCommsDto): Promise<any> {
+    return this.activityService.getComms(payload);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ONE,
   })
   async getOne(@Payload() payload: { uuid: string; appId: string }) {
@@ -125,7 +132,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
-  async getTransportSessionStatsByGroup() {
-    return this.activityService.getTransportSessionStatsByGroup();
+  async getTransportSessionStatsByGroup(payload: { appId: string }) {
+    return this.activityService.getTransportSessionStatsByGroup(payload.appId);
   }
 }

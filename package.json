@@ -19,10 +19,9 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test:coverage": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "clean": "rm -rf node_modules &&  rm -rf pnpm-lock.yaml && rm -rf dist",
     "migrate:clean": "rm -rf prisma/migrations && pnpm migrate:dev",
     "migrate:dev": "prisma migrate dev --preview-feature",
     "migrate:dev:create": "prisma migrate dev --create-only --preview-feature",
@@ -48,7 +47,7 @@
     "@nestjs/platform-express": "10.3.7",
     "@nestjs/schedule": "^4.1.2",
     "@nestjs/swagger": "^7.3.0",
-    "@prisma/client": "5.20.0",
+    "@prisma/client": "5.22.0",
     "@rumsan/app": "0.0.9",
     "@rumsan/communication": "0.0.17",
     "@rumsan/connect": "^1.0.6",
@@ -109,6 +108,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    }
   }
 }
