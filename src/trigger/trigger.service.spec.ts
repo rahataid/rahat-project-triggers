@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { PrismaService } from '@rumsan/prisma';
 import { Queue } from 'bull';
-import { DataSource } from '@prisma/client';
+import { DataSource, Phases } from '@prisma/client';
 import { of } from 'rxjs';
 import { TriggerService } from './trigger.service';
 import { PhasesService } from 'src/phases/phases.service';
@@ -729,6 +729,23 @@ describe('TriggerService', () => {
     };
 
     it('should successfully activate trigger', async () => {
+      const uuid = 'test-uuid';
+
+      const mockPhase = {
+        uuid,
+        name: Phases.PREPAREDNESS,
+        canTriggerPayout: true,
+        source: { riverBasin: 'Karnali' },
+        activeYear: '2025',
+        Activity: [
+          {
+            uuid: 'activity-1',
+            app: 'app-1',
+            activityCommunication: [{ communicationId: 'comm-1' }],
+          },
+        ],
+      };
+
       const mockTrigger = {
         uuid: mockUuid,
         isTriggered: false,
@@ -784,16 +801,14 @@ describe('TriggerService', () => {
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EVENTS.NOTIFICATION.CREATE,
-        expect.objectContaining({
+        {
           payload: {
-            title: expect.stringContaining('Trigger Statement Met for'),
-            description: expect.stringContaining(
-              'The trigger condition has been met',
-            ),
+            title: `Trigger Statement Met for  ${mockPhase.source.riverBasin}`,
+            description: `The trigger condition has been met for  $ ${mockPhase.name} ,year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
             group: 'Trigger Statement',
             notify: true,
           },
-        }),
+        },
       );
     });
 

@@ -1,3 +1,9 @@
+jest.mock('cheerio', () => ({
+  load: jest.fn().mockReturnValue({
+    text: jest.fn(),
+    html: jest.fn(),
+  }),
+}));
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -639,6 +645,7 @@ describe('PhasesService', () => {
         name: Phases.PREPAREDNESS,
         canTriggerPayout: true,
         source: { riverBasin: 'Karnali' },
+        activeYear: '2025',
         Activity: [
           {
             uuid: 'activity-1',
@@ -703,16 +710,14 @@ describe('PhasesService', () => {
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EVENTS.NOTIFICATION.CREATE,
-        expect.objectContaining({
+        {
           payload: {
-            title: expect.stringContaining('PREPAREDNESS  Phase Activated'),
-            description: expect.stringContaining(
-              'PREPAREDNESS Phase has been activated',
-            ),
+            title: `Trigger Statement Met for  ${mockPhase.source.riverBasin}`,
+            description: `The trigger condition has been met for  $ ${mockPhase.name} ,year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
             group: 'Phase Acivation',
             notify: true,
           },
-        }),
+        },
       );
     });
 
@@ -722,6 +727,7 @@ describe('PhasesService', () => {
         name: Phases.PREPAREDNESS,
         canTriggerPayout: false,
         source: { riverBasin: 'Karnali' },
+        activeYear: '2025',
         Activity: [
           {
             uuid: 'activity-1',
@@ -746,18 +752,17 @@ describe('PhasesService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
         phaseId: uuid,
       });
+
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EVENTS.NOTIFICATION.CREATE,
-        expect.objectContaining({
+        {
           payload: {
-            title: expect.stringContaining('PREPAREDNESS  Phase Activated'),
-            description: expect.stringContaining(
-              'PREPAREDNESS Phase has been activated',
-            ),
+            title: `Trigger Statement Met for  ${mockPhase.source.riverBasin}`,
+            description: `The trigger condition has been met for  $ ${mockPhase.name} ,year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
             group: 'Phase Acivation',
             notify: true,
           },
-        }),
+        },
       );
     });
 

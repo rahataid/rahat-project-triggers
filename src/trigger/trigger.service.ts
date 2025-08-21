@@ -668,7 +668,7 @@ export class TriggerService {
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
           title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
-          description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the {riverBasin} river basin.`,
+          description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
           group: 'Trigger Statement',
           notify: true,
         },
