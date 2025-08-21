@@ -700,6 +700,20 @@ describe('PhasesService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
         phaseId: uuid,
       });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EVENTS.NOTIFICATION.CREATE,
+        expect.objectContaining({
+          payload: {
+            title: expect.stringContaining('PREPAREDNESS  Phase Activated'),
+            description: expect.stringContaining(
+              'PREPAREDNESS Phase has been activated',
+            ),
+            group: 'Phase Acivation',
+            notify: true,
+          },
+        }),
+      );
     });
 
     it('should activate phase without payout trigger', async () => {
@@ -732,6 +746,19 @@ describe('PhasesService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
         phaseId: uuid,
       });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EVENTS.NOTIFICATION.CREATE,
+        expect.objectContaining({
+          payload: {
+            title: expect.stringContaining('PREPAREDNESS  Phase Activated'),
+            description: expect.stringContaining(
+              'PREPAREDNESS Phase has been activated',
+            ),
+            group: 'Phase Acivation',
+            notify: true,
+          },
+        }),
+      );
     });
 
     it('should handle database errors gracefully and return undefined', async () => {

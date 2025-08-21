@@ -6,9 +6,10 @@ import { DataSource } from '@prisma/client';
 import { of } from 'rxjs';
 import { TriggerService } from './trigger.service';
 import { PhasesService } from 'src/phases/phases.service';
-import { CORE_MODULE, BQUEUE, JOBS } from 'src/constant';
+import { CORE_MODULE, BQUEUE, JOBS, EVENTS } from 'src/constant';
 import { CreateTriggerDto, GetTriggersDto, UpdateTriggerDto } from './dto';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 // Mock the paginator function
 jest.mock('@rumsan/prisma', () => ({
@@ -21,6 +22,8 @@ describe('TriggerService', () => {
   let mockPrismaService: any;
   let mockClientProxy: jest.Mocked<ClientProxy>;
   let mockPhasesService: jest.Mocked<PhasesService>;
+  let eventEmitter: jest.Mocked<EventEmitter2>;
+
   let mockScheduleQueue: jest.Mocked<Queue>;
   let mockTriggerQueue: jest.Mocked<Queue>;
   let mockStellarQueue: jest.Mocked<Queue>;
@@ -50,6 +53,9 @@ describe('TriggerService', () => {
     emit: jest.fn(),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+  };
   const mockPhasesServiceImplementation = {
     create: jest.fn(),
     findAll: jest.fn(),
@@ -113,6 +119,10 @@ describe('TriggerService', () => {
           provide: 'BullQueue_STELLAR',
           useValue: mockStellarQueueImplementation,
         },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
+        },
       ],
     }).compile();
 
@@ -120,6 +130,7 @@ describe('TriggerService', () => {
     mockPrismaService = module.get(PrismaService);
     mockClientProxy = module.get(CORE_MODULE);
     mockPhasesService = module.get(PhasesService);
+    eventEmitter = module.get(EventEmitter2);
     mockScheduleQueue = module.get('BullQueue_SCHEDULE');
     mockTriggerQueue = module.get('BullQueue_TRIGGER');
     mockStellarQueue = module.get('BullQueue_STELLAR');
@@ -770,6 +781,20 @@ describe('TriggerService', () => {
         },
       });
       expect(result).toEqual(mockActivatedTrigger);
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EVENTS.NOTIFICATION.CREATE,
+        expect.objectContaining({
+          payload: {
+            title: expect.stringContaining('Trigger Statement Met for'),
+            description: expect.stringContaining(
+              'The trigger condition has been met',
+            ),
+            group: 'Trigger Statement',
+            notify: true,
+          },
+        }),
+      );
     });
 
     it('should handle trigger not found', async () => {

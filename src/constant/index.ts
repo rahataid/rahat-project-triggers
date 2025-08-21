@@ -5,6 +5,7 @@ export const BQUEUE = {
   COMMUNICATION: 'COMMUNICATION',
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
+  NOTIFICATION: 'NOTIFICATION',
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
@@ -58,6 +59,9 @@ export const JOBS = {
     GET_STATS: 'ms.jobs.triggers.get_stats',
     GET_ONE: 'aa.jobs.stats.getOne',
     MS_TRIGGERS_STATS: 'rahat.jobs.ms.trigggers.stats',
+  },
+  NOTIFICATION: {
+    CREATE: 'rahat.jobs.notification.create',
   },
 };
 
@@ -151,6 +155,9 @@ export const EVENTS = {
   BENEFICIARY_UPDATED: 'events.beneficiary_updated',
   AUTOMATED_TRIGGERED: 'events.automated_triggered',
   TOKEN_RESERVED: 'events.token_reserved',
+  NOTIFICATION: {
+    CREATE: 'events.notification.create',
+  },
 };
 
 export const MS_TRIGGER_CLIENTS = {

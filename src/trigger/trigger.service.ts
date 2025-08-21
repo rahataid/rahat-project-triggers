@@ -4,12 +4,14 @@ import { paginator, PaginatorTypes, PrismaService } from '@rumsan/prisma';
 import { DataSource } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
-import { BQUEUE, CORE_MODULE, JOBS } from 'src/constant';
+import { BQUEUE, CORE_MODULE, EVENTS, JOBS } from 'src/constant';
 import { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
-import { firstValueFrom, lastValueFrom } from 'rxjs';
+import { lastValueFrom } from 'rxjs';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { title } from 'process';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -23,6 +25,7 @@ export class TriggerService {
     private readonly phasesService: PhasesService,
     @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
+    private eventEmitter: EventEmitter2,
     @InjectQueue(BQUEUE.STELLAR)
     private readonly stellarQueue: Queue<
       { triggers: AddTriggerJobDto[] } | UpdateTriggerParamsJobDto
@@ -531,6 +534,7 @@ export class TriggerService {
 
   async activateTrigger(uuid: string, appId: string, payload: any) {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
+
     try {
       const { triggeredBy, triggerDocuments, user } = payload;
       console.log('payload', payload);
@@ -661,22 +665,14 @@ export class TriggerService {
         Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
         `);
 
-      const notification = await firstValueFrom(
-        this.client.send(
-          {
-            cmd: 'rahat.jobs.notification.create',
-          },
-          {
-            title: `${updatedTrigger.title} has been triggered`,
-            description: `${updatedTrigger.title} has been triggered by ${updatedTrigger.triggeredBy}`,
-            group: 'Trigger Statement',
-            projectId: appId ? appId : appIds?.app,
-            notify: true,
-          },
-        ),
-      );
-
-      this.logger.log('Notification created:', notification);
+      this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+        payload: {
+          title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
+          description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the {riverBasin} river basin.`,
+          group: 'Trigger Statement',
+          notify: true,
+        },
+      });
 
       return updatedTrigger;
     } catch (error) {

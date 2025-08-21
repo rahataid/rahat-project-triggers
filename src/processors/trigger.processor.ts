@@ -15,8 +15,10 @@ export class TriggerProcessor {
   @Process(JOBS.TRIGGER.REACHED_THRESHOLD)
   async processTrigger(job: Job) {
     const payload = job.data;
-    
-    this.logger.log(`Processing trigger job for repeatKey: ${payload.repeatKey}`);
+
+    this.logger.log(
+      `Processing trigger job for repeatKey: ${payload.repeatKey}`,
+    );
     if (payload.source) {
       this.processAutomatedData(payload);
     }
@@ -24,12 +26,16 @@ export class TriggerProcessor {
 
   async processAutomatedData(payload) {
     const phaseData = await this.phaseService.getOne(payload.phaseId);
-    this.logger.log(`Processing automated data for phase ${phaseData.uuid}: ${phaseData.name}`);
+    this.logger.log(
+      `Processing automated data for phase ${phaseData.uuid}: ${phaseData.name}`,
+    );
 
     const conditionsMet = await this.checkTriggerConditions(
       phaseData.triggerRequirements,
     );
-    this.logger.log(`Conditions met to activate phase ${phaseData.uuid}: ${conditionsMet}`);
+    this.logger.log(
+      `Conditions met to activate phase ${phaseData.uuid}: ${conditionsMet}`,
+    );
     if (conditionsMet) {
       this.phaseService.activatePhase(phaseData.uuid);
     }
