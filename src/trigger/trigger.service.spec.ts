@@ -804,7 +804,7 @@ describe('TriggerService', () => {
         {
           payload: {
             title: `Trigger Statement Met for  ${mockPhase.source.riverBasin}`,
-            description: `The trigger condition has been met for  $ ${mockPhase.name} ,year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
+            description: `The trigger condition has been met for  ${mockPhase.name} ,year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
             group: 'Trigger Statement',
             notify: true,
           },
