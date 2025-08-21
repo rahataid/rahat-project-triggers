@@ -450,6 +450,7 @@ describe('SourcesDataService', () => {
 
       expect(mockPrismaService.sourcesData.findFirst).toHaveBeenCalledWith({
         where: {
+          dataSource: DataSource.GLOFAS,
           source: {
             riverBasin: 'test-basin',
           },
