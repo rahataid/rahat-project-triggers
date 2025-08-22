@@ -11,7 +11,8 @@ export class ListernersService {
 
   constructor(
     @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
-    @InjectQueue(BQUEUE.NOTIFICATION) private readonly notificationQueue: Queue,
+    @InjectQueue(BQUEUE.NOTIFICATION_TRIGGER)
+    private readonly notificationQueue: Queue,
   ) {}
 
   @OnEvent(EVENTS.AUTOMATED_TRIGGERED)

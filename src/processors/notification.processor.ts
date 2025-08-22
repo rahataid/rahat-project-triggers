@@ -5,7 +5,7 @@ import { Inject, Logger } from '@nestjs/common';
 import { BQUEUE, JOBS, CORE_MODULE } from 'src/constant';
 import { lastValueFrom } from 'rxjs';
 
-@Processor(BQUEUE.NOTIFICATION)
+@Processor(BQUEUE.NOTIFICATION_TRIGGER)
 export class NotificationProcessor {
   private readonly logger = new Logger(NotificationProcessor.name);
 
@@ -19,7 +19,6 @@ export class NotificationProcessor {
       const rdata = await lastValueFrom(
         this.client.send({ cmd: 'rahat.jobs.notification.create' }, payload),
       );
-      console.log(rdata);
       this.logger.log(`✅ Notification delivered: ${rdata}`);
     } catch (error) {
       this.logger.error(

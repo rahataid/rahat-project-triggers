@@ -10,7 +10,7 @@ import { BQUEUE } from 'src/constant';
       name: BQUEUE.SCHEDULE,
     }),
     BullModule.registerQueue({
-      name: BQUEUE.NOTIFICATION,
+      name: BQUEUE.NOTIFICATION_TRIGGER,
     }),
   ],
   providers: [ListernersService],
