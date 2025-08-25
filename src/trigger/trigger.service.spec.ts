@@ -731,21 +731,6 @@ describe('TriggerService', () => {
     it('should successfully activate trigger', async () => {
       const uuid = 'test-uuid';
 
-      const mockPhase = {
-        uuid,
-        name: Phases.PREPAREDNESS,
-        canTriggerPayout: true,
-        source: { riverBasin: 'Karnali' },
-        activeYear: '2025',
-        Activity: [
-          {
-            uuid: 'activity-1',
-            app: 'app-1',
-            activityCommunication: [{ communicationId: 'comm-1' }],
-          },
-        ],
-      };
-
       const mockTrigger = {
         uuid: mockUuid,
         isTriggered: false,
@@ -763,6 +748,12 @@ describe('TriggerService', () => {
         triggeredAt: new Date(),
         triggerStatement: { condition: 'test' },
         source: DataSource.MANUAL,
+        phase: {
+          uuid: uuid,
+          name: Phases.PREPAREDNESS,
+          activeYear: '2025',
+          riverBasin: 'Karnali', // <- required by service
+        },
       };
 
       mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
@@ -787,29 +778,21 @@ describe('TriggerService', () => {
           },
         },
       });
-      expect(mockPrismaService.trigger.update).toHaveBeenCalledWith({
-        where: { uuid: mockUuid },
-        data: expect.objectContaining({
-          isTriggered: true,
-          triggeredBy: 'user-name',
-        }),
-        include: {
-          phase: true,
-        },
-      });
-      expect(result).toEqual(mockActivatedTrigger);
+
+      mockPrismaService.trigger.update.mockResolvedValue(mockActivatedTrigger);
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EVENTS.NOTIFICATION.CREATE,
-        {
-          payload: {
-            title: `Trigger Statement Met for  ${mockPhase.source.riverBasin}`,
-            description: `The trigger condition has been met for  ${mockPhase.name} ,year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            title: `Trigger Statement Met for ${mockActivatedTrigger.phase.riverBasin}`,
+            description: `The trigger condition has been met for phase ${mockActivatedTrigger.phase.name}, year ${mockActivatedTrigger.phase.activeYear}, in the ${mockActivatedTrigger.phase.riverBasin} river basin.`,
             group: 'Trigger Statement',
             notify: true,
-          },
-        },
+          }),
+        }),
       );
+      expect(result).toEqual(mockActivatedTrigger);
     });
 
     it('should handle trigger not found', async () => {

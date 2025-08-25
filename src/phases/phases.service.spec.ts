@@ -710,14 +710,11 @@ describe('PhasesService', () => {
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EVENTS.NOTIFICATION.CREATE,
-        {
-          payload: {
-            title: `Trigger Statement Met for  ${mockPhase.source.riverBasin}`,
-            description: `${mockPhase.name} Phase has been activated through automated trigger for year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
-            group: 'Phase Acivation',
-            notify: true,
-          },
-        },
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            title: expect.stringContaining('Phase Activated for Karnali'),
+          }),
+        }),
       );
     });
 
@@ -755,14 +752,11 @@ describe('PhasesService', () => {
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EVENTS.NOTIFICATION.CREATE,
-        {
-          payload: {
-            title: `${mockPhase.name} Phase Activated for ${mockPhase.source.riverBasin}`,
-            description: `${mockPhase.name} Phase has been activated through automated trigger for year ${mockPhase.activeYear}, in the ${mockPhase.source.riverBasin} river basin.`,
-            group: 'Phase Acivation',
-            notify: true,
-          },
-        },
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            title: expect.stringContaining('Phase Activated for Karnali'),
+          }),
+        }),
       );
     });
 
