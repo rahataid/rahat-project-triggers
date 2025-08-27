@@ -460,10 +460,10 @@ export class GfhService {
     type: SourceType,
     riverBasin: string,
     payload: gfhStationData,
-    stationName,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // have to check if old formatted date exit if exit update that.
         const existingRecord = await tx.sourcesData.findFirst({
           where: {
             type,
@@ -475,7 +475,7 @@ export class GfhService {
               {
                 info: {
                   path: ['stationName'],
-                  equals: stationName,
+                  equals: payload.riverBasin,
                 },
               },
               {
@@ -489,12 +489,11 @@ export class GfhService {
         });
 
         if (existingRecord) {
+          this.logger.log(`Updating existing record with new data`);
           return await tx.sourcesData.update({
             where: { id: existingRecord.id },
             data: {
               info: {
-                ...(existingRecord.info &&
-                  JSON.parse(JSON.stringify(existingRecord.info))),
                 ...JSON.parse(JSON.stringify(payload)),
               },
               updatedAt: new Date(),
