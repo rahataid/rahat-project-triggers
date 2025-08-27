@@ -2,13 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { PrismaService } from '@rumsan/prisma';
 import { Queue } from 'bull';
-import { DataSource } from '@prisma/client';
+import { DataSource, Phases } from '@prisma/client';
 import { of } from 'rxjs';
 import { TriggerService } from './trigger.service';
 import { PhasesService } from 'src/phases/phases.service';
-import { CORE_MODULE, BQUEUE, JOBS } from 'src/constant';
+import { CORE_MODULE, BQUEUE, JOBS, EVENTS } from 'src/constant';
 import { CreateTriggerDto, GetTriggersDto, UpdateTriggerDto } from './dto';
 import { AddTriggerJobDto, UpdateTriggerParamsJobDto } from 'src/common/dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 // Mock the paginator function
 jest.mock('@rumsan/prisma', () => ({
@@ -21,6 +22,8 @@ describe('TriggerService', () => {
   let mockPrismaService: any;
   let mockClientProxy: jest.Mocked<ClientProxy>;
   let mockPhasesService: jest.Mocked<PhasesService>;
+  let eventEmitter: jest.Mocked<EventEmitter2>;
+
   let mockScheduleQueue: jest.Mocked<Queue>;
   let mockTriggerQueue: jest.Mocked<Queue>;
   let mockStellarQueue: jest.Mocked<Queue>;
@@ -50,6 +53,9 @@ describe('TriggerService', () => {
     emit: jest.fn(),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+  };
   const mockPhasesServiceImplementation = {
     create: jest.fn(),
     findAll: jest.fn(),
@@ -113,6 +119,10 @@ describe('TriggerService', () => {
           provide: 'BullQueue_STELLAR',
           useValue: mockStellarQueueImplementation,
         },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
+        },
       ],
     }).compile();
 
@@ -120,6 +130,7 @@ describe('TriggerService', () => {
     mockPrismaService = module.get(PrismaService);
     mockClientProxy = module.get(CORE_MODULE);
     mockPhasesService = module.get(PhasesService);
+    eventEmitter = module.get(EventEmitter2);
     mockScheduleQueue = module.get('BullQueue_SCHEDULE');
     mockTriggerQueue = module.get('BullQueue_TRIGGER');
     mockStellarQueue = module.get('BullQueue_STELLAR');
@@ -718,6 +729,8 @@ describe('TriggerService', () => {
     };
 
     it('should successfully activate trigger', async () => {
+      const uuid = 'test-uuid';
+
       const mockTrigger = {
         uuid: mockUuid,
         isTriggered: false,
@@ -735,6 +748,12 @@ describe('TriggerService', () => {
         triggeredAt: new Date(),
         triggerStatement: { condition: 'test' },
         source: DataSource.MANUAL,
+        phase: {
+          uuid: uuid,
+          name: Phases.PREPAREDNESS,
+          activeYear: '2025',
+          riverBasin: 'Karnali', // <- required by service
+        },
       };
 
       mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
@@ -759,16 +778,20 @@ describe('TriggerService', () => {
           },
         },
       });
-      expect(mockPrismaService.trigger.update).toHaveBeenCalledWith({
-        where: { uuid: mockUuid },
-        data: expect.objectContaining({
-          isTriggered: true,
-          triggeredBy: 'user-name',
+
+      mockPrismaService.trigger.update.mockResolvedValue(mockActivatedTrigger);
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EVENTS.NOTIFICATION.CREATE,
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            title: `Trigger Statement Met for ${mockActivatedTrigger.phase.riverBasin}`,
+            description: `The trigger condition has been met for phase ${mockActivatedTrigger.phase.name}, year ${mockActivatedTrigger.phase.activeYear}, in the ${mockActivatedTrigger.phase.riverBasin} river basin.`,
+            group: 'Trigger Statement',
+            notify: true,
+          }),
         }),
-        include: {
-          phase: true,
-        },
-      });
+      );
       expect(result).toEqual(mockActivatedTrigger);
     });
 

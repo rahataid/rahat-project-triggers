@@ -1,3 +1,9 @@
+jest.mock('cheerio', () => ({
+  load: jest.fn().mockReturnValue({
+    text: jest.fn(),
+    html: jest.fn(),
+  }),
+}));
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -639,6 +645,7 @@ describe('PhasesService', () => {
         name: Phases.PREPAREDNESS,
         canTriggerPayout: true,
         source: { riverBasin: 'Karnali' },
+        activeYear: '2025',
         Activity: [
           {
             uuid: 'activity-1',
@@ -700,6 +707,15 @@ describe('PhasesService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
         phaseId: uuid,
       });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EVENTS.NOTIFICATION.CREATE,
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            title: expect.stringContaining('Phase Activated for Karnali'),
+          }),
+        }),
+      );
     });
 
     it('should activate phase without payout trigger', async () => {
@@ -708,6 +724,7 @@ describe('PhasesService', () => {
         name: Phases.PREPAREDNESS,
         canTriggerPayout: false,
         source: { riverBasin: 'Karnali' },
+        activeYear: '2025',
         Activity: [
           {
             uuid: 'activity-1',
@@ -732,6 +749,15 @@ describe('PhasesService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
         phaseId: uuid,
       });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EVENTS.NOTIFICATION.CREATE,
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            title: expect.stringContaining('Phase Activated for Karnali'),
+          }),
+        }),
+      );
     });
 
     it('should handle database errors gracefully and return undefined', async () => {
