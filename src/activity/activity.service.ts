@@ -544,9 +544,11 @@ export class ActivityService {
     return await this.prisma.$queryRawUnsafe<any[]>(
       `
       SELECT
-          a."title"               AS communication_title,
+          a."title"               AS activity_title,
           a."app"                 AS app,
+          a."uuid"                AS uuid,
           comm_elem->>'message'   AS message,
+          comm_elem->>'communicationTitle'  As communication_title,
           comm_elem->>'subject'   AS subject,
           comm_elem->>'sessionId' AS "sessionId",
           comm_elem->>'transportId' AS "transportId",
