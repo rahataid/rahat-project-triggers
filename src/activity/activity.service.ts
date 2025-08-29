@@ -567,9 +567,9 @@ export class ActivityService {
       WHERE
           a."activityCommunication" IS NOT NULL
         AND a."activityCommunication"::jsonb != '[]'
-        AND ($1::text IS NULL OR a."app" ILIKE '%' || $2 || '%')
-        AND ($2::text IS NULL OR comm_elem->>'groupId' = $3)
-        AND ($3::text IS NULL OR comm_elem->>'groupType' ILIKE '%' || $4 || '%')
+        AND ($1::text IS NULL OR a."app" ILIKE '%' || $1 || '%')
+        AND ($2::text IS NULL OR comm_elem->>'groupId' = $2)
+        AND ($3::text IS NULL OR comm_elem->>'groupType' ILIKE '%' || $3 || '%')
     `,
       appId,
       filters.groupId,
