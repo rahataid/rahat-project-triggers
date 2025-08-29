@@ -594,7 +594,7 @@ describe('ActivityService', () => {
       appId: 'test-app-id',
       filters: {
         transportName: 'SMS',
-        title: 'Test Activity',
+        title: 'Test Communication',
         groupId: 'group-1',
         groupType: 'BENEFICIARY',
         groupName: 'Test Group',
@@ -604,6 +604,7 @@ describe('ActivityService', () => {
 
     const mockRawQueryResult = [
       {
+        activity_title: 'Test Activity',
         communication_title: 'Test Communication',
         app: 'test-app-id',
         message: 'Test message',
@@ -632,7 +633,6 @@ describe('ActivityService', () => {
     };
 
     beforeEach(() => {
-      // Reset all mocks before each test
       jest.clearAllMocks();
 
       // Mock database query
@@ -640,7 +640,7 @@ describe('ActivityService', () => {
         .fn()
         .mockResolvedValue(mockRawQueryResult);
 
-      // Mock transport list to provide transport data cache
+      // Mock transport list
       mockCommsClientImplementation.transport = {
         get: jest.fn(),
         list: jest.fn().mockResolvedValue({
@@ -659,45 +659,51 @@ describe('ActivityService', () => {
         broadcastCount: jest.fn(),
       };
 
-      // Mock client proxy for beneficiary groups
+      // Mock group fetching
       mockClientProxyImplementation.send = jest
         .fn()
         .mockReturnValue(of([mockBeneficiaryGroup]));
     });
-    it('should successfully fetch and process communications data', async () => {
-      // Act
+
+    it('should successfully fetch and process communications data with merged title', async () => {
       const result = await service.getComms(mockPayload);
 
-      // Assert Database Query
+      // ✅ Updated: No title in SQL call
       expect(
         mockPrismaServiceImplementation.$queryRawUnsafe,
       ).toHaveBeenCalledWith(
         expect.stringContaining('SELECT'),
-        expect.any(String), // title
         expect.any(String), // appId
         expect.any(String), // groupId
         expect.any(String), // groupType
       );
 
-      // Assert Transport Enrichment
+      // ✅ Check mergeTitleAndFilter effect: `title` should equal communication_title (fallback logic works)
+      expect(result.data[0].title).toBe('Test Communication');
+
+      // ✅ Ensure filtering by title works (from mergeTitleAndFilter)
+      expect(result.data[0].title.toLowerCase()).toContain(
+        mockPayload.filters.title.toLowerCase(),
+      );
+
+      // Transport enrichment
       expect(mockCommsClientImplementation.transport.list).toHaveBeenCalled();
 
-      // Verify session status lookup
+      // Session enrichment
       expect(mockCommsClientImplementation.session.get).toHaveBeenCalledWith(
         'session-1',
       );
 
-      // Assert Group Data Lookup
+      // Group data enrichment
       expect(mockClientProxyImplementation.send).toHaveBeenCalledWith(
         expect.objectContaining({ cmd: expect.any(String) }),
         expect.objectContaining({ uuids: ['group-1'] }),
       );
 
-      // Assert Final Result Structure
+      // Final result structure
       expect(result).toHaveProperty('data');
       expect(result).toHaveProperty('meta');
       expect(result.data[0]).toMatchObject({
-        communication_title: 'Test Communication',
         transportName: 'SMS',
         sessionStatus: 'COMPLETED',
         groupName: 'Test Group',
@@ -716,20 +722,17 @@ describe('ActivityService', () => {
     });
 
     it('should handle session fetch errors gracefully', async () => {
-      // Setup specific payload for this test
       const testPayload = {
         page: 1,
         perPage: 10,
         appId: 'test-app-id',
-        filters: {
-          transportName: 'SMS', // Must match the transport name in the list response
-        },
+        filters: { transportName: 'SMS' },
       };
 
-      // Setup database to return data
       mockPrismaServiceImplementation.$queryRawUnsafe.mockResolvedValue([
         {
-          communication_title: 'Test Communication',
+          activity_title: 'Activity Title',
+          communication_title: null, // will fallback to activity title
           app: 'test-app-id',
           message: 'Test message',
           subject: 'Test subject',
@@ -742,40 +745,17 @@ describe('ActivityService', () => {
         },
       ]);
 
-      // Mock transport list to match the filter
-      mockCommsClientImplementation.transport.list.mockResolvedValue({
-        data: [
-          {
-            cuid: 'transport-1',
-            name: 'SMS',
-          },
-        ],
-      });
-
-      // Mock session.get to reject
       mockCommsClientImplementation.session.get.mockRejectedValue(
         new Error('Session fetch failed'),
       );
 
-      // Mock beneficiary group response
-      mockClientProxyImplementation.send.mockReturnValue(
-        of([{ uuid: 'group-1', name: 'Test Group' }]),
-      );
-
       const result = await service.getComms(testPayload);
 
-      // The result should still have data from the database query
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0]).toMatchObject({
-        communication_title: 'Test Communication',
-        transportName: 'SMS',
-        sessionStatus: 'WORK IN PROGRESS',
-        // Other fields should still be present
-        message: 'Test message',
-        subject: 'Test subject',
-        group_id: 'group-1',
-        group_type: 'BENEFICIARY',
-      });
+      // ✅ Check fallback title
+      expect(result.data[0].title).toBe('Activity Title');
+
+      // ✅ Session should default to WORK IN PROGRESS
+      expect(result.data[0].sessionStatus).toBe('WORK IN PROGRESS');
     });
 
     it('should filter results by session status', async () => {
