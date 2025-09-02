@@ -87,8 +87,6 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
               history: normalizedData,
             };
 
-            console.log('waterLevelData', waterLevelData);
-
             const res = await this.dhmService.saveDataInDhm(
               SourceType.WATER_LEVEL,
               LOCATION,
