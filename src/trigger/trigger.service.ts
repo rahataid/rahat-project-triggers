@@ -429,32 +429,6 @@ export class TriggerService {
         },
       });
 
-      if (trigger.isMandatory) {
-        await this.prisma.phase.update({
-          where: {
-            uuid: trigger.phaseId,
-          },
-          data: {
-            requiredMandatoryTriggers: {
-              decrement: 1,
-            },
-          },
-        });
-      }
-
-      // if(!trigger.isMandatory){
-      //   await this.prisma.phases.update({
-      //     where: {
-      //       uuid: trigger.phaseId
-      //     },
-      //     data: {
-      //       requiredOptionalTriggers: {
-      //         decrement: 1
-      //       }
-      //     }
-      //   })
-      // }
-
       this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
         attempts: 3,
         removeOnComplete: true,
