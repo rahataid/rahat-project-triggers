@@ -74,16 +74,17 @@ export class TriggerService {
         notes: trigger.notes,
       };
 
-      const res = await lastValueFrom(
-        this.client.send(
-          { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-          { triggers: [queueData] },
-        ),
-      );
+      // Remove add onchain trigger for evm
+      // const res = await lastValueFrom(
+      //   this.client.send(
+      //     { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
+      //     { triggers: [queueData] },
+      //   ),
+      // );
 
-      this.logger.log(`
-        Trigger added to stellar queue action: ${res?.name} with id: ${queueData.id} for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue action: ${res?.name} with id: ${queueData.id} for AA ${appId}
+      //   `);
 
       return trigger;
     } catch (error) {
@@ -134,16 +135,17 @@ export class TriggerService {
         };
       });
 
-      const res = await lastValueFrom(
-        this.client.send(
-          { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-          { triggers: queueData },
-        ),
-      );
+      // Remove add onchain trigger for evm
+      // const res = await lastValueFrom(
+      //   this.client.send(
+      //     { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
+      //     { triggers: queueData },
+      //   ),
+      // );
 
-      this.logger.log(`
-        Total ${k.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Total ${k.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
+      //   `);
       return k;
     } catch (error) {
       console.log(error);
@@ -229,21 +231,22 @@ export class TriggerService {
         source: updatedTrigger.source,
       };
 
-      const res = await lastValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
-            uuid: appId,
-          },
-          {
-            trigger: queueData,
-          },
-        ),
-      );
+      // Remove update onchain trigger for evm
+      // const res = await lastValueFrom(
+      //   this.client.send(
+      //     {
+      //       cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+      //       uuid: appId,
+      //     },
+      //     {
+      //       trigger: queueData,
+      //     },
+      //   ),
+      // );
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
+      //   `);
       return updatedTrigger;
     } catch (error) {
       this.logger.error(error);
@@ -645,21 +648,22 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-      const res = await lastValueFrom(
-        this.client.send(
-          {
-            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
-            uuid: appId ? appId : appIds?.app,
-          },
-          {
-            trigger: jobDetails,
-          },
-        ),
-      );
+      // Remove update onchain trigger for evm
+      // const res = await lastValueFrom(
+      //   this.client.send(
+      //     {
+      //       cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+      //       uuid: appId ? appId : appIds?.app,
+      //     },
+      //     {
+      //       trigger: jobDetails,
+      //     },
+      //   ),
+      // );
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
+      //   `);
 
       return updatedTrigger;
     } catch (error) {

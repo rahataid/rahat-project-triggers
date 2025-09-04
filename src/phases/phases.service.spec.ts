@@ -694,7 +694,10 @@ describe('PhasesService', () => {
 
       expect(clientProxy.send).toHaveBeenCalledWith(
         { cmd: JOBS.STELLAR.DISBURSE, uuid: 'app-1' },
-        { dName: expect.stringContaining('PREPAREDNESS-Karnali-') },
+        {
+          dName: expect.stringContaining('PREPAREDNESS-Karnali-'),
+          groups: ['06d31b2f-3da0-402e-8ffd-1bbfc143e596'],
+        },
       );
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
