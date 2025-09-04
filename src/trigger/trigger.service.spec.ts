@@ -663,6 +663,86 @@ describe('TriggerService', () => {
 
       await expect(service.remove(mockRepeatKey)).rejects.toThrow(RpcException);
     });
+
+    it('should throw error when trigger belongs to an active phase', async () => {
+      const mockTrigger = {
+        repeatKey: mockRepeatKey,
+        isDeleted: false,
+        isTriggered: false,
+        isMandatory: true,
+        phaseId: 'phase-uuid',
+        phase: {
+          isActive: true, // Active phase
+        },
+      };
+
+      mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
+
+      await expect(service.remove(mockRepeatKey)).rejects.toThrow(
+        new RpcException('Cannot remove triggers from an active phase.'),
+      );
+
+      expect(mockPrismaService.trigger.findUnique).toHaveBeenCalledWith({
+        where: {
+          repeatKey: mockRepeatKey,
+          isDeleted: false,
+        },
+        include: { phase: true },
+      });
+      // Ensure no further calls are made
+      expect(mockPhasesService.getOne).not.toHaveBeenCalled();
+      expect(mockScheduleQueue.removeRepeatableByKey).not.toHaveBeenCalled();
+      expect(mockPrismaService.trigger.update).not.toHaveBeenCalled();
+    });
+
+    it('should add job to trigger queue on successful removal', async () => {
+      const mockTrigger = {
+        repeatKey: mockRepeatKey,
+        isDeleted: false,
+        isTriggered: false,
+        isMandatory: true,
+        phaseId: 'phase-uuid',
+        phase: {
+          isActive: false,
+        },
+      };
+
+      const mockPhaseDetail: any = {
+        triggerRequirements: {
+          optionalTriggers: {
+            totalTriggers: 5,
+          },
+        },
+        requiredOptionalTriggers: 3,
+      };
+
+      const mockRemovedTrigger = {
+        repeatKey: mockRepeatKey,
+        isDeleted: true,
+      };
+
+      mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
+      mockPhasesService.getOne.mockResolvedValue(mockPhaseDetail);
+      mockScheduleQueue.removeRepeatableByKey.mockResolvedValue(undefined);
+      mockPrismaService.trigger.update.mockResolvedValue(mockRemovedTrigger);
+      mockTriggerQueue.add.mockResolvedValue(undefined); // Mock triggerQueue.add
+
+      const result = await service.remove(mockRepeatKey);
+
+      expect(mockTriggerQueue.add).toHaveBeenCalledWith(
+        JOBS.TRIGGER.REACHED_THRESHOLD,
+        mockTrigger,
+        {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      );
+      expect(result).toEqual(mockRemovedTrigger);
+    });
   });
 
   describe('scheduleJob', () => {
