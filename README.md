@@ -120,6 +120,3 @@ We welcome contributions! Please follow these steps:
 4. Commit your changes (`git commit -m 'Add some amazing feature'`)
 5. Push to the branch (`git push origin feature/amazing-feature`)
 6. Open a Pull Request
-
-
-
