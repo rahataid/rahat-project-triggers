@@ -492,6 +492,8 @@ export class ActivityService {
       // Get base communication data
       let results = await this.fetchCommunicationData(filters, appId);
 
+      results = await this.mergeTitleAndFilter(results, filters.title);
+
       // Enrich with transport information
       results = await this.enrichWithTransportData(
         results,
@@ -544,9 +546,11 @@ export class ActivityService {
     return await this.prisma.$queryRawUnsafe<any[]>(
       `
       SELECT
-          a."title"               AS communication_title,
+          a."title"               AS activity_title,
           a."app"                 AS app,
+          a."uuid"                AS uuid,
           comm_elem->>'message'   AS message,
+          comm_elem->>'communicationTitle'  As communication_title,
           comm_elem->>'subject'   AS subject,
           comm_elem->>'sessionId' AS "sessionId",
           comm_elem->>'transportId' AS "transportId",
@@ -563,16 +567,25 @@ export class ActivityService {
       WHERE
           a."activityCommunication" IS NOT NULL
         AND a."activityCommunication"::jsonb != '[]'
-        AND ($1::text IS NULL OR a."title" ILIKE '%' || $1 || '%')
-        AND ($2::text IS NULL OR a."app" ILIKE '%' || $2 || '%')
-        AND ($3::text IS NULL OR comm_elem->>'groupId' = $3)
-        AND ($4::text IS NULL OR comm_elem->>'groupType' ILIKE '%' || $4 || '%')
+        AND ($1::text IS NULL OR a."app" ILIKE '%' || $1 || '%')
+        AND ($2::text IS NULL OR comm_elem->>'groupId' = $2)
+        AND ($3::text IS NULL OR comm_elem->>'groupType' ILIKE '%' || $3 || '%')
     `,
-      filters.title,
       appId,
       filters.groupId,
       filters.groupType,
     );
+  }
+
+  private async mergeTitleAndFilter(results: any[], title: string) {
+    return results
+      .map(({ activity_title, communication_title, ...rest }) => ({
+        ...rest,
+        title: communication_title || activity_title,
+      }))
+      .filter((item) =>
+        title ? item.title.toLowerCase().includes(title.toLowerCase()) : true,
+      );
   }
 
   private async enrichWithTransportData(results: any[], transportName: string) {

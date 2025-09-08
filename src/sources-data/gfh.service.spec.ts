@@ -460,7 +460,6 @@ describe('GfhService', () => {
         mockType,
         mockRiverBasin,
         mockPayload,
-        mockStationName,
       );
 
       expect(mockTransaction.sourcesData.findFirst).toHaveBeenCalledWith({
@@ -474,7 +473,7 @@ describe('GfhService', () => {
             {
               info: {
                 path: ['stationName'],
-                equals: mockStationName,
+                equals: mockRiverBasin,
               },
             },
             {
@@ -516,7 +515,6 @@ describe('GfhService', () => {
         mockType,
         mockRiverBasin,
         mockPayload,
-        mockStationName,
       );
 
       expect(mockTransaction.sourcesData.create).toHaveBeenCalledWith({
@@ -547,12 +545,7 @@ describe('GfhService', () => {
       const loggerSpy = jest.spyOn(service['logger'], 'error');
 
       await expect(
-        service.saveDataInGfh(
-          mockType,
-          mockRiverBasin,
-          mockPayload,
-          mockStationName,
-        ),
+        service.saveDataInGfh(mockType, mockRiverBasin, mockPayload),
       ).rejects.toThrow(error);
 
       expect(loggerSpy).toHaveBeenCalledWith(

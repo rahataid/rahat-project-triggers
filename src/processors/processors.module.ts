@@ -10,11 +10,30 @@ import { StatsProcessor } from './stats.processor';
 import { CommunicationProcessor } from './communication.processor';
 import { ActivityModule } from 'src/activity/activity.module';
 import { StatsModule } from 'src/stats/stat.module';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { CORE_MODULE } from 'src/constant';
+import { NotificationProcessor } from './notification.processor';
 // import { StatsProcessor } from './stats.processor';
 // import { TriggerProcessor } from './trigger.processor';
 
 @Module({
-  imports: [PhasesModule, SourcesDataModule, ActivityModule, StatsModule],
+  imports: [
+    ClientsModule.register([
+      {
+        name: CORE_MODULE,
+        transport: Transport.REDIS,
+        options: {
+          host: process.env.REDIS_HOST,
+          port: +process.env.REDIS_PORT,
+          password: process.env.REDIS_PASSWORD,
+        },
+      },
+    ]),
+    PhasesModule,
+    SourcesDataModule,
+    ActivityModule,
+    StatsModule,
+  ],
   providers: [
     ScheduleProcessor,
     TriggerProcessor,
@@ -22,6 +41,7 @@ import { StatsModule } from 'src/stats/stat.module';
     // ContractProcessor,
     CommunicationProcessor,
     StatsProcessor,
+    NotificationProcessor,
   ],
 })
 export class ProcessorsModule {}

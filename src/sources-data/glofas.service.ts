@@ -277,12 +277,14 @@ export class GlofasService implements AbstractSource {
             contains: riverBasin,
           },
         },
+        dataSource: DataSource.GLOFAS,
         info: {
           path: ['forecastDate'],
           equals: forecastDate,
         },
       },
     });
+
     return recordExists;
   }
 }
