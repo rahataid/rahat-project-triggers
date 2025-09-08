@@ -565,7 +565,14 @@ export class PhasesService {
       this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
         phaseId: phaseDetails.uuid,
       });
-
+      this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+        payload: {
+          title: `${phaseDetails.name}  Phase Activated for ${phaseDetails.source.riverBasin}`,
+          description: `${phaseDetails.name} Phase has been activated through automated trigger for year ${phaseDetails.activeYear}, in the ${phaseDetails.source.riverBasin} river basin.`,
+          group: 'Phase Acivation',
+          notify: true,
+        },
+      });
       return updatedPhase;
     } catch (error) {
       this.logger.error('Error while activating phase', error);

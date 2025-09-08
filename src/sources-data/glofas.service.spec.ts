@@ -381,6 +381,7 @@ describe('GlofasService', () => {
               contains: mockRiverBasin,
             },
           },
+          dataSource: DataSource.GLOFAS,
           info: {
             path: ['forecastDate'],
             equals: mockForecastDate,
