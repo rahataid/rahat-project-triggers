@@ -6,10 +6,17 @@ import { RpcException } from '@nestjs/microservices';
 import { StatsService } from './stat.service';
 import { StatDto } from './dto/stat.dto';
 
+import { Logger } from '@nestjs/common';
+
 describe('StatsService', () => {
   let service: StatsService;
-  let prismaService: PrismaService;
-  let activityService: ActivityService;
+  let mockLogger: {
+    log: jest.Mock;
+    error: jest.Mock;
+    warn: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
 
   const mockPrismaService = {
     phase: {
@@ -30,6 +37,24 @@ describe('StatsService', () => {
   };
 
   beforeEach(async () => {
+    // Create mock logger before instantiating the service
+    mockLogger = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+    };
+
+    // Mock the Logger constructor
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(mockLogger.log);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(mockLogger.error);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(mockLogger.warn);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(mockLogger.debug);
+    jest
+      .spyOn(Logger.prototype, 'verbose')
+      .mockImplementation(mockLogger.verbose);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StatsService,
@@ -45,12 +70,11 @@ describe('StatsService', () => {
     }).compile();
 
     service = module.get<StatsService>(StatsService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    activityService = module.get<ActivityService>(ActivityService);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('should be defined', () => {
@@ -293,49 +317,54 @@ describe('StatsService', () => {
       expect(mockPrismaService.stats.upsert).not.toHaveBeenCalled();
     });
 
-    it('should throw RpcException when error occurs', async () => {
+    it('should handle standard Error object', async () => {
       const error = new Error('Database error');
       mockPrismaService.activity.groupBy.mockRejectedValue(error);
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
-        RpcException,
+      const result = await service.calculateCommsStatsForAllApps();
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Error while calculating communication stats',
+        error,
       );
+      expect(result).toBeUndefined();
     });
 
-    it('should handle error with custom message', async () => {
-      const error = { message: 'Custom error message' };
-      mockPrismaService.activity.groupBy.mockRejectedValue(error);
-
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
-        RpcException,
+    it('should handle error from transport session stats', async () => {
+      const mockActivities = [{ app: 'test-app' }];
+      const error = new Error('Transport session error');
+      mockPrismaService.activity.groupBy.mockResolvedValue(mockActivities);
+      mockActivityService.getTransportSessionStatsByGroup.mockRejectedValue(
+        error,
       );
+
+      const result = await service.calculateCommsStatsForAllApps();
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Error while calculating communication stats',
+        error,
+      );
+      expect(result).toBeUndefined();
     });
 
-    it('should handle error without message property', async () => {
-      const error = { someOtherProperty: 'value' };
-      mockPrismaService.activity.groupBy.mockRejectedValue(error);
+    it('should handle error during stats save', async () => {
+      const mockActivities = [{ app: 'test-app' }];
+      const mockStats = { totalSessions: 10 };
+      const error = new Error('Save error');
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
-        RpcException,
+      mockPrismaService.activity.groupBy.mockResolvedValue(mockActivities);
+      mockActivityService.getTransportSessionStatsByGroup.mockResolvedValue(
+        mockStats,
       );
-    });
+      mockPrismaService.stats.upsert.mockRejectedValue(error);
 
-    it('should handle error with null message', async () => {
-      const error = { message: null };
-      mockPrismaService.activity.groupBy.mockRejectedValue(error);
+      const result = await service.calculateCommsStatsForAllApps();
 
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
-        RpcException,
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Error while calculating communication stats',
+        error,
       );
-    });
-
-    it('should handle error with undefined message', async () => {
-      const error = { message: undefined };
-      mockPrismaService.activity.groupBy.mockRejectedValue(error);
-
-      await expect(service.calculateCommsStatsForAllApps()).rejects.toThrow(
-        RpcException,
-      );
+      expect(result).toBeUndefined();
     });
   });
 

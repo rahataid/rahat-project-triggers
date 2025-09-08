@@ -51,6 +51,7 @@ export interface RainfallStationData extends RainfallStationItem {
 }
 
 export interface gfhStationDetails {
+  riverBasin: string;
   source: string;
   latitude: number;
   longitude: number;
@@ -113,6 +114,11 @@ interface Location {
 }
 
 export interface GfhStationDetails {
+  RIVER_BASIN: string;
+  STATION_LOCATIONS_DETAILS: StationLoacationDetails[];
+}
+
+export interface StationLoacationDetails {
   LATITUDE: number;
   POINT_ID: string;
   RIVER_GAUGE_ID?: string;
