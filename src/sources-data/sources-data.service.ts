@@ -579,6 +579,7 @@ export class SourcesDataService {
   async findGlofasData(riverBasin: string, forecastDate: string) {
     const recordExists = await this.prisma.sourcesData.findFirst({
       where: {
+        dataSource: DataSource.GLOFAS,
         source: {
           riverBasin,
         },
@@ -591,19 +592,38 @@ export class SourcesDataService {
     return recordExists;
   }
 
-  async findGfhData(riverBasin: string, forecastDate: string) {
-    const recordExists = await this.prisma.sourcesData.findFirst({
+  async findGfhData(
+    riverBasin: string,
+    forecastDate: string,
+    stationName?: string,
+  ) {
+    const recordExists = await this.prisma.sourcesData.findMany({
       where: {
         source: {
           riverBasin,
         },
         dataSource: DataSource.GFH,
-        info: {
-          path: ['forecastDate'],
-          equals: forecastDate,
-        },
+        AND: [
+          {
+            info: {
+              path: ['forecastDate'],
+              equals: forecastDate,
+            },
+          },
+          ...(stationName
+            ? [
+                {
+                  info: {
+                    path: ['stationName'],
+                    equals: stationName,
+                  },
+                },
+              ]
+            : []),
+        ],
       },
     });
+
     return recordExists;
   }
 }

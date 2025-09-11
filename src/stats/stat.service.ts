@@ -157,7 +157,6 @@ export class StatsService {
       this.logger.log('Communication stats calculated and saved successfully.');
     } catch (error) {
       this.logger.error('Error while calculating communication stats', error);
-      throw new RpcException(error?.message || 'Something went wrong');
     }
   }
 

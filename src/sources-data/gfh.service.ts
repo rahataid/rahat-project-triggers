@@ -10,12 +10,12 @@ import {
   GaugeInfo,
   gfhStationData,
   gfhStationDetails,
-  GfhStationDetails,
   Point,
   ProcessedForecast,
   QueryForecastsResponse,
   SearchGaugesRequest,
   SearchGaugesResponse,
+  StationLoacationDetails,
   StationResult,
 } from 'src/types/data-source';
 
@@ -124,7 +124,7 @@ export class GfhService {
 
   matchStationToGauge(
     gauges: Gauge[],
-    station: GfhStationDetails,
+    station: StationLoacationDetails,
   ): [Record<string, GaugeInfo | null>, Set<string>] {
     this.logger.log(
       `Matching station ${station.STATION_ID} to gauges within ${this.matchRadiusKm}km...`,
@@ -424,8 +424,10 @@ export class GfhService {
     dateString: string,
     stationData: any,
     stationName: string,
+    riverBasin: string,
   ) {
     const stationDetails: gfhStationDetails = {
+      riverBasin,
       forecastDate: dateString,
       source: stationData?.source || '',
       latitude: stationData?.gaugeLocation?.latitude?.toFixed(6),
@@ -461,6 +463,7 @@ export class GfhService {
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // have to check if old formatted date exit if exit update that.
         const existingRecord = await tx.sourcesData.findFirst({
           where: {
             type,
@@ -468,16 +471,29 @@ export class GfhService {
             source: {
               riverBasin,
             },
+            AND: [
+              {
+                info: {
+                  path: ['stationName'],
+                  equals: payload.riverBasin,
+                },
+              },
+              {
+                info: {
+                  path: ['forecastDate'],
+                  equals: payload.forecastDate,
+                },
+              },
+            ],
           },
         });
 
         if (existingRecord) {
+          this.logger.log(`Updating existing record with new data`);
           return await tx.sourcesData.update({
             where: { id: existingRecord.id },
             data: {
               info: {
-                ...(existingRecord.info &&
-                  JSON.parse(JSON.stringify(existingRecord.info))),
                 ...JSON.parse(JSON.stringify(payload)),
               },
               updatedAt: new Date(),

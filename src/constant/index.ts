@@ -5,6 +5,7 @@ export const BQUEUE = {
   COMMUNICATION: 'COMMUNICATION',
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
+  NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER',
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
@@ -42,10 +43,12 @@ export const JOBS = {
   BENEFICIARY: {
     GET_BENEFICIARIES_COUNT: 'rahat.jobs.beneficiary.count',
     GET_ONE_GROUP: 'aa.jobs.beneficiary.getOneGroup',
+    GET_ALL_GROUPS_BY_UUIDS: 'aa.jobs.beneficiary.getAllGroupsByUuids',
   },
 
   STAKEHOLDERS: {
     GET_ONE_GROUP: 'aa.jobs.stakeholders.getOneGroup',
+    GET_ALL_GROUPS_BY_UUIDS: 'aa.jobs.stakeholders.getAllGroupsByUuids',
   },
   STELLAR: {
     ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
@@ -56,6 +59,9 @@ export const JOBS = {
     GET_STATS: 'ms.jobs.triggers.get_stats',
     GET_ONE: 'aa.jobs.stats.getOne',
     MS_TRIGGERS_STATS: 'rahat.jobs.ms.trigggers.stats',
+  },
+  NOTIFICATION: {
+    CREATE: 'rahat.jobs.notification.create',
   },
 };
 
@@ -103,6 +109,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.activities.getOne',
     GET_ALL: 'ms.jobs.activities.getAll',
     GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
+    GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
@@ -148,6 +155,9 @@ export const EVENTS = {
   BENEFICIARY_UPDATED: 'events.beneficiary_updated',
   AUTOMATED_TRIGGERED: 'events.automated_triggered',
   TOKEN_RESERVED: 'events.token_reserved',
+  NOTIFICATION: {
+    CREATE: 'events.notification.create',
+  },
 };
 
 export const MS_TRIGGER_CLIENTS = {

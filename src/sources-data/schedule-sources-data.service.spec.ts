@@ -78,6 +78,7 @@ describe('ScheduleSourcesDataService', () => {
     getWaterLevels: jest.fn(),
     getRainfallLevels: jest.fn(),
     create: jest.fn(),
+    findGfhData: jest.fn(),
   };
 
   const mockDhmService = {
@@ -97,9 +98,9 @@ describe('ScheduleSourcesDataService', () => {
         'Reporting Points': {
           layer_name_index: 'Reporting Points',
           point: '<table>test data</table>',
-          name: 'G10165; Basin: Nepal; Station: Na;'
-        }
-      }
+          name: 'G10165; Basin: Nepal; Station: Na;',
+        },
+      },
     }),
     saveGlofasStationData: jest.fn(),
     findGlofasDataByDate: jest.fn().mockResolvedValue(null),
@@ -260,15 +261,32 @@ describe('ScheduleSourcesDataService', () => {
       ],
       GFH: [
         {
-          STATION_NAME: 'Doda river at East-West Highway',
-          RIVER_NAME: 'doda',
-          STATION_ID: 'G10165',
-          POINT_ID: 'SI002576',
-          LISFLOOD_DRAINAGE_AREA: 432,
-          'LISFLOOD_X_(DEG)': 80.425,
-          'LISFLOOD_Y_[DEG]': 28.875,
-          LATITUDE: 28.853,
-          LONGITUDE: 80.434,
+          RIVER_BASIN: 'Doda river at East-West Highway',
+          STATION_LOCATIONS_DETAILS: [
+            {
+              STATION_NAME: 'Doda River Basin',
+              RIVER_GAUGE_ID: 'hybas_4120803470',
+              RIVER_NAME: 'doda',
+              STATION_ID: 'G10165',
+              POINT_ID: 'SI002576',
+              LISFLOOD_DRAINAGE_AREA: 432,
+              'LISFLOOD_X_(DEG)': 80.422917,
+              'LISFLOOD_Y_[DEG]': 28.84375,
+              LATITUDE: 28.84375,
+              LONGITUDE: 80.422917,
+            },
+            {
+              STATION_NAME: 'Sarda River Basin',
+              RIVER_NAME: 'doda',
+              STATION_ID: 'G10165',
+              POINT_ID: 'SI002576',
+              LISFLOOD_DRAINAGE_AREA: 432,
+              'LISFLOOD_X_(DEG)': 80.422917,
+              'LISFLOOD_Y_[DEG]': 28.84375,
+              LATITUDE: 28.84375,
+              LONGITUDE: 80.422917,
+            },
+          ],
         },
       ],
     };
@@ -381,12 +399,12 @@ describe('ScheduleSourcesDataService', () => {
       jest
         .spyOn(service as any, 'fetchRainfallStation')
         .mockResolvedValue(mockStationData);
-      jest.spyOn(dhmService, 'getDhmRainfallWatchData').mockResolvedValue(
-        mockRainfallData,
-      );
-      jest.spyOn(dhmService, 'normalizeDhmRiverAndRainfallWatchData').mockResolvedValue(
-        mockNormalizedData,
-      );
+      jest
+        .spyOn(dhmService, 'getDhmRainfallWatchData')
+        .mockResolvedValue(mockRainfallData);
+      jest
+        .spyOn(dhmService, 'normalizeDhmRiverAndRainfallWatchData')
+        .mockResolvedValue(mockNormalizedData);
       jest.spyOn(dhmService, 'saveDataInDhm').mockResolvedValue({
         info: { message: 'Data saved successfully' },
         id: 1,
@@ -396,7 +414,7 @@ describe('ScheduleSourcesDataService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      
+
       // Reset buildQueryParams mock to return valid data
       const { buildQueryParams } = require('src/common');
       jest.mocked(buildQueryParams).mockReturnValue({
@@ -462,7 +480,8 @@ describe('ScheduleSourcesDataService', () => {
       content: {
         'Reporting Points': {
           layer_name_index: 'Reporting Points',
-          point: '<table class="tbl_info_point" summary="Point Information">\n' +
+          point:
+            '<table class="tbl_info_point" summary="Point Information">\n' +
             '<tr>\n' +
             '<th class="cell_header">Station ID</th>\n' +
             '<th>Country</th>\n' +
@@ -798,21 +817,21 @@ describe('ScheduleSourcesDataService', () => {
             '<colgroup class="egeGtHal"></colgroup>\n' +
             '<colgroup class="egeGtHal"></colgroup>\n' +
             '<colgroup class="egeGtHal"></colgrou',
-          name: 'G10165; Basin: Nepal; Station: Na;'
-        }
-      }
-      };
+          name: 'G10165; Basin: Nepal; Station: Na;',
+        },
+      },
+    };
 
     beforeEach(() => {
       jest.spyOn(SettingsService, 'get').mockReturnValue(mockDataSource);
       mockGlofasService.getStationData.mockResolvedValue(mockStationData);
       mockGlofasService.saveGlofasStationData.mockResolvedValue(true);
-      });
+    });
 
     it('should synchronize Glofas data successfully', async () => {
       expect(service.synchronizeGlofas).toBeDefined();
       expect(typeof service.synchronizeGlofas).toBe('function');
-      
+
       jest.spyOn(glofasService, 'findGlofasDataByDate').mockResolvedValue(null);
       jest.spyOn(glofasService, 'getStationData').mockResolvedValue({
         returnPeriodTable: {
@@ -823,17 +842,17 @@ describe('ScheduleSourcesDataService', () => {
           'Reporting Points': {
             layer_name_index: 'Reporting Points',
             point: '<table>test data</table>',
-            name: 'G10165; Basin: Nepal; Station: Na;'
-          }
-        }
+            name: 'G10165; Basin: Nepal; Station: Na;',
+          },
+        },
       });
-      
+
       const { parseGlofasData } = require('src/common');
       jest.mocked(parseGlofasData).mockReturnValue({
         someData: 'test',
-        forecastData: 'test'
+        forecastData: 'test',
       });
-      
+
       jest.spyOn(sourceService, 'create').mockResolvedValue({
         info: {
           message: 'Data saved successfully',
@@ -853,7 +872,7 @@ describe('ScheduleSourcesDataService', () => {
         },
         dataSource: DataSource.GLOFAS,
       });
-      
+
       await expect(service.synchronizeGlofas()).resolves.not.toThrow();
     });
   });
@@ -888,6 +907,245 @@ describe('ScheduleSourcesDataService', () => {
       const result = await service['fetchRiverStation'](4);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('syncGlobalFloodHub', () => {
+    const mockDataSource: DataSourceValue = {
+      DHM: [],
+      GLOFAS: [],
+      GFH: [
+        {
+          RIVER_BASIN: 'Test River Basin',
+          STATION_LOCATIONS_DETAILS: [
+            {
+              STATION_NAME: 'Test Station',
+              RIVER_GAUGE_ID: 'test-gauge-id',
+              RIVER_NAME: 'test-river',
+              STATION_ID: 'test-station-id',
+              POINT_ID: 'test-point-id',
+              LISFLOOD_DRAINAGE_AREA: 100,
+              'LISFLOOD_X_(DEG)': 80.123,
+              'LISFLOOD_Y_[DEG]': 28.456,
+              LATITUDE: 28.456,
+              LONGITUDE: 80.123,
+            },
+          ],
+        },
+      ],
+    };
+
+    const mockGauges = [
+      {
+        gauge_id: 'test-gauge-id',
+        latitude: 28.456,
+        longitude: 80.123,
+      },
+    ];
+
+    const mockStationGaugeMapping = new Map([
+      ['test-station-id', { distance_km: 0.5, gauge_id: 'test-gauge-id' }],
+    ]);
+
+    const mockGaugeDataCache = {
+      'test-gauge-id': {
+        latest_forecast: {
+          forecastRanges: [
+            {
+              start: '2025-08-18',
+              end: '2025-08-19',
+              forecast: {
+                probability: { rp2: 0.3, rp20: 0, rp5: 0.1 },
+                quality_verified: true,
+                severity: 'WARNING',
+                trend: 'RISING',
+              },
+            },
+          ],
+        },
+        model_metadata: {
+          model_run_date: '2025-08-18T00:00:00Z',
+          model_version: '1.0',
+        },
+      },
+    };
+
+    const mockFormattedData = {
+      riverBasin: 'Doda river at East-West Highway',
+      forecastDate: '2025-08-18',
+      source: 'HYBAS',
+      latitude: '28.843750',
+      longitude: '80.422917',
+      stationName: 'Sarda River Basin',
+      warningLevel: '47.362',
+      dangerLevel: '66.398',
+      extremeDangerLevel: '93.634',
+      basinSize: 0,
+      riverGaugeId: 'hybas_4120803470',
+      history: [
+        { value: '19.5', datetime: '2025-08-16T00:00:00Z' },
+        { value: '19.3', datetime: '2025-08-17T00:00:00Z' },
+        { value: '18.6', datetime: '2025-08-18T00:00:00Z' },
+        { value: '18.4', datetime: '2025-08-19T00:00:00Z' },
+        { value: '19.9', datetime: '2025-08-20T00:00:00Z' },
+        { value: '19.2', datetime: '2025-08-21T00:00:00Z' },
+        { value: '21.6', datetime: '2025-08-22T00:00:00Z' },
+        { value: '25.7', datetime: '2025-08-23T00:00:00Z' },
+      ],
+    };
+
+    beforeEach(() => {
+      jest.spyOn(SettingsService, 'get').mockReturnValue(mockDataSource);
+      mockGfhService.fetchAllGauges.mockResolvedValue(mockGauges);
+      const stationGaugeMapping = new Map().set('test-station-id', {
+        gauge_id: 'test-gauge-id',
+        distance_km: 0.5,
+      });
+      mockGfhService.matchStationToGauge.mockReturnValue([
+        stationGaugeMapping,
+        new Set(['test-gauge-id']),
+      ]);
+      mockGfhService.processGaugeData.mockResolvedValue(mockGaugeDataCache);
+      mockGfhService.buildFinalOutput.mockReturnValue({
+        'test-station-id': {
+          gaugeId: 'test-gauge-id',
+          distance_km: 0.5,
+          source: 'test-source',
+          gaugeLocation: {
+            latitude: 28.456,
+            longitude: 80.123,
+          },
+          qualityVerified: true,
+          model_metadata: mockGaugeDataCache['test-gauge-id'].model_metadata,
+          issuedTime: '2025-08-18T00:00:00Z',
+          forecastTimeRange: { start: '2025-08-18', end: '2025-08-19' },
+          forecastTrend: 'RISING',
+          severity: 'WARNING',
+          forecasts:
+            mockGaugeDataCache['test-gauge-id'].latest_forecast.forecastRanges,
+        },
+      });
+      mockGfhService.formateGfhStationData.mockReturnValue(mockFormattedData);
+      mockGfhService.saveDataInGfh.mockResolvedValue({
+        id: 1,
+        type: SourceType.WATER_LEVEL,
+        dataSource: DataSource.GFH,
+        info: mockFormattedData,
+        sourceId: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockSourceService.findGfhData.mockResolvedValue([]);
+    });
+
+    it('should sync global flood hub data successfully', async () => {
+      await service.syncGlobalFloodHub();
+      await new Promise(process.nextTick);
+
+      expect(SettingsService.get).toHaveBeenCalledWith('DATASOURCE');
+      expect(mockGfhService.fetchAllGauges).toHaveBeenCalled();
+      expect(mockSourceService.findGfhData).toHaveBeenCalledWith(
+        'Test River Basin',
+        '2023-01-01',
+        'Test Station',
+      );
+      expect(mockGfhService.matchStationToGauge).toHaveBeenCalledWith(
+        mockGauges,
+        mockDataSource.GFH[0].STATION_LOCATIONS_DETAILS[0],
+      );
+      expect(mockGfhService.processGaugeData).toHaveBeenCalledWith(
+        new Set(['test-gauge-id']),
+      );
+      expect(mockGfhService.buildFinalOutput).toHaveBeenCalledWith(
+        mockStationGaugeMapping,
+        mockGaugeDataCache,
+      );
+      expect(mockGfhService.formateGfhStationData).toHaveBeenCalled();
+      expect(mockGfhService.saveDataInGfh).toHaveBeenCalledWith(
+        SourceType.WATER_LEVEL,
+        'Test River Basin',
+        mockFormattedData,
+      );
+    });
+
+    it('should skip if GFH settings are empty', async () => {
+      jest.spyOn(SettingsService, 'get').mockReturnValue({
+        DHM: [],
+        GLOFAS: [],
+        GFH: [],
+      });
+
+      await service.syncGlobalFloodHub();
+
+      expect(mockGfhService.fetchAllGauges).not.toHaveBeenCalled();
+      expect(mockGfhService.processGaugeData).not.toHaveBeenCalled();
+      expect(mockGfhService.saveDataInGfh).not.toHaveBeenCalled();
+    });
+
+    it('should skip if data already exists for the date', async () => {
+      mockSourceService.findGfhData.mockResolvedValue([
+        { id: 1, info: mockFormattedData },
+      ]);
+
+      await service.syncGlobalFloodHub();
+
+      expect(mockGfhService.matchStationToGauge).not.toHaveBeenCalled();
+      expect(mockGfhService.processGaugeData).not.toHaveBeenCalled();
+      expect(mockGfhService.saveDataInGfh).not.toHaveBeenCalled();
+    });
+
+    it('should throw error if no gauges found', async () => {
+      mockGfhService.fetchAllGauges.mockResolvedValue([]);
+
+      await expect(service.syncGlobalFloodHub()).rejects.toThrow(
+        'No gauges found',
+      );
+      expect(mockGfhService.processGaugeData).not.toHaveBeenCalled();
+      expect(mockGfhService.saveDataInGfh).not.toHaveBeenCalled();
+    });
+
+    it('should skip when no station data found in output', async () => {
+      mockGfhService.buildFinalOutput.mockReturnValue({});
+
+      await service.syncGlobalFloodHub();
+
+      expect(mockGfhService.formateGfhStationData).not.toHaveBeenCalled();
+      expect(mockGfhService.saveDataInGfh).not.toHaveBeenCalled();
+    });
+
+    it('should handle multiple station locations', async () => {
+      const multiStationDataSource = {
+        ...mockDataSource,
+        GFH: [
+          {
+            RIVER_BASIN: 'Test River Basin',
+            STATION_LOCATIONS_DETAILS: [
+              mockDataSource.GFH[0].STATION_LOCATIONS_DETAILS[0],
+              {
+                STATION_NAME: 'Test Station 2',
+                RIVER_GAUGE_ID: 'test-gauge-id-2',
+                RIVER_NAME: 'test-river-2',
+                STATION_ID: 'test-station-id-2',
+                POINT_ID: 'test-point-id-2',
+                LISFLOOD_DRAINAGE_AREA: 200,
+                'LISFLOOD_X_(DEG)': 81.123,
+                'LISFLOOD_Y_[DEG]': 29.456,
+                LATITUDE: 29.456,
+                LONGITUDE: 81.123,
+              },
+            ],
+          },
+        ],
+      };
+
+      jest
+        .spyOn(SettingsService, 'get')
+        .mockReturnValue(multiStationDataSource);
+
+      await service.syncGlobalFloodHub();
+
+      expect(mockSourceService.findGfhData).toHaveBeenCalledTimes(2);
+      expect(mockGfhService.matchStationToGauge).toHaveBeenCalledTimes(2);
     });
   });
 });
