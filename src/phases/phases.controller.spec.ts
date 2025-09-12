@@ -1,3 +1,9 @@
+jest.mock('cheerio', () => ({
+  load: jest.fn().mockReturnValue({
+    text: jest.fn(),
+    html: jest.fn(),
+  }),
+}));
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClientProxy } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';

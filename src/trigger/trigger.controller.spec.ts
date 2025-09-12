@@ -8,6 +8,7 @@ import { TriggerService } from './trigger.service';
 import { PhasesService } from 'src/phases/phases.service';
 import { CORE_MODULE, BQUEUE, MS_TRIGGERS_JOBS } from 'src/constant';
 import { GetTriggersDto, UpdateTriggerTransactionDto } from './dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('TriggerController', () => {
   let controller: TriggerController;
@@ -65,6 +66,9 @@ describe('TriggerController', () => {
     removeJobs: jest.fn(),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+  };
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TriggerController],
@@ -93,6 +97,10 @@ describe('TriggerController', () => {
         {
           provide: 'BullQueue_STELLAR',
           useValue: mockStellarQueueImplementation,
+        },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
         },
       ],
     }).compile();
@@ -125,14 +133,20 @@ describe('TriggerController', () => {
         description: 'Test Description',
       };
 
-      jest.spyOn(mockTriggerService, 'create').mockResolvedValue(mockCreatedTrigger);
+      jest
+        .spyOn(mockTriggerService, 'create')
+        .mockResolvedValue(mockCreatedTrigger);
 
       const result = await controller.create(mockPayload);
 
       expect(mockTriggerService.create).toHaveBeenCalledWith(
         'app-id',
-        { title: 'Test Trigger', description: 'Test Description', source: DataSource.MANUAL },
-        'test-user'
+        {
+          title: 'Test Trigger',
+          description: 'Test Description',
+          source: DataSource.MANUAL,
+        },
+        'test-user',
       );
       expect(result).toEqual(mockCreatedTrigger);
     });
@@ -158,14 +172,16 @@ describe('TriggerController', () => {
         { uuid: 'trigger-2', title: 'Trigger 2' },
       ];
 
-      jest.spyOn(mockTriggerService, 'bulkCreate').mockResolvedValue(mockCreatedTriggers);
+      jest
+        .spyOn(mockTriggerService, 'bulkCreate')
+        .mockResolvedValue(mockCreatedTriggers);
 
       const result = await controller.create(mockPayload);
 
       expect(mockTriggerService.bulkCreate).toHaveBeenCalledWith(
         'app-id',
         mockPayload.triggers,
-        'test-user'
+        'test-user',
       );
       expect(result).toEqual(mockCreatedTriggers);
     });
@@ -183,14 +199,16 @@ describe('TriggerController', () => {
         title: 'Test Trigger',
       };
 
-      jest.spyOn(mockTriggerService, 'create').mockResolvedValue(mockCreatedTrigger);
+      jest
+        .spyOn(mockTriggerService, 'create')
+        .mockResolvedValue(mockCreatedTrigger);
 
       const result = await controller.create(mockPayload);
 
       expect(mockTriggerService.create).toHaveBeenCalledWith(
         'app-id',
         { title: 'Test Trigger', source: DataSource.MANUAL },
-        'test-user'
+        'test-user',
       );
       expect(result).toEqual(mockCreatedTrigger);
     });
@@ -210,11 +228,15 @@ describe('TriggerController', () => {
         { uuid: 'trigger-2', title: 'Trigger 2' },
       ];
 
-      jest.spyOn(mockTriggerService, 'getAll').mockResolvedValue(mockTriggers as any);
+      jest
+        .spyOn(mockTriggerService, 'getAll')
+        .mockResolvedValue(mockTriggers as any);
 
       const result = await controller.findAll(mockGetTriggersDto);
 
-      expect(mockTriggerService.getAll).toHaveBeenCalledWith(mockGetTriggersDto);
+      expect(mockTriggerService.getAll).toHaveBeenCalledWith(
+        mockGetTriggersDto,
+      );
       expect(result).toEqual(mockTriggers);
     });
 
@@ -226,15 +248,17 @@ describe('TriggerController', () => {
         perPage: 20,
       };
 
-      const mockFilteredTriggers = [
-        { uuid: 'trigger-3', title: 'Trigger 3' },
-      ];
+      const mockFilteredTriggers = [{ uuid: 'trigger-3', title: 'Trigger 3' }];
 
-      jest.spyOn(mockTriggerService, 'getAll').mockResolvedValue(mockFilteredTriggers as any);
+      jest
+        .spyOn(mockTriggerService, 'getAll')
+        .mockResolvedValue(mockFilteredTriggers as any);
 
       const result = await controller.findAll(mockDtoWithFilters);
 
-      expect(mockTriggerService.getAll).toHaveBeenCalledWith(mockDtoWithFilters);
+      expect(mockTriggerService.getAll).toHaveBeenCalledWith(
+        mockDtoWithFilters,
+      );
       expect(result).toEqual(mockFilteredTriggers);
     });
   });
@@ -251,7 +275,9 @@ describe('TriggerController', () => {
         description: 'Test Description',
       };
 
-      jest.spyOn(mockTriggerService, 'getOne').mockResolvedValue(mockTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'getOne')
+        .mockResolvedValue(mockTrigger as any);
 
       const result = await controller.getOne(mockPayload);
 
@@ -275,11 +301,15 @@ describe('TriggerController', () => {
         },
       };
 
-      jest.spyOn(mockTriggerService, 'getOne').mockResolvedValue(mockTriggerWithPhase as any);
+      jest
+        .spyOn(mockTriggerService, 'getOne')
+        .mockResolvedValue(mockTriggerWithPhase as any);
 
       const result = await controller.getOne(mockPayloadWithExtra);
 
-      expect(mockTriggerService.getOne).toHaveBeenCalledWith(mockPayloadWithExtra);
+      expect(mockTriggerService.getOne).toHaveBeenCalledWith(
+        mockPayloadWithExtra,
+      );
       expect(result).toEqual(mockTriggerWithPhase);
     });
   });
@@ -296,11 +326,15 @@ describe('TriggerController', () => {
         { uuid: 'trigger-2', title: 'Trigger 2', location: 'Test Location' },
       ];
 
-      jest.spyOn(mockTriggerService, 'findByLocation').mockResolvedValue(mockTriggers as any);
+      jest
+        .spyOn(mockTriggerService, 'findByLocation')
+        .mockResolvedValue(mockTriggers as any);
 
       const result = await controller.getByLocation(mockPayload);
 
-      expect(mockTriggerService.findByLocation).toHaveBeenCalledWith(mockPayload);
+      expect(mockTriggerService.findByLocation).toHaveBeenCalledWith(
+        mockPayload,
+      );
       expect(result).toEqual(mockTriggers);
     });
 
@@ -311,14 +345,24 @@ describe('TriggerController', () => {
       };
 
       const mockDifferentTriggers = [
-        { uuid: 'trigger-3', title: 'Trigger 3', location: 'Different Location' },
+        {
+          uuid: 'trigger-3',
+          title: 'Trigger 3',
+          location: 'Different Location',
+        },
       ];
 
-      jest.spyOn(mockTriggerService, 'findByLocation').mockResolvedValue(mockDifferentTriggers as any);
+      jest
+        .spyOn(mockTriggerService, 'findByLocation')
+        .mockResolvedValue(mockDifferentTriggers as any);
 
-      const result = await controller.getByLocation(mockPayloadDifferentLocation);
+      const result = await controller.getByLocation(
+        mockPayloadDifferentLocation,
+      );
 
-      expect(mockTriggerService.findByLocation).toHaveBeenCalledWith(mockPayloadDifferentLocation);
+      expect(mockTriggerService.findByLocation).toHaveBeenCalledWith(
+        mockPayloadDifferentLocation,
+      );
       expect(result).toEqual(mockDifferentTriggers);
     });
   });
@@ -339,14 +383,16 @@ describe('TriggerController', () => {
         triggeredAt: new Date(),
       };
 
-      jest.spyOn(mockTriggerService, 'activateTrigger').mockResolvedValue(mockActivatedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'activateTrigger')
+        .mockResolvedValue(mockActivatedTrigger as any);
 
       const result = await controller.activateTrigger(mockPayload);
 
       expect(mockTriggerService.activateTrigger).toHaveBeenCalledWith(
         'trigger-uuid',
         'app-id',
-        { activatedBy: 'test-user', activatedAt: expect.any(Date) }
+        { activatedBy: 'test-user', activatedAt: expect.any(Date) },
       );
       expect(result).toEqual(mockActivatedTrigger);
     });
@@ -368,14 +414,21 @@ describe('TriggerController', () => {
         triggeredAt: new Date(),
       };
 
-      jest.spyOn(mockTriggerService, 'activateTrigger').mockResolvedValue(mockActivatedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'activateTrigger')
+        .mockResolvedValue(mockActivatedTrigger as any);
 
       const result = await controller.activateTrigger(mockPayloadWithExtra);
 
       expect(mockTriggerService.activateTrigger).toHaveBeenCalledWith(
         'trigger-uuid',
         'app-id',
-        { activatedBy: 'test-user', activatedAt: expect.any(Date), reason: 'Test reason', metadata: { key: 'value' } }
+        {
+          activatedBy: 'test-user',
+          activatedAt: expect.any(Date),
+          reason: 'Test reason',
+          metadata: { key: 'value' },
+        },
       );
       expect(result).toEqual(mockActivatedTrigger);
     });
@@ -396,14 +449,16 @@ describe('TriggerController', () => {
         description: 'Updated Description',
       };
 
-      jest.spyOn(mockTriggerService, 'update').mockResolvedValue(mockUpdatedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'update')
+        .mockResolvedValue(mockUpdatedTrigger as any);
 
       const result = await controller.updateTrigger(mockPayload);
 
       expect(mockTriggerService.update).toHaveBeenCalledWith(
         'trigger-uuid',
         'app-id',
-        { title: 'Updated Trigger', description: 'Updated Description' }
+        { title: 'Updated Trigger', description: 'Updated Description' },
       );
       expect(result).toEqual(mockUpdatedTrigger);
     });
@@ -422,14 +477,18 @@ describe('TriggerController', () => {
         notes: 'Updated notes',
       };
 
-      jest.spyOn(mockTriggerService, 'update').mockResolvedValue(mockUpdatedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'update')
+        .mockResolvedValue(mockUpdatedTrigger as any);
 
-      const result = await controller.updateTrigger(mockPayloadWithDifferentData);
+      const result = await controller.updateTrigger(
+        mockPayloadWithDifferentData,
+      );
 
       expect(mockTriggerService.update).toHaveBeenCalledWith(
         'trigger-uuid',
         'app-id',
-        { isMandatory: true, notes: 'Updated notes' }
+        { isMandatory: true, notes: 'Updated notes' },
       );
       expect(result).toEqual(mockUpdatedTrigger);
     });
@@ -447,13 +506,15 @@ describe('TriggerController', () => {
         transactionHash: 'tx-hash-123',
       };
 
-      jest.spyOn(mockTriggerService, 'updateTransaction').mockResolvedValue(mockUpdatedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'updateTransaction')
+        .mockResolvedValue(mockUpdatedTrigger as any);
 
       const result = await controller.updateTriggerTransaction(mockPayload);
 
       expect(mockTriggerService.updateTransaction).toHaveBeenCalledWith(
         'trigger-uuid',
-        'tx-hash-123'
+        'tx-hash-123',
       );
       expect(result).toEqual(mockUpdatedTrigger);
     });
@@ -469,13 +530,17 @@ describe('TriggerController', () => {
         transactionHash: 'different-tx-hash-456',
       };
 
-      jest.spyOn(mockTriggerService, 'updateTransaction').mockResolvedValue(mockUpdatedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'updateTransaction')
+        .mockResolvedValue(mockUpdatedTrigger as any);
 
-      const result = await controller.updateTriggerTransaction(mockPayloadWithDifferentHash);
+      const result = await controller.updateTriggerTransaction(
+        mockPayloadWithDifferentHash,
+      );
 
       expect(mockTriggerService.updateTransaction).toHaveBeenCalledWith(
         'trigger-uuid',
-        'different-tx-hash-456'
+        'different-tx-hash-456',
       );
       expect(result).toEqual(mockUpdatedTrigger);
     });
@@ -492,7 +557,9 @@ describe('TriggerController', () => {
         isDeleted: true,
       };
 
-      jest.spyOn(mockTriggerService, 'remove').mockResolvedValue(mockRemovedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'remove')
+        .mockResolvedValue(mockRemovedTrigger as any);
 
       const result = await controller.remove(mockPayload);
 
@@ -510,11 +577,15 @@ describe('TriggerController', () => {
         isDeleted: true,
       };
 
-      jest.spyOn(mockTriggerService, 'remove').mockResolvedValue(mockRemovedTrigger as any);
+      jest
+        .spyOn(mockTriggerService, 'remove')
+        .mockResolvedValue(mockRemovedTrigger as any);
 
       const result = await controller.remove(mockPayloadWithDifferentKey);
 
-      expect(mockTriggerService.remove).toHaveBeenCalledWith('different-repeat-key-456');
+      expect(mockTriggerService.remove).toHaveBeenCalledWith(
+        'different-repeat-key-456',
+      );
       expect(result).toEqual(mockRemovedTrigger);
     });
   });

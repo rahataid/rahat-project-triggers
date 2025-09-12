@@ -1065,7 +1065,6 @@ describe('ScheduleSourcesDataService', () => {
         SourceType.WATER_LEVEL,
         'Test River Basin',
         mockFormattedData,
-        'Test Station',
       );
     });
 
