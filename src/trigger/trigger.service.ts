@@ -64,18 +64,18 @@ export class TriggerService {
         trigger = await this.scheduleJob(sanitizedPayload);
       }
 
-      const queueData: AddTriggerJobDto = {
-        id: trigger.uuid,
-        trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
-        phase: trigger.phase.name,
-        title: trigger.title,
-        description: trigger.description,
-        source: trigger.source,
-        river_basin: trigger.phase.riverBasin,
-        params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
-        is_mandatory: trigger.isMandatory,
-        notes: trigger.notes,
-      };
+      // const queueData: AddTriggerJobDto = {
+      //   id: trigger.uuid,
+      //   trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
+      //   phase: trigger.phase.name,
+      //   title: trigger.title,
+      //   description: trigger.description,
+      //   source: trigger.source,
+      //   river_basin: trigger.phase.riverBasin,
+      //   params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
+      //   is_mandatory: trigger.isMandatory,
+      //   notes: trigger.notes,
+      // };
 
       // TODO: temp fix to test
       // const res = await lastValueFrom(

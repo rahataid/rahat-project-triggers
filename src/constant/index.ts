@@ -53,7 +53,7 @@ export const JOBS = {
   STELLAR: {
     ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
     UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
-    DISBURSE: 'aa.jobs.stellar.disburse',
+    DISBURSE: 'jobs.stellar.disburse',
   },
   CHAIN: {
     DISBURSE: 'aa.jobs.chain.disburse',
