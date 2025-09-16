@@ -700,7 +700,7 @@ describe('PhasesService', () => {
       );
 
       expect(clientProxy.send).toHaveBeenCalledWith(
-        { cmd: JOBS.STELLAR.DISBURSE, uuid: 'app-1' },
+        { cmd: JOBS.CHAIN.DISBURSE, uuid: 'app-1' },
         { dName: expect.stringContaining('PREPAREDNESS-Karnali-') },
       );
 
