@@ -16,24 +16,24 @@ export function parseGlofasData(content: string) {
 
   // 2 yr return period table
   const rpTable2yr = $(
-    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 2 yr RP"]',
+    'table[class="table-forecast-result table-forecast-result-global"][summary="IFS ENS > 2 yr RP"]',
   );
 
   // 5 yr return period table
   const rpTable5yr = $(
-    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 5 yr RP"]',
+    'table[class="table-forecast-result table-forecast-result-global"][summary="IFS ENS > 5 yr RP"]',
   );
 
   // 20 yr return period table
   const rpTable20yr = $(
-    'table[class="table-forecast-result table-forecast-result-global"][summary="ECMWF-ENS > 20 yr RP"]',
+    'table[class="table-forecast-result table-forecast-result-global"][summary="IFS ENS > 20 yr RP"]',
   );
 
   // point forecast table
   const pfTable = $('table.tbl_info_point[summary="Point Forecast"]');
 
   const hydrographElement = $('.forecast_images').find(
-    'img[alt="Discharge Hydrograph (ECMWF-ENS)"]',
+    'img[alt="Discharge Hydrograph"]',
   );
 
   if (

@@ -595,6 +595,7 @@ export class TriggerService {
         });
       }
 
+      // TODO: EVM Change
       this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
         attempts: 3,
         removeOnComplete: true,

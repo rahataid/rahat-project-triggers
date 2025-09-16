@@ -55,6 +55,11 @@ export const JOBS = {
     UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
     DISBURSE: 'aa.jobs.stellar.disburse',
   },
+  CHAIN: {
+    DISBURSE: 'aa.jobs.chain.disburse',
+    SEND_OTP: 'aa.jobs.chain.sendOtp',
+    SEND_ASSET: 'aa.jobs.chain.sendAsset',
+  },
   STATS: {
     GET_STATS: 'ms.jobs.triggers.get_stats',
     GET_ONE: 'aa.jobs.stats.getOne',
