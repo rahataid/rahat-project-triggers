@@ -32,7 +32,7 @@ export class HealthCacheService {
 
       await this.redis.set(key, JSON.stringify(sourceConfig));
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Failed to cache source config for ${sourceConfig.source_id}:`,
         error,
       );
@@ -49,7 +49,7 @@ export class HealthCacheService {
       const data = await this.redis.get(key);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error(`Failed to get source config for ${sourceId}:`, error);
+      this.logger.error(`Failed to get source config for ${sourceId}:`, error);
       return null;
     }
   }
@@ -111,7 +111,7 @@ export class HealthCacheService {
       const data = await this.redis.get(key);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error(`Failed to get health data for ${sourceId}:`, error);
+      this.logger.error(`Failed to get health data for ${sourceId}:`, error);
       return null;
     }
   }
@@ -139,7 +139,7 @@ export class HealthCacheService {
         .map(([, data]) => JSON.parse(data as string))
         .sort((a, b) => a.source_id.localeCompare(b.source_id));
     } catch (error) {
-      console.error('Failed to get all sources health:', error);
+      this.logger.error('Failed to get all sources health:', error);
       return [];
     }
   }
@@ -164,7 +164,7 @@ export class HealthCacheService {
         JSON.stringify(summary),
       );
     } catch (error) {
-      console.error('Failed to update health summary:', error);
+      this.logger.error('Failed to update health summary:', error);
     }
   }
 
@@ -187,9 +187,9 @@ export class HealthCacheService {
 
       // If no cached summary, generate fresh one
       const sources = await this.getAllSourcesHealth();
-      console.log('sources', sources);
+      this.logger.log('sources', sources);
       const overallStatus = this.calculateOverallStatus(sources);
-      console.log('overallStatus', overallStatus);
+      this.logger.log('overallStatus', overallStatus);
 
       const summary: HealthCacheData = {
         overall_status: overallStatus,
@@ -206,7 +206,7 @@ export class HealthCacheService {
 
       return summary;
     } catch (error) {
-      console.log('Failed to get health summary:', error);
+      this.logger.error('Failed to get health summary:', error);
       return {
         overall_status: 'DOWN',
         last_updated: new Date().toISOString(),
@@ -244,7 +244,7 @@ export class HealthCacheService {
       await this.redis.del(key);
       await this.updateHealthSummary();
     } catch (error) {
-      console.error(`Failed to remove health data for ${sourceId}:`, error);
+      this.logger.error(`Failed to remove health data for ${sourceId}:`, error);
     }
   }
 
@@ -305,7 +305,7 @@ export class HealthCacheService {
       if (minutesAgo <= staleThreshold) return 'STALE';
       return 'EXPIRED';
     } catch (error) {
-      console.error(`Failed to calculate validity for ${sourceId}:`, error);
+      this.logger.error(`Failed to calculate validity for ${sourceId}:`, error);
       return 'EXPIRED'; // Safe default
     }
   }

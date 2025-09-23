@@ -30,7 +30,6 @@ export class SourceController {
     cmd: MS_TRIGGERS_JOBS.SOURCE.GET_HEALTH,
   })
   async getSourcesHealth() {
-    console.log('getSourcesHealth');
     return await this.healthCacheService.getHealthSummary();
   }
 }
