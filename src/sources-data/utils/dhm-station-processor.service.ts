@@ -1,14 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { SourceType } from '@prisma/client';
 import { buildQueryParams } from 'src/common';
+import {
+  rainfallStationUrl,
+  riverStationUrl,
+} from 'src/constant/datasourceUrls';
 import { SourceDataTypeEnum } from 'src/types/data-source';
 import type {
   RiverStationData,
   RainfallStationData,
   InputItem,
+  RiverStationItem,
+  RainfallStationItem,
 } from 'src/types/data-source';
 import { DhmService } from '../dhm.service';
 import { HealthError } from './health-utils.service';
+import * as https from 'https';
 
 export interface DhmStationConfig {
   LOCATION: string;
@@ -23,11 +31,16 @@ export interface RainfallStationConfig {
   RAINFALL: DhmStationConfig;
 }
 
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
 @Injectable()
 export class DhmStationProcessorService {
   private readonly logger = new Logger(DhmStationProcessorService.name);
 
-  constructor(private readonly dhmService: DhmService) {}
+  constructor(
+    private readonly dhmService: DhmService,
+    private readonly httpService: HttpService,
+  ) {}
 
   /**
    * Process a single water level station
@@ -36,13 +49,12 @@ export class DhmStationProcessorService {
     config: WaterLevelStationConfig,
     seriesId: number,
     errors: HealthError[],
-    fetchRiverStation: (seriesId: number) => Promise<any>,
   ): Promise<boolean> {
     const { LOCATION } = config.WATER_LEVEL;
 
     try {
       const riverWatchQueryParam = buildQueryParams(seriesId);
-      const stationData = await fetchRiverStation(seriesId);
+      const stationData = await this.fetchRiverStation(seriesId);
 
       if (!stationData || !riverWatchQueryParam) {
         this.logger.warn(
@@ -101,7 +113,7 @@ export class DhmStationProcessorService {
 
       // Fallback: try to save station data only
       try {
-        const stationData = await fetchRiverStation(seriesId);
+        const stationData = await this.fetchRiverStation(seriesId);
         if (stationData) {
           await this.dhmService.saveDataInDhm(
             SourceType.WATER_LEVEL,
@@ -132,13 +144,12 @@ export class DhmStationProcessorService {
     config: RainfallStationConfig,
     seriesId: number,
     errors: HealthError[],
-    fetchRainfallStation: (seriesId: number) => Promise<any>,
   ): Promise<boolean> {
     const { LOCATION } = config.RAINFALL;
 
     try {
       const rainfallQueryParams = buildQueryParams(seriesId);
-      const stationData = await fetchRainfallStation(seriesId);
+      const stationData = await this.fetchRainfallStation(seriesId);
 
       if (!stationData || !rainfallQueryParams) {
         this.logger.warn(
@@ -207,7 +218,6 @@ export class DhmStationProcessorService {
    */
   createWaterLevelTasks(
     dhmSettings: WaterLevelStationConfig[],
-    fetchRiverStation: (seriesId: number) => Promise<any>,
   ): Array<{ config: WaterLevelStationConfig; seriesId: number }> {
     const tasks = [];
     for (const config of dhmSettings) {
@@ -223,7 +233,6 @@ export class DhmStationProcessorService {
    */
   createRainfallTasks(
     dhmSettings: RainfallStationConfig[],
-    fetchRainfallStation: (seriesId: number) => Promise<any>,
   ): Array<{ config: RainfallStationConfig; seriesId: number }> {
     const tasks = [];
     for (const config of dhmSettings) {
@@ -232,5 +241,59 @@ export class DhmStationProcessorService {
       }
     }
     return tasks;
+  }
+
+  /**
+   * Fetch rainfall station data by series ID
+   */
+  async fetchRainfallStation(
+    seriesId: number,
+  ): Promise<RainfallStationItem | null> {
+    try {
+      const {
+        data: { data },
+      } = (await this.httpService.axiosRef.get(rainfallStationUrl, {
+        httpsAgent: httpsAgent,
+      })) as { data: { data: RainfallStationItem[][] } };
+
+      const targettedData = data[0].find((item) => item.series_id == seriesId);
+
+      if (!targettedData) {
+        this.logger.warn(`No rainfall station found for series ID ${seriesId}`);
+        return null;
+      }
+
+      return targettedData;
+    } catch (error) {
+      this.logger.warn('Error fetching rainfall station:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch river station data by series ID
+   */
+  async fetchRiverStation(seriesId: number): Promise<RiverStationItem | null> {
+    try {
+      const {
+        data: { data: riverStation },
+      } = (await this.httpService.axiosRef.get(riverStationUrl, {
+        httpsAgent: httpsAgent,
+      })) as { data: { data: RiverStationItem[] } };
+
+      const targettedData = riverStation.find(
+        (item) => item.series_id === seriesId,
+      );
+
+      if (!targettedData) {
+        this.logger.warn(`No river station found for series ID ${seriesId}`);
+        return null;
+      }
+
+      return targettedData;
+    } catch (error) {
+      this.logger.warn('Error fetching river station:', error);
+      return null;
+    }
   }
 }

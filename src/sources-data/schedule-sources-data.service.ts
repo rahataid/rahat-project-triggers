@@ -1,38 +1,31 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { SourcesDataService } from './sources-data.service';
 import { Cron } from '@nestjs/schedule';
 import { SettingsService } from '@rumsan/settings';
-import { getFormattedDate, parseGlofasData } from 'src/common';
-import { GlofasService } from './glofas.service';
-import { HttpService } from '@nestjs/axios';
 import {
+  dhmRainfallWatchUrl,
   dhmRiverWatchUrl,
-  rainfallStationUrl,
-  riverStationUrl,
+  gfhUrl,
+  glofasUrl,
 } from 'src/constant/datasourceUrls';
-import * as https from 'https';
-import { RiverStationItem, RainfallStationItem } from 'src/types/data-source';
-import { DataSource, SourceType } from '@prisma/client';
+import { DataSource } from '@prisma/client';
 import { DataSourceValue } from 'src/types/settings';
-import { GfhService } from './gfh.service';
 import { HealthCacheService } from 'src/source/health-cache.service';
 import { SourceConfig } from 'src/source/dto/health.type';
 import { HealthUtilsService } from './utils/health-utils.service';
 import { DhmStationProcessorService } from './utils/dhm-station-processor.service';
+import { GlofasStationProcessorService } from './utils/glofas-station-processor.service';
+import { GfhStationProcessorService } from './utils/gfh-station-processor.service';
 
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
 export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ScheduleSourcesDataService.name);
 
   constructor(
-    private readonly sourceService: SourcesDataService,
-    private readonly glofasService: GlofasService,
-    private readonly httpService: HttpService,
-    private readonly gfhService: GfhService,
     private readonly healthCacheService: HealthCacheService,
     private readonly healthUtilsService: HealthUtilsService,
     private readonly dhmStationProcessor: DhmStationProcessorService,
+    private readonly glofasStationProcessor: GlofasStationProcessorService,
+    private readonly gfhStationProcessor: GfhStationProcessorService,
   ) {}
   onApplicationBootstrap() {
     this.syncRiverWaterData();
@@ -58,7 +51,6 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
 
-      // Validate settings
       const isValid = await this.healthUtilsService.validateSettings(
         dhmSettings,
         config,
@@ -66,13 +58,8 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       );
       if (!isValid) return;
 
-      // Create processing tasks
-      const tasks = this.dhmStationProcessor.createWaterLevelTasks(
-        dhmSettings,
-        this.fetchRiverStation.bind(this),
-      );
+      const tasks = this.dhmStationProcessor.createWaterLevelTasks(dhmSettings);
 
-      // Process stations in parallel
       const result = await this.healthUtilsService.processStationsInParallel(
         tasks,
         async (task, errors) => {
@@ -80,12 +67,10 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             task.config,
             task.seriesId,
             errors,
-            this.fetchRiverStation.bind(this),
           );
         },
       );
 
-      // Store health results
       await this.healthUtilsService.storeHealthResult(config, result);
     } catch (error) {
       await this.healthUtilsService.handleTopLevelError(
@@ -104,8 +89,7 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
     const config = {
       sourceId: 'DHM:RAINFALL',
       name: 'DHM Rainfall API',
-      sourceUrl:
-        'http://www.dhm.gov.np/frontend_dhm/hydrology/getRainfallWatchMapBySeriesId',
+      sourceUrl: dhmRainfallWatchUrl,
       startTimestamp: new Date(),
     };
 
@@ -113,7 +97,6 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const dhmSettings = dataSource[DataSource.DHM];
 
-      // Validate settings
       const isValid = await this.healthUtilsService.validateSettings(
         dhmSettings,
         config,
@@ -121,13 +104,8 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       );
       if (!isValid) return;
 
-      // Create processing tasks
-      const tasks = this.dhmStationProcessor.createRainfallTasks(
-        dhmSettings,
-        this.fetchRainfallStation.bind(this),
-      );
+      const tasks = this.dhmStationProcessor.createRainfallTasks(dhmSettings);
 
-      // Process stations in parallel
       const result = await this.healthUtilsService.processStationsInParallel(
         tasks,
         async (task, errors) => {
@@ -135,12 +113,10 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
             task.config,
             task.seriesId,
             errors,
-            this.fetchRainfallStation.bind(this),
           );
         },
       );
 
-      // Store health results
       await this.healthUtilsService.storeHealthResult(config, result);
     } catch (error) {
       await this.healthUtilsService.handleTopLevelError(
@@ -155,415 +131,96 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
   @Cron('0 0 * * *')
   async syncGlobalFloodHub() {
     this.logger.log('Starting flood data fetching process...');
-    const key = `GFH`;
-    const startTimestamp = new Date();
-    const errors = [];
-    let successfulStations = 0;
-    let totalStations = 0;
+
+    const config = {
+      sourceId: 'GFH',
+      name: 'GFH API',
+      sourceUrl: gfhUrl,
+      startTimestamp: new Date(),
+    };
 
     try {
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const gfhSettings = dataSource[DataSource.GFH];
 
-      // Step 1 : Check if GFH settings are available
-      if (!gfhSettings || gfhSettings.length === 0) {
-        this.logger.warn('GFH settings not found or empty');
-
-        const healthData = await this.healthCacheService.createHealthData({
-          sourceId: key,
-          name: 'GFH API',
-          sourceUrl: 'https://globalfloods.eu',
-          status: 'DOWN',
-          responseTimeMs: new Date().getTime() - startTimestamp.getTime(),
-          errors: [
-            {
-              code: 'GFH_CONFIG_ERROR',
-              message: 'GFH settings not found or empty',
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        });
-
-        await this.healthCacheService.setSourceHealth(key, healthData);
-        return;
-      }
-
-      // Step 2: Fetch all gauges
-      const gauges = await this.gfhService.fetchAllGauges();
-
-      if (gauges.length === 0) {
-        throw new Error('No gauges found');
-      }
-
-      // Process all stations
-      const stationPromises = [];
-
-      for (const gfhStationDetails of gfhSettings) {
-        const { dateString } = getFormattedDate();
-
-        for (const stationDetails of gfhStationDetails.STATION_LOCATIONS_DETAILS) {
-          totalStations++;
-
-          const stationPromise = (async () => {
-            const stationStartTime = new Date();
-            try {
-              const riverBasin = gfhStationDetails.RIVER_BASIN;
-              const stationName = stationDetails.STATION_NAME;
-
-              // Step 3: Check data are already fetched
-              const hasExistingRecord = await this.sourceService.findGfhData(
-                riverBasin,
-                dateString,
-                stationName,
-              );
-              if (hasExistingRecord?.length) {
-                this.logger.log(
-                  `Global flood data for ${stationName} on ${dateString} already exists.`,
-                );
-                successfulStations++;
-                return stationStartTime;
-              }
-
-              // Step 4: Match stations to gauges
-              const [stationGaugeMapping, uniqueGaugeIds] =
-                this.gfhService.matchStationToGauge(gauges, stationDetails);
-
-              // Step 5: Process gauge data
-              const gaugeDataCache =
-                await this.gfhService.processGaugeData(uniqueGaugeIds);
-
-              // Step 6: Build final output
-              const output = this.gfhService.buildFinalOutput(
-                stationGaugeMapping,
-                gaugeDataCache,
-              );
-
-              // Step 7: Filter and process the output
-              const [stationKey, stationData] = Object.entries(output)[0] || [];
-              if (!stationKey || !stationData) {
-                this.logger.warn(`No data found for station ${stationName}`);
-                errors.push({
-                  code: 'GFH_NO_DATA',
-                  message: `No data found for station ${stationName}`,
-                  timestamp: new Date().toISOString(),
-                });
-                return stationStartTime;
-              }
-
-              // Step 8: Format the data
-              const gfhData = this.gfhService.formateGfhStationData(
-                dateString,
-                stationData,
-                stationName,
-                riverBasin,
-              );
-
-              // Step 9: Save the data in Global Flood Hub
-              const res = await this.gfhService.saveDataInGfh(
-                SourceType.WATER_LEVEL,
-                riverBasin,
-                gfhData,
-              );
-
-              if (res) {
-                this.logger.log(
-                  `Global flood data saved successfully for ${stationName}`,
-                );
-                successfulStations++;
-              } else {
-                this.logger.warn(
-                  `Failed to save Global flood data for ${stationName}`,
-                );
-                errors.push({
-                  code: 'GFH_SAVE_ERROR',
-                  message: `Failed to save data for station ${stationName}`,
-                  timestamp: new Date().toISOString(),
-                });
-              }
-
-              return stationStartTime;
-            } catch (stationError) {
-              const errorMessage = stationError?.message || 'Unknown error';
-              errors.push({
-                code: 'GFH_STATION_ERROR',
-                message: `Error processing station ${stationDetails.STATION_NAME}: ${errorMessage}`,
-                timestamp: new Date().toISOString(),
-              });
-              this.logger.error(
-                `Error processing station ${stationDetails.STATION_NAME}:`,
-                errorMessage,
-              );
-              return stationStartTime;
-            }
-          })();
-
-          stationPromises.push(stationPromise);
-        }
-      }
-
-      // Wait for all stations to complete
-      await Promise.allSettled(stationPromises);
-
-      const totalDuration = new Date().getTime() - startTimestamp.getTime();
-
-      // Determine overall status
-      let status: 'UP' | 'DOWN' | 'DEGRADED' = 'UP';
-      if (successfulStations === 0) {
-        status = 'DOWN';
-      } else if (successfulStations < totalStations || errors.length > 0) {
-        status = 'DEGRADED';
-      }
-
-      const healthData = await this.healthCacheService.createHealthData({
-        sourceId: key,
-        name: 'GFH API',
-        sourceUrl: 'https://globalfloods.eu',
-        status,
-        responseTimeMs: totalDuration,
-        errors: errors.length > 0 ? errors : null,
-      });
-
-      await this.healthCacheService.setSourceHealth(key, healthData);
-      this.logger.log(
-        `GFH API health data updated - ${successfulStations}/${totalStations} stations successful`,
+      const isValid = await this.healthUtilsService.validateSettings(
+        gfhSettings,
+        config,
+        'GFH',
       );
-    } catch (error) {
-      const errorMessage = error?.message || 'Unknown error';
-      this.logger.error(`Error in GFH main execution: ${errorMessage}`);
+      if (!isValid) return;
 
-      const healthData = await this.healthCacheService.createHealthData({
-        sourceId: key,
-        name: 'GFH API',
-        sourceUrl: 'https://globalfloods.eu',
-        status: 'DOWN',
-        responseTimeMs: new Date().getTime() - startTimestamp.getTime(),
-        errors: [
-          {
-            code: 'GFH_SYNC_ERROR',
-            message: errorMessage,
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+      // Fetch all gauges
+      const gauges = await this.gfhStationProcessor.fetchGauges();
 
-      await this.healthCacheService.setSourceHealth(key, healthData);
-    }
-  }
+      // Create processing tasks
+      const tasks = this.gfhStationProcessor.createGfhTasks(gfhSettings);
 
-  async fetchRainfallStation(
-    seriesId: number,
-  ): Promise<RainfallStationItem | null> {
-    try {
-      const {
-        data: { data },
-      } = (await this.httpService.axiosRef.get(rainfallStationUrl, {
-        httpsAgent: httpsAgent,
-      })) as { data: { data: RainfallStationItem[][] } };
-
-      const targettedData = data[0].find((item) => item.series_id == seriesId);
-
-      if (!targettedData) {
-        this.logger.warn(`No rainfall station found for series ID ${seriesId}`);
-        return null;
-      }
-
-      return targettedData;
-    } catch (error) {
-      this.logger.warn('Error fetching rainfall station:', error);
-      throw error;
-    }
-  }
-
-  async fetchRiverStation(seriesId: number): Promise<RiverStationItem | null> {
-    try {
-      const {
-        data: { data: riverStation },
-      } = (await this.httpService.axiosRef.get(riverStationUrl, {
-        httpsAgent: httpsAgent,
-      })) as { data: { data: RiverStationItem[] } };
-
-      const targettedData = riverStation.find(
-        (item) => item.series_id === seriesId,
+      // Process stations in parallel
+      const result = await this.healthUtilsService.processStationsInParallel(
+        tasks,
+        async (task, errors) => {
+          return await this.gfhStationProcessor.processGfhStation(
+            task,
+            gauges,
+            errors,
+          );
+        },
       );
 
-      if (!targettedData) {
-        this.logger.warn(`No river station found for series ID ${seriesId}`);
-        return null;
-      }
-
-      return targettedData;
+      await this.healthUtilsService.storeHealthResult(config, result);
     } catch (error) {
-      this.logger.warn('Error fetching river station:', error);
-      return null;
+      await this.healthUtilsService.handleTopLevelError(
+        config,
+        error,
+        'GFH_SYNC_ERROR',
+      );
     }
   }
 
   // run every hour
   @Cron('0 * * * *')
   async synchronizeGlofas() {
-    const key = `GLOFAS`;
-    const startTimestamp = new Date();
-    const errors = [];
-    let successfulStations = 0;
-    let totalStations = 0;
+    this.logger.log('GLOFAS: syncing Glofas data');
+
+    const config = {
+      sourceId: 'GLOFAS',
+      name: 'Glofas API',
+      sourceUrl: glofasUrl,
+      startTimestamp: new Date(),
+    };
 
     try {
-      this.logger.log('GLOFAS: syncing Glofas data');
       const dataSource = SettingsService.get('DATASOURCE') as DataSourceValue;
       const glofasSettings = dataSource[DataSource.GLOFAS];
 
-      if (!glofasSettings) {
-        this.logger.warn('GLOFAS settings not found');
-
-        const healthData = await this.healthCacheService.createHealthData({
-          sourceId: key,
-          name: 'Glofas API',
-          sourceUrl: 'https://www.globalfloods.eu',
-          status: 'DOWN',
-          responseTimeMs: new Date().getTime() - startTimestamp.getTime(),
-          errors: [
-            {
-              code: 'GLOFAS_CONFIG_ERROR',
-              message: 'GLOFAS settings not found',
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        });
-
-        await this.healthCacheService.setSourceHealth(key, healthData);
-        return;
-      }
-
-      const stationPromises = [];
-      totalStations = glofasSettings.length;
-
-      for (const glofasStation of glofasSettings) {
-        const stationPromise = (async () => {
-          const stationStartTime = new Date();
-          try {
-            const yesterdayDate = new Date();
-            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-            const { dateString, dateTimeString } =
-              getFormattedDate(yesterdayDate);
-
-            const riverBasin = glofasStation['LOCATION'];
-
-            const hasExistingRecord =
-              await this.glofasService.findGlofasDataByDate(
-                riverBasin,
-                dateString,
-              );
-            if (hasExistingRecord) {
-              this.logger.log(
-                `GLOFAS: Data for ${riverBasin} on ${dateString} already exists.`,
-              );
-              successfulStations++;
-              return stationStartTime;
-            }
-
-            this.logger.log(
-              `GLOFAS: Fetching data for ${riverBasin} on ${dateString}`,
-            );
-            const stationData = await this.glofasService.getStationData({
-              ...glofasStation,
-              TIMESTRING: dateTimeString,
-            });
-
-            const reportingPoints =
-              stationData?.content['Reporting Points'].point;
-
-            const glofasData = parseGlofasData(reportingPoints);
-            this.logger.log(
-              `GLOFAS: Parsed data for ${riverBasin} on ${dateString}`,
-            );
-            const res = await this.sourceService.create({
-              source: 'GLOFAS',
-              riverBasin: riverBasin,
-              type: SourceType.RAINFALL,
-              info: { ...glofasData, forecastDate: dateString },
-            });
-
-            if (res) {
-              this.logger.log(
-                `GLOFAS: Data saved successfully for ${riverBasin} on ${dateString}`,
-              );
-              successfulStations++;
-            } else {
-              this.logger.warn(
-                `GLOFAS: Failed to save data for ${riverBasin} on ${dateString}`,
-              );
-              errors.push({
-                code: 'GLOFAS_SAVE_ERROR',
-                message: `Failed to save data for ${riverBasin} on ${dateString}`,
-                timestamp: new Date().toISOString(),
-              });
-            }
-
-            return stationStartTime;
-          } catch (stationError) {
-            const errorMessage = stationError?.message || 'Unknown error';
-            errors.push({
-              code: 'GLOFAS_STATION_ERROR',
-              message: `Error processing station ${glofasStation.LOCATION}: ${errorMessage}`,
-              timestamp: new Date().toISOString(),
-            });
-            this.logger.error(
-              `GLOFAS: Error processing station ${glofasStation.LOCATION}:`,
-              errorMessage,
-            );
-            return stationStartTime;
-          }
-        })();
-
-        stationPromises.push(stationPromise);
-      }
-
-      // Wait for all stations to complete
-      await Promise.allSettled(stationPromises);
-
-      const totalDuration = new Date().getTime() - startTimestamp.getTime();
-
-      // Determine overall status
-      let status: 'UP' | 'DOWN' | 'DEGRADED' = 'UP';
-      if (successfulStations === 0) {
-        status = 'DOWN';
-      } else if (successfulStations < totalStations || errors.length > 0) {
-        status = 'DEGRADED';
-      }
-
-      const healthData = await this.healthCacheService.createHealthData({
-        sourceId: key,
-        name: 'Glofas API',
-        sourceUrl: 'https://www.globalfloods.eu',
-        status,
-        responseTimeMs: totalDuration,
-        errors: errors.length > 0 ? errors : null,
-      });
-
-      await this.healthCacheService.setSourceHealth(key, healthData);
-      this.logger.log(
-        `GLOFAS API health data updated - ${successfulStations}/${totalStations} stations successful`,
+      const isValid = await this.healthUtilsService.validateSettings(
+        glofasSettings,
+        config,
+        'GLOFAS',
       );
-    } catch (err) {
-      const errorMessage = err?.message || 'Unknown error';
-      this.logger.error('GLOFAS Err:', errorMessage);
+      if (!isValid) return;
 
-      const healthData = await this.healthCacheService.createHealthData({
-        sourceId: key,
-        name: 'Glofas API',
-        sourceUrl: 'https://www.globalfloods.eu',
-        status: 'DOWN',
-        responseTimeMs: new Date().getTime() - startTimestamp.getTime(),
-        errors: [
-          {
-            code: 'GLOFAS_SYNC_ERROR',
-            message: errorMessage,
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+      const tasks =
+        this.glofasStationProcessor.createGlofasTasks(glofasSettings);
 
-      await this.healthCacheService.setSourceHealth(key, healthData);
+      const result = await this.healthUtilsService.processStationsInParallel(
+        tasks,
+        async (glofasStation, errors) => {
+          return await this.glofasStationProcessor.processGlofasStation(
+            glofasStation,
+            errors,
+          );
+        },
+      );
+
+      await this.healthUtilsService.storeHealthResult(config, result);
+    } catch (error) {
+      await this.healthUtilsService.handleTopLevelError(
+        config,
+        error,
+        'GLOFAS_SYNC_ERROR',
+      );
     }
   }
 

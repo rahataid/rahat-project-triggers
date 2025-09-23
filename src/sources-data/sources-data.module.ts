@@ -13,6 +13,8 @@ import { GfhService } from './gfh.service';
 import { HealthCacheService } from 'src/source/health-cache.service';
 import { HealthUtilsService } from './utils/health-utils.service';
 import { DhmStationProcessorService } from './utils/dhm-station-processor.service';
+import { GlofasStationProcessorService } from './utils/glofas-station-processor.service';
+import { GfhStationProcessorService } from './utils/gfh-station-processor.service';
 import Redis from 'ioredis';
 
 @Module({
@@ -34,6 +36,8 @@ import Redis from 'ioredis';
     HealthCacheService,
     HealthUtilsService,
     DhmStationProcessorService,
+    GlofasStationProcessorService,
+    GfhStationProcessorService,
     {
       provide: 'REDIS_CLIENT',
       useFactory: (configService: ConfigService) => {
