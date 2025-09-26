@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Logger } from '@nestjs/common';
-import { HealthUtilsService, HealthError, HealthCheckConfig } from './health-utils.service';
+import {
+  HealthUtilsService,
+  HealthError,
+  HealthCheckConfig,
+} from './health-utils.service';
 import { HealthCacheService } from 'src/source/health-cache.service';
 
 describe('HealthUtilsService', () => {
@@ -40,7 +44,9 @@ describe('HealthUtilsService', () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
 
     // Mock Date.now for consistent timestamps
-    jest.spyOn(Date.prototype, 'toISOString').mockReturnValue('2023-01-01T10:05:00.000Z');
+    jest
+      .spyOn(Date.prototype, 'toISOString')
+      .mockReturnValue('2023-01-01T10:05:00.000Z');
     jest.spyOn(Date.prototype, 'getTime').mockReturnValue(1672574700000); // 2023-01-01T10:05:00Z
   });
 
@@ -75,7 +81,10 @@ describe('HealthUtilsService', () => {
     });
 
     it('should handle special characters in code and message', () => {
-      const error = service.createError('ERROR_WITH_SPECIAL_CHARS!@#', 'Message with special chars: <>&"');
+      const error = service.createError(
+        'ERROR_WITH_SPECIAL_CHARS!@#',
+        'Message with special chars: <>&"',
+      );
 
       expect(error).toEqual({
         code: 'ERROR_WITH_SPECIAL_CHARS!@#',
@@ -86,14 +95,14 @@ describe('HealthUtilsService', () => {
   });
 
   describe('calculateHealthStatus', () => {
-    it('should return DOWN when no stations are successful', () => {
+    it('should return UNHEALTHY when no stations are successful', () => {
       const status = service.calculateHealthStatus(0, 5, false);
-      expect(status).toBe('DOWN');
+      expect(status).toBe('UNHEALTHY');
     });
 
-    it('should return DOWN when no stations are successful even with errors', () => {
+    it('should return UNHEALTHY when no stations are successful even with errors', () => {
       const status = service.calculateHealthStatus(0, 5, true);
-      expect(status).toBe('DOWN');
+      expect(status).toBe('UNHEALTHY');
     });
 
     it('should return DEGRADED when some stations fail', () => {
@@ -106,19 +115,19 @@ describe('HealthUtilsService', () => {
       expect(status).toBe('DEGRADED');
     });
 
-    it('should return UP when all stations succeed with no errors', () => {
+    it('should return HEALTHY when all stations succeed with no errors', () => {
       const status = service.calculateHealthStatus(5, 5, false);
-      expect(status).toBe('UP');
+      expect(status).toBe('HEALTHY');
     });
 
     it('should handle edge case with single station success', () => {
       const status = service.calculateHealthStatus(1, 1, false);
-      expect(status).toBe('UP');
+      expect(status).toBe('HEALTHY');
     });
 
     it('should handle edge case with zero total stations', () => {
       const status = service.calculateHealthStatus(0, 0, false);
-      expect(status).toBe('DOWN');
+      expect(status).toBe('UNHEALTHY');
     });
   });
 
@@ -126,14 +135,18 @@ describe('HealthUtilsService', () => {
     beforeEach(() => {
       mockHealthCacheService.createHealthData.mockResolvedValue({
         sourceId: 'TEST_SOURCE',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
       });
       mockHealthCacheService.setSourceHealth.mockResolvedValue(undefined);
     });
 
     it('should return true for valid settings', async () => {
       const settings = [{ id: 1 }, { id: 2 }];
-      const result = await service.validateSettings(settings, mockConfig, 'TEST');
+      const result = await service.validateSettings(
+        settings,
+        mockConfig,
+        'TEST',
+      );
 
       expect(result).toBe(true);
       expect(mockHealthCacheService.createHealthData).not.toHaveBeenCalled();
@@ -148,7 +161,7 @@ describe('HealthUtilsService', () => {
         sourceId: 'TEST_SOURCE',
         name: 'Test Source API',
         sourceUrl: 'https://api.test.com',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         responseTimeMs: 0,
         errors: [
           {
@@ -158,21 +171,28 @@ describe('HealthUtilsService', () => {
           },
         ],
       });
-      expect(mockHealthCacheService.setSourceHealth).toHaveBeenCalledWith('TEST_SOURCE', {
-        sourceId: 'TEST_SOURCE',
-        status: 'DOWN',
-      });
+      expect(mockHealthCacheService.setSourceHealth).toHaveBeenCalledWith(
+        'TEST_SOURCE',
+        {
+          sourceId: 'TEST_SOURCE',
+          status: 'UNHEALTHY',
+        },
+      );
     });
 
     it('should return false and create error health data for undefined settings', async () => {
-      const result = await service.validateSettings(undefined, mockConfig, 'DHM');
+      const result = await service.validateSettings(
+        undefined,
+        mockConfig,
+        'DHM',
+      );
 
       expect(result).toBe(false);
       expect(mockHealthCacheService.createHealthData).toHaveBeenCalledWith({
         sourceId: 'TEST_SOURCE',
         name: 'Test Source API',
         sourceUrl: 'https://api.test.com',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         responseTimeMs: 0,
         errors: [
           {
@@ -204,13 +224,15 @@ describe('HealthUtilsService', () => {
     it('should log warning for invalid settings', async () => {
       await service.validateSettings(null, mockConfig, 'TEST');
 
-      expect(Logger.prototype.warn).toHaveBeenCalledWith('TEST settings not found or empty');
+      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+        'TEST settings not found or empty',
+      );
     });
   });
 
   describe('storeHealthResult', () => {
     const mockResult = {
-      status: 'UP' as const,
+      status: 'HEALTHY' as const,
       successfulStations: 8,
       totalStations: 10,
       errors: [],
@@ -220,7 +242,7 @@ describe('HealthUtilsService', () => {
     beforeEach(() => {
       mockHealthCacheService.createHealthData.mockResolvedValue({
         sourceId: 'TEST_SOURCE',
-        status: 'UP',
+        status: 'HEALTHY',
       });
       mockHealthCacheService.setSourceHealth.mockResolvedValue(undefined);
     });
@@ -232,14 +254,17 @@ describe('HealthUtilsService', () => {
         sourceId: 'TEST_SOURCE',
         name: 'Test Source API',
         sourceUrl: 'https://api.test.com',
-        status: 'UP',
+        status: 'HEALTHY',
         responseTimeMs: 5000,
         errors: null,
       });
-      expect(mockHealthCacheService.setSourceHealth).toHaveBeenCalledWith('TEST_SOURCE', {
-        sourceId: 'TEST_SOURCE',
-        status: 'UP',
-      });
+      expect(mockHealthCacheService.setSourceHealth).toHaveBeenCalledWith(
+        'TEST_SOURCE',
+        {
+          sourceId: 'TEST_SOURCE',
+          status: 'HEALTHY',
+        },
+      );
       expect(Logger.prototype.log).toHaveBeenCalledWith(
         'Test Source API health data updated - 8/10 stations successful',
       );
@@ -296,7 +321,7 @@ describe('HealthUtilsService', () => {
     beforeEach(() => {
       mockHealthCacheService.createHealthData.mockResolvedValue({
         sourceId: 'TEST_SOURCE',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
       });
       mockHealthCacheService.setSourceHealth.mockResolvedValue(undefined);
     });
@@ -310,7 +335,7 @@ describe('HealthUtilsService', () => {
         sourceId: 'TEST_SOURCE',
         name: 'Test Source API',
         sourceUrl: 'https://api.test.com',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         responseTimeMs: 0,
         errors: [
           {
@@ -398,14 +423,17 @@ describe('HealthUtilsService', () => {
       const stations = ['station1', 'station2', 'station3'];
       const mockProcessor = jest.fn().mockResolvedValue(true);
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
       expect(mockProcessor).toHaveBeenCalledTimes(3);
       expect(mockProcessor).toHaveBeenCalledWith('station1', []);
       expect(mockProcessor).toHaveBeenCalledWith('station2', []);
       expect(mockProcessor).toHaveBeenCalledWith('station3', []);
       expect(result).toEqual({
-        status: 'UP',
+        status: 'HEALTHY',
         successfulStations: 3,
         totalStations: 3,
         errors: [],
@@ -415,12 +443,16 @@ describe('HealthUtilsService', () => {
 
     it('should handle mixed success and failure', async () => {
       const stations = ['station1', 'station2', 'station3'];
-      const mockProcessor = jest.fn()
+      const mockProcessor = jest
+        .fn()
         .mockResolvedValueOnce(true)
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(true);
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
       expect(result).toEqual({
         status: 'DEGRADED',
@@ -435,10 +467,13 @@ describe('HealthUtilsService', () => {
       const stations = ['station1', 'station2'];
       const mockProcessor = jest.fn().mockResolvedValue(false);
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
       expect(result).toEqual({
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         successfulStations: 0,
         totalStations: 2,
         errors: [],
@@ -448,11 +483,15 @@ describe('HealthUtilsService', () => {
 
     it('should handle processor throwing errors', async () => {
       const stations = ['station1', 'station2'];
-      const mockProcessor = jest.fn()
+      const mockProcessor = jest
+        .fn()
         .mockResolvedValueOnce(true)
         .mockRejectedValueOnce(new Error('Processor error'));
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
       expect(result).toEqual({
         status: 'DEGRADED',
@@ -467,11 +506,14 @@ describe('HealthUtilsService', () => {
       const stations: string[] = [];
       const mockProcessor = jest.fn();
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
       expect(mockProcessor).not.toHaveBeenCalled();
       expect(result).toEqual({
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         successfulStations: 0,
         totalStations: 0,
         errors: [],
@@ -481,19 +523,24 @@ describe('HealthUtilsService', () => {
 
     it('should allow processor to add errors to the errors array', async () => {
       const stations = ['station1'];
-      const mockProcessor = jest.fn().mockImplementation(async (station, errors: HealthError[]) => {
-        errors.push({
-          code: 'STATION_ERROR',
-          message: 'Station processing failed',
-          timestamp: '2023-01-01T10:05:00.000Z',
+      const mockProcessor = jest
+        .fn()
+        .mockImplementation(async (station, errors: HealthError[]) => {
+          errors.push({
+            code: 'STATION_ERROR',
+            message: 'Station processing failed',
+            timestamp: '2023-01-01T10:05:00.000Z',
+          });
+          return false;
         });
-        return false;
-      });
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
       expect(result).toEqual({
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         successfulStations: 0,
         totalStations: 1,
         errors: [
@@ -514,10 +561,19 @@ describe('HealthUtilsService', () => {
       ];
       const mockProcessor = jest.fn().mockResolvedValue(true);
 
-      const result = await service.processStationsInParallel(stations, mockProcessor);
+      const result = await service.processStationsInParallel(
+        stations,
+        mockProcessor,
+      );
 
-      expect(mockProcessor).toHaveBeenCalledWith({ id: 1, name: 'Station 1' }, []);
-      expect(mockProcessor).toHaveBeenCalledWith({ id: 2, name: 'Station 2' }, []);
+      expect(mockProcessor).toHaveBeenCalledWith(
+        { id: 1, name: 'Station 1' },
+        [],
+      );
+      expect(mockProcessor).toHaveBeenCalledWith(
+        { id: 2, name: 'Station 2' },
+        [],
+      );
       expect(result.successfulStations).toBe(2);
     });
   });

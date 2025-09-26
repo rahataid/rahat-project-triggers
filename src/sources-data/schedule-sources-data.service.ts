@@ -244,8 +244,8 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       {
         source_id: 'GLOFAS',
         name: 'Glofas API',
-        fetch_interval_minutes: 1440, // Once per day (24 hours)
-        stale_threshold_multiplier: 1.1, // STALE after 26.4 hours, EXPIRED after that
+        fetch_interval_minutes: 60, // Once per day (24 hours)
+        stale_threshold_multiplier: 1.1, // STALE after 66 hours, EXPIRED after that
       },
       {
         source_id: 'GFH',

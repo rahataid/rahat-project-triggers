@@ -24,7 +24,7 @@ describe('HealthCacheService', () => {
     source_id: 'TEST_SOURCE',
     name: 'Test Source',
     source_url: 'https://api.test.com',
-    status: 'UP',
+    status: 'HEALTHY',
     last_checked: '2023-01-01T10:00:00.000Z',
     response_time_ms: 250,
     validity: 'VALID',
@@ -35,7 +35,7 @@ describe('HealthCacheService', () => {
     source_id: 'ERROR_SOURCE',
     name: 'Error Source',
     source_url: 'https://api.error.com',
-    status: 'DOWN',
+    status: 'UNHEALTHY',
     last_checked: '2023-01-01T10:00:00.000Z',
     response_time_ms: null,
     validity: 'EXPIRED',
@@ -266,6 +266,7 @@ describe('HealthCacheService', () => {
   describe('setSourceHealth', () => {
     it('should set source health data successfully', async () => {
       jest.spyOn(service as any, 'calculateTTL').mockResolvedValue(1800);
+      jest.spyOn(service as any, 'calculateFetchFrequency').mockResolvedValue(15);
       jest
         .spyOn(service as any, 'updateHealthSummary')
         .mockResolvedValue(undefined);
@@ -283,6 +284,7 @@ describe('HealthCacheService', () => {
 
     it('should handle Redis setex errors', async () => {
       jest.spyOn(service as any, 'calculateTTL').mockResolvedValue(1800);
+      jest.spyOn(service as any, 'calculateFetchFrequency').mockResolvedValue(15);
       mockRedis.setex.mockRejectedValue(new Error('Redis setex failed'));
 
       await expect(
@@ -458,13 +460,13 @@ describe('HealthCacheService', () => {
       jest.spyOn(service, 'getAllSourcesHealth').mockResolvedValue(sources);
       jest
         .spyOn(service as any, 'calculateOverallStatus')
-        .mockReturnValue('UP');
+        .mockReturnValue('HEALTHY');
       mockRedis.setex.mockResolvedValue('OK');
 
       await (service as any).updateHealthSummary();
 
       const expectedSummary: HealthCacheData = {
-        overall_status: 'UP',
+        overall_status: 'HEALTHY',
         last_updated: '2023-01-01T10:00:00.000Z',
         sources,
       };
@@ -493,7 +495,7 @@ describe('HealthCacheService', () => {
   describe('getHealthSummary', () => {
     it('should return cached summary when available and not DOWN', async () => {
       const cachedSummary: HealthCacheData = {
-        overall_status: 'UP',
+        overall_status: 'HEALTHY',
         last_updated: '2023-01-01T09:00:00.000Z',
         sources: [mockHealthData],
       };
@@ -507,7 +509,7 @@ describe('HealthCacheService', () => {
 
     it('should regenerate summary when cached summary is DOWN', async () => {
       const cachedSummary: HealthCacheData = {
-        overall_status: 'DOWN',
+        overall_status: 'UNHEALTHY',
         last_updated: '2023-01-01T09:00:00.000Z',
         sources: [],
       };
@@ -517,12 +519,12 @@ describe('HealthCacheService', () => {
         .mockResolvedValue([mockHealthData]);
       jest
         .spyOn(service as any, 'calculateOverallStatus')
-        .mockReturnValue('UP');
+        .mockReturnValue('HEALTHY');
       mockRedis.setex.mockResolvedValue('OK');
 
       const result = await service.getHealthSummary();
 
-      expect(result.overall_status).toBe('UP');
+      expect(result.overall_status).toBe('HEALTHY');
       expect(result.sources).toEqual([mockHealthData]);
       expect(mockRedis.setex).toHaveBeenCalled();
     });
@@ -534,12 +536,12 @@ describe('HealthCacheService', () => {
         .mockResolvedValue([mockHealthData]);
       jest
         .spyOn(service as any, 'calculateOverallStatus')
-        .mockReturnValue('UP');
+        .mockReturnValue('HEALTHY');
       mockRedis.setex.mockResolvedValue('OK');
 
       const result = await service.getHealthSummary();
 
-      expect(result.overall_status).toBe('UP');
+      expect(result.overall_status).toBe('HEALTHY');
       expect(result.sources).toEqual([mockHealthData]);
     });
 
@@ -548,7 +550,7 @@ describe('HealthCacheService', () => {
 
       const result = await service.getHealthSummary();
 
-      expect(result.overall_status).toBe('DOWN');
+      expect(result.overall_status).toBe('UNHEALTHY');
       expect(result.sources).toEqual([]);
       expect(result.last_updated).toBe('2023-01-01T10:00:00.000Z');
       expect(Logger.prototype.error).toHaveBeenCalledWith(
@@ -561,42 +563,42 @@ describe('HealthCacheService', () => {
   describe('calculateOverallStatus', () => {
     it('should return DOWN when no sources exist', () => {
       const result = (service as any).calculateOverallStatus([]);
-      expect(result).toBe('DOWN');
+      expect(result).toBe('UNHEALTHY');
     });
 
-    it('should return UP when all sources are UP', () => {
+    it('should return HEALTHY when all sources are HEALTHY', () => {
       const sources = [
-        { ...mockHealthData, status: 'UP' },
-        { ...mockHealthData, status: 'UP' },
+        { ...mockHealthData, status: 'HEALTHY' },
+        { ...mockHealthData, status: 'HEALTHY' },
       ];
       const result = (service as any).calculateOverallStatus(sources);
-      expect(result).toBe('UP');
+      expect(result).toBe('HEALTHY');
     });
 
     it('should return DOWN when more than half sources are DOWN', () => {
       const sources = [
-        { ...mockHealthData, status: 'DOWN' },
-        { ...mockHealthData, status: 'DOWN' },
-        { ...mockHealthData, status: 'UP' },
+        { ...mockHealthData, status: 'UNHEALTHY' },
+        { ...mockHealthData, status: 'UNHEALTHY' },
+        { ...mockHealthData, status: 'HEALTHY' },
       ];
       const result = (service as any).calculateOverallStatus(sources);
-      expect(result).toBe('DOWN');
+      expect(result).toBe('UNHEALTHY');
     });
 
     it('should return DEGRADED when some issues but not critical', () => {
       const sources = [
-        { ...mockHealthData, status: 'UP' },
+        { ...mockHealthData, status: 'HEALTHY' },
         { ...mockHealthData, status: 'DEGRADED' },
-        { ...mockHealthData, status: 'UP' },
+        { ...mockHealthData, status: 'HEALTHY' },
       ];
       const result = (service as any).calculateOverallStatus(sources);
       expect(result).toBe('DEGRADED');
     });
 
-    it('should return DEGRADED when exactly half sources are DOWN', () => {
+    it('should return DEGRADED when exactly half sources are UNHEALTHY', () => {
       const sources = [
-        { ...mockHealthData, status: 'DOWN' },
-        { ...mockHealthData, status: 'UP' },
+        { ...mockHealthData, status: 'UNHEALTHY' },
+        { ...mockHealthData, status: 'HEALTHY' },
       ];
       const result = (service as any).calculateOverallStatus(sources);
       expect(result).toBe('DEGRADED');
@@ -638,7 +640,7 @@ describe('HealthCacheService', () => {
         sourceId: 'TEST_SOURCE',
         name: 'Test Source',
         sourceUrl: 'https://api.test.com',
-        status: 'UP',
+        status: 'HEALTHY',
         responseTimeMs: 250,
         errors: [
           {
@@ -653,7 +655,7 @@ describe('HealthCacheService', () => {
         source_id: 'TEST_SOURCE',
         name: 'Test Source',
         source_url: 'https://api.test.com',
-        status: 'UP',
+        status: 'HEALTHY',
         last_checked: '2023-01-01T10:00:00.000Z',
         response_time_ms: 250,
         validity: 'VALID',
@@ -676,14 +678,14 @@ describe('HealthCacheService', () => {
         sourceId: 'TEST_SOURCE',
         name: 'Test Source',
         sourceUrl: 'https://api.test.com',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
       });
 
       expect(result).toEqual({
         source_id: 'TEST_SOURCE',
         name: 'Test Source',
         source_url: 'https://api.test.com',
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         last_checked: '2023-01-01T10:00:00.000Z',
         response_time_ms: null,
         validity: 'STALE',

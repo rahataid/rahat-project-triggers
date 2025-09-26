@@ -1,4 +1,4 @@
-export type SourceStatus = 'UP' | 'DOWN' | 'DEGRADED';
+export type SourceStatus = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
 export type SourceValidity = 'VALID' | 'STALE' | 'EXPIRED';
 // interfaces/health.interface.ts
 export interface SourceHealthData {
@@ -8,6 +8,7 @@ export interface SourceHealthData {
   status: SourceStatus;
   last_checked: string;
   response_time_ms: number | null;
+  fetch_frequency_minutes?: number | null;
   validity: SourceValidity;
   errors: Array<{
     code: string;

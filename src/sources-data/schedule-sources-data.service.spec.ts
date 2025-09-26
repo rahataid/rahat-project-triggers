@@ -670,7 +670,7 @@ describe('ScheduleSourcesDataService', () => {
       expect(mockHealthCacheService.setSourceConfig).toHaveBeenCalledWith({
         source_id: 'GLOFAS',
         name: 'Glofas API',
-        fetch_interval_minutes: 1440,
+        fetch_interval_minutes: 60,
         stale_threshold_multiplier: 1.1,
       });
       expect(mockHealthCacheService.setSourceConfig).toHaveBeenCalledWith({

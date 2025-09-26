@@ -48,9 +48,9 @@ export class HealthUtilsService {
     totalStations: number,
     hasErrors: boolean,
   ): SourceStatus {
-    if (successfulStations === 0) return 'DOWN';
+    if (successfulStations === 0) return 'UNHEALTHY';
     if (successfulStations < totalStations || hasErrors) return 'DEGRADED';
-    return 'UP';
+    return 'HEALTHY';
   }
 
   /**
@@ -68,7 +68,7 @@ export class HealthUtilsService {
         sourceId: config.sourceId,
         name: config.name,
         sourceUrl: config.sourceUrl,
-        status: 'DOWN',
+        status: 'UNHEALTHY',
         responseTimeMs: new Date().getTime() - config.startTimestamp.getTime(),
         errors: [
           this.createError(
@@ -125,7 +125,7 @@ export class HealthUtilsService {
       sourceId: config.sourceId,
       name: config.name,
       sourceUrl: config.sourceUrl,
-      status: 'DOWN',
+      status: 'UNHEALTHY',
       responseTimeMs: new Date().getTime() - config.startTimestamp.getTime(),
       errors: [this.createError(errorCode, errorMessage)],
     });

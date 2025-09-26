@@ -65,6 +65,9 @@ export class HealthCacheService {
 
     try {
       const ttl = await this.calculateTTL(sourceId);
+      const fetchFrequency = await this.calculateFetchFrequency(sourceId);
+
+      healthData.fetch_frequency_minutes = fetchFrequency;
 
       await this.redis.setex(key, ttl, JSON.stringify(healthData));
 
@@ -74,9 +77,20 @@ export class HealthCacheService {
       throw error;
     }
   }
+  /**
+   * Calculate fetch frequency based on source configuration
+   * @param sourceId - source id
+   * @returns fetch frequency in minutes
+   */
+  async calculateFetchFrequency(sourceId: string): Promise<number> {
+    const sourceConfig = await this.getSourceConfig(sourceId);
+    return sourceConfig.fetch_interval_minutes || 15;
+  }
 
   /**
    * Calculate TTL based on source configuration
+   * @param sourceId - source id
+   * @returns ttl in seconds
    */
   private async calculateTTL(sourceId: string): Promise<number> {
     try {
@@ -180,7 +194,7 @@ export class HealthCacheService {
       if (cachedSummary) {
         const cachedSummaryData: HealthCacheData | null =
           JSON.parse(cachedSummary);
-        if (cachedSummaryData.overall_status !== 'DOWN') {
+        if (cachedSummaryData.overall_status !== 'UNHEALTHY') {
           return cachedSummaryData;
         }
       }
@@ -208,7 +222,7 @@ export class HealthCacheService {
     } catch (error) {
       this.logger.error('Failed to get health summary:', error);
       return {
-        overall_status: 'DOWN',
+        overall_status: 'UNHEALTHY',
         last_updated: new Date().toISOString(),
         sources: [],
       };
@@ -219,16 +233,16 @@ export class HealthCacheService {
    * Calculate overall system health status
    */
   private calculateOverallStatus(sources: SourceHealthData[]): SourceStatus {
-    if (sources.length === 0) return 'DOWN';
+    if (sources.length === 0) return 'UNHEALTHY';
 
-    const upCount = sources.filter((s) => s.status === 'UP').length;
-    const downCount = sources.filter((s) => s.status === 'DOWN').length;
+    const upCount = sources.filter((s) => s.status === 'HEALTHY').length;
+    const downCount = sources.filter((s) => s.status === 'UNHEALTHY').length;
 
     // All sources are UP
-    if (upCount === sources.length) return 'UP';
+    if (upCount === sources.length) return 'HEALTHY';
 
     // More than half are DOWN
-    if (downCount > sources.length / 2) return 'DOWN';
+    if (downCount > sources.length / 2) return 'UNHEALTHY';
 
     // Some issues but not critical
     return 'DEGRADED';
