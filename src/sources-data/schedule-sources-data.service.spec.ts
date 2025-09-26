@@ -676,8 +676,8 @@ describe('ScheduleSourcesDataService', () => {
       expect(mockHealthCacheService.setSourceConfig).toHaveBeenCalledWith({
         source_id: 'GFH',
         name: 'GFH API',
-        fetch_interval_minutes: 15,
-        stale_threshold_multiplier: 1.5,
+        fetch_interval_minutes: 1440,
+        stale_threshold_multiplier: 1.1,
       });
     });
   });
