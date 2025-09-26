@@ -250,8 +250,8 @@ export class ScheduleSourcesDataService implements OnApplicationBootstrap {
       {
         source_id: 'GFH',
         name: 'GFH API',
-        fetch_interval_minutes: 15, // Every 15 minutes
-        stale_threshold_multiplier: 1.5, // STALE after 22.5 minutes, EXPIRED after that
+        fetch_interval_minutes: 1440, // Every 15 minutes
+        stale_threshold_multiplier: 1.1, // STALE after 158.4 hours, EXPIRED after that
       },
     ];
 
