@@ -10,6 +10,12 @@ import { ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
 import { BQUEUE } from 'src/constant';
 import { GfhService } from './gfh.service';
+import { HealthCacheService } from 'src/source/health-cache.service';
+import { HealthUtilsService } from './utils/health-utils.service';
+import { DhmStationProcessorService } from './utils/dhm-station-processor.service';
+import { GlofasStationProcessorService } from './utils/glofas-station-processor.service';
+import { GfhStationProcessorService } from './utils/gfh-station-processor.service';
+import Redis from 'ioredis';
 
 @Module({
   imports: [
@@ -27,6 +33,24 @@ import { GfhService } from './gfh.service';
     GlofasService,
     GfhService,
     ConfigService,
+    HealthCacheService,
+    HealthUtilsService,
+    DhmStationProcessorService,
+    GlofasStationProcessorService,
+    GfhStationProcessorService,
+    {
+      provide: 'REDIS_CLIENT',
+      useFactory: (configService: ConfigService) => {
+        return new Redis({
+          host: configService.get('REDIS_HOST'),
+          port: configService.get('REDIS_PORT'),
+          password: configService.get('REDIS_PASSWORD'),
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+        });
+      },
+      inject: [ConfigService],
+    },
   ],
   exports: [
     SourcesDataService,
