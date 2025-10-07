@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, SourceType } from '@prisma/client';
 import { PrismaService } from '@rumsan/prisma';
+import { gfhUrl } from 'src/constant/datasourceUrls';
 import {
   BatchGetResponse,
   Forecast,
@@ -23,7 +24,7 @@ import {
 export class GfhService {
   private readonly logger = new Logger(GfhService.name);
   private readonly apiKey: string;
-  private readonly baseUrl = 'https://floodforecasting.googleapis.com/v1';
+  private readonly baseUrl = gfhUrl;
   private readonly regionCode = 'NP';
   private readonly pageSize = 1000;
   private readonly matchRadiusKm = 12;
