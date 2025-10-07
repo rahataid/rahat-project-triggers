@@ -84,7 +84,7 @@ export class HealthCacheService {
    */
   async calculateFetchFrequency(sourceId: string): Promise<number> {
     const sourceConfig = await this.getSourceConfig(sourceId);
-    return sourceConfig.fetch_interval_minutes || 15;
+    return sourceConfig?.fetch_interval_minutes || 15;
   }
 
   /**
