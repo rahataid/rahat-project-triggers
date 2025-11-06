@@ -84,7 +84,7 @@ export class HealthCacheService {
    */
   async calculateFetchFrequency(sourceId: string): Promise<number> {
     const sourceConfig = await this.getSourceConfig(sourceId);
-    return sourceConfig.fetch_interval_minutes || 15;
+    return sourceConfig?.fetch_interval_minutes || 15;
   }
 
   /**
@@ -101,7 +101,7 @@ export class HealthCacheService {
       }
 
       const fetchIntervalMinutes = sourceConfig.fetch_interval_minutes;
-      const staleMultiplier = sourceConfig.stale_threshold_multiplier || 1.5;
+      const staleMultiplier = sourceConfig?.stale_threshold_multiplier || 1.5;
 
       // Set TTL to slightly beyond the EXPIRED threshold
       // This ensures data stays in cache even when marked as EXPIRED
