@@ -1,6 +1,7 @@
 import { Controller, Logger } from '@nestjs/common';
 import { AppService } from './app.service';
 import { MessagePattern } from '@nestjs/microservices';
+import { MS_TRIGGERS_JOBS } from './constant';
 
 @Controller()
 export class AppController {
@@ -21,4 +22,11 @@ export class AppController {
   //   const response = this.appService.getHello();
   //   return response;
   // }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.SETTINGS.GET,
+  })
+  getSettings(dto: { name: string }) {
+    return this.appService.getSettings(dto);
+  }
 }
