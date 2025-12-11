@@ -1,6 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { InjectQueue } from '@nestjs/bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 // import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@rumsan/prisma';
 import { SettingsService } from '@rumsan/settings';
@@ -20,10 +20,12 @@ import { BQUEUE, EVENTS, JOBS } from 'src/constant';
 import { AbstractSource } from './sources-data-abstract';
 import { SourcesDataService } from './sources-data.service';
 import { RpcException } from '@nestjs/microservices';
+import { DataSourceConfigValue } from 'src/types/datasource-config.type';
 
 @Injectable()
-export class GlofasService implements AbstractSource {
+export class GlofasService implements AbstractSource, OnApplicationBootstrap {
   private readonly logger = new Logger(GlofasService.name);
+  private baseUrl: string;
 
   constructor(
     private readonly httpService: HttpService,
@@ -33,6 +35,22 @@ export class GlofasService implements AbstractSource {
     private eventEmitter: EventEmitter2,
   ) {}
 
+  async onApplicationBootstrap() {
+    const url = await this.getBaseUrl();
+    this.logger.fatal(`GLOFAS base URL Set to: ${url}`);
+    this.baseUrl = url;
+    if (!url) {
+      this.logger.error('GLOFAS base URL not found');
+    }
+  }
+
+  private async getBaseUrl(): Promise<string> {
+    const dataSourceConfig = (await SettingsService.get(
+      'DATASOURCECONFIG',
+    )) as DataSourceConfigValue;
+
+    return dataSourceConfig[DataSource.GLOFAS]?.URL;
+  }
   async criteriaCheck(payload: AddTriggerStatementDto) {
     const triggerData = await this.prisma.trigger.findUnique({
       where: {
@@ -184,9 +202,9 @@ export class GlofasService implements AbstractSource {
       glofasURL.searchParams.append(key, value);
     }
 
-    this.logger.log(`Fetching GLOFAS data from URL: ${glofasURL.href}`);
+    this.logger.log(`Fetching GLOFAS data from URL: ${this.baseUrl}`);
 
-    return (await this.httpService.axiosRef.get(glofasURL.href)).data;
+    return (await this.httpService.axiosRef.get(this.baseUrl)).data;
   }
 
   async saveGlofasStationData(riverBasin: string, payload: GlofasDataObject) {
