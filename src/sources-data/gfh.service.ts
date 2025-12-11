@@ -1,7 +1,9 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource, SourceType } from '@prisma/client';
 import { PrismaService } from '@rumsan/prisma';
+import { SettingsService } from '@rumsan/settings';
+import { gfhUrl } from 'src/constant/datasourceUrls';
 import {
   BatchGetResponse,
   Forecast,
@@ -18,12 +20,13 @@ import {
   StationLoacationDetails,
   StationResult,
 } from 'src/types/data-source';
+import { DataSourceConfigValue } from 'src/types/datasource-config.type';
 
 @Injectable()
-export class GfhService {
+export class GfhService implements OnApplicationBootstrap {
   private readonly logger = new Logger(GfhService.name);
   private readonly apiKey: string;
-  private readonly baseUrl = 'https://floodforecasting.googleapis.com/v1';
+  private baseUrl: string = gfhUrl;
   private readonly regionCode = 'NP';
   private readonly pageSize = 1000;
   private readonly matchRadiusKm = 12;
@@ -39,6 +42,20 @@ export class GfhService {
         'API key not found. Set FLOODS_API_KEY environment variable',
       );
     }
+  }
+
+  async onApplicationBootstrap() {
+    const url = await this.getBaseUrl();
+    this.logger.fatal(`GFH base URL Set to: ${url}`);
+    this.baseUrl = url;
+  }
+
+  private async getBaseUrl(): Promise<string> {
+    const dataSourceConfig = (await SettingsService.get(
+      'DATASOURCECONFIG',
+    )) as DataSourceConfigValue;
+
+    return dataSourceConfig[DataSource.GFH]?.URL || this.baseUrl;
   }
 
   async fetchAllGauges(): Promise<Gauge[]> {
