@@ -1,6 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { InjectQueue } from '@nestjs/bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, SourceType } from '@prisma/client';
 import { PrismaService } from '@rumsan/prisma';
@@ -25,9 +25,16 @@ import {
   dhmRainfallWatchUrl,
   dhmRiverWatchUrl,
 } from 'src/constant/datasourceUrls';
+import { SettingsService } from '@rumsan/settings';
+import {
+  DataSourceConfigValue,
+  DataSourceDHMConfig,
+} from 'src/types/datasource-config.type';
 @Injectable()
-export class DhmService implements AbstractSource {
+export class DhmService implements AbstractSource, OnApplicationBootstrap {
   private readonly logger = new Logger(DhmService.name);
+  private dhmRainfallWatchUrl: string = dhmRainfallWatchUrl;
+  private dhmRiverWatchUrl: string = dhmRiverWatchUrl;
 
   constructor(
     private readonly httpService: HttpService,
@@ -35,6 +42,27 @@ export class DhmService implements AbstractSource {
     private prisma: PrismaService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
   ) {}
+
+  async onApplicationBootstrap() {
+    const config = await this.getUrlConfig();
+
+    if (config) {
+      this.dhmRainfallWatchUrl = config[SourceType.RAINFALL].URL;
+      this.dhmRiverWatchUrl = config[SourceType.WATER_LEVEL].URL;
+      this.logger.fatal(
+        `DHM rainfall watch URL Set to: ${this.dhmRainfallWatchUrl}`,
+      );
+      this.logger.fatal(`DHM river watch URL Set to: ${this.dhmRiverWatchUrl}`);
+    }
+  }
+
+  private async getUrlConfig(): Promise<DataSourceDHMConfig | null> {
+    const dataSourceConfig = (await SettingsService.get(
+      'DATASOURCECONFIG',
+    )) as DataSourceConfigValue;
+
+    return dataSourceConfig[DataSource.DHM] || null;
+  }
 
   async criteriaCheck(payload: AddTriggerStatementDto) {
     const {

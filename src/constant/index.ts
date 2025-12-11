@@ -149,6 +149,9 @@ export const MS_TRIGGERS_JOBS = {
     GET_ALL: 'ms.jobs.revertPhase.getAll',
     GET_ONE: 'ms.jobs.revertPhase.getOne',
   },
+  SETTINGS: {
+    GET: 'ms.jobs.settings.get',
+  },
 };
 export const EVENTS = {
   PHASE_ACTIVATED: 'events.phase_activated',
