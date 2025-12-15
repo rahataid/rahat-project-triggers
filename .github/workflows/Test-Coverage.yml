@@ -1,7 +1,6 @@
 name: Test Coveralls
 on: ["push", "pull_request"]
 jobs:
-
   test:
     name: Test Coverage
     runs-on: ubuntu-latest
@@ -17,7 +16,7 @@ jobs:
           npm install -g pnpm@8.14.1 only-allow
           pnpm install
 
-      - name: npm install, make test-coverage
+      - name: pnpm install, make test-coverage
         run: |
           pnpm test:coverage
         env:
