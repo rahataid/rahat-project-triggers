@@ -6,6 +6,8 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "build:forcast": "turbo run build --filter=forcast-api",
+    "build:triggers": "turbo run build --filter=triggers",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "check-types": "turbo run check-types",

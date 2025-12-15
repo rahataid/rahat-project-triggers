@@ -1,17 +1,16 @@
-name: Dev Triggers CI/CD
-
+name: Dev-Mock-Forcast CI/CD
 on:
   push:
     branches:
       - "dev"
     paths:
-      - "apps/triggers/**"
+      - "apps/forcast-api/**"
       - "packages/**"
   pull_request:
     branches:
       - "dev"
     paths:
-      - "apps/triggers/**"
+      - "apps/forcast-api/**"
       - "packages/**"
   workflow_dispatch:
 
@@ -20,16 +19,15 @@ env:
 
 jobs:
   deploy:
-    name: Build & Push Triggers Docker Image
+    name: build && push image to Docker hub
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get short SHA and Run ID
+      - name: Get short SHA and short Run ID
         id: vars
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
@@ -43,7 +41,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "20.10.0"
+          node-version: "20"
           cache: "pnpm"
 
       - name: Get pnpm store directory
@@ -60,13 +58,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Install dependencies and build
+      - name: install dependencies and build apps
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter @lib/database db:generate
-          pnpm turbo build --filter=triggers...
+          pnpm run build:forcast
 
-      - name: Import Secrets from Vault
+      - name: Import Secrets
         uses: hashicorp/vault-action@v2.4.0
         with:
           url: ${{ secrets.VAULT_URL }}
@@ -75,7 +73,7 @@ jobs:
             github/data/general/docker/esatya username | DOCKERHUB_USERNAME ;
             github/data/general/docker/esatya password | DOCKERHUB_TOKEN ;
 
-      - name: Login to Docker Hub
+      - name: docker login
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
@@ -84,23 +82,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and Push Triggers Docker Image
-        id: build-push-triggers
+      - name: build && push events-app
+        id: build-push-events-app
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: apps/triggers/Dockerfile.triggers
+          File: apps/forcast-api/Dockerfile.forecast
           push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
           tags: |
-            esatya/rahat-project-triggers:dev
-            esatya/rahat-project-triggers:dev-${{ steps.vars.outputs.sha_short }}-${{ steps.vars.outputs.run_id_short }}
-          cache-from: type=registry,ref=esatya/rahat-project-triggers:dev
+            esatya/rahat-mock-forecast:dev
+            esatya/rahat-mock-forecast:dev-${{ steps.vars.outputs.sha_short }}-${{ steps.vars.outputs.run_id_short }}
+          cache-from: type=registry,ref=esatya/rahat-mock-forecast:dev
           cache-to: type=inline
 
       - name: Image digest
-        run: echo ${{ steps.build-push-triggers.outputs.digest }}
+        run: echo ${{ steps.build-push.outputs.digest }}
 
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
       run_id_short: ${{ steps.vars.outputs.run_id_short }}
-      image_tag: esatya/rahat-project-triggers:dev-${{ steps.vars.outputs.sha_short }}-${{ steps.vars.outputs.run_id_short }}
+      image_tag: esatya/rahat-mock-forecast:dev-${{ steps.vars.outputs.sha_short }}-${{ steps.vars.outputs.run_id_short }}

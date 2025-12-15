@@ -8,7 +8,7 @@ This monorepo contains the following applications and packages:
 
 ### Applications
 
-- **rahat-triggers** - Main triggers microservice application that monitors data sources, processes observations, and manages trigger conditions
+- **Rahat triggers** - Main triggers microservice application that monitors data sources, processes observations, and manages trigger conditions
 
 ### Core Packages
 
@@ -128,7 +128,7 @@ Before running this project, make sure you have the following installed:
    pnpm --filter @lib/core build
    pnpm --filter @lib/dhm-adapter build
    pnpm --filter @lib/glofas-adapter build
-   pnpm --filter rahat-triggers build
+   pnpm --filter triggers build
    ```
 
 6. **Start the development server**
@@ -138,7 +138,7 @@ Before running this project, make sure you have the following installed:
    pnpm dev
 
    # Or start specific app
-   pnpm --filter rahat-triggers dev
+   pnpm --filter triggers dev
    ```
 
 The triggers application will be available as a microservice at `http://localhost:7800`.
@@ -158,7 +158,7 @@ pnpm --filter @lib/dhm-adapter build
 pnpm --filter @lib/glofas-adapter build
 
 # Build the main application
-pnpm --filter rahat-triggers build
+pnpm --filter triggers build
 
 # Clean build artifacts
 pnpm turbo clean
@@ -168,13 +168,13 @@ pnpm turbo clean
 
 ```bash
 # Start triggers app in development mode with hot reload
-pnpm --filter rahat-triggers dev
+pnpm --filter triggers dev
 
 # Start in debug mode
-pnpm --filter rahat-triggers dev:debug
+pnpm --filter triggers dev:debug
 
 # Start in production mode
-pnpm --filter rahat-triggers start:prod
+pnpm --filter triggers start:prod
 ```
 
 ### Database Operations
@@ -206,10 +206,10 @@ pnpm --filter @lib/database db:reset
 pnpm lint
 
 # Lint specific package
-pnpm --filter rahat-triggers lint
+pnpm --filter triggers lint
 
 # Format code
-pnpm --filter rahat-triggers format
+pnpm --filter triggers format
 ```
 
 ### Testing
@@ -219,13 +219,13 @@ pnpm --filter rahat-triggers format
 pnpm test
 
 # Run tests for specific package
-pnpm --filter rahat-triggers test
+pnpm --filter triggers test
 
 # Run tests in watch mode
-pnpm --filter rahat-triggers test:watch
+pnpm --filter triggers test:watch
 
 # Run tests with coverage
-pnpm --filter rahat-triggers test:cov
+pnpm --filter triggers test:cov
 ```
 
 ## Architecture
