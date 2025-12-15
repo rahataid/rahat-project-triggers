@@ -1,0 +1,20 @@
+enum MockSettingDataType {
+  STRING
+  NUMBER
+  BOOLEAN
+  OBJECT
+  @@schema("mock")
+}
+
+// ++++++++++++++++++ START: @rumsan/settings +++++++++++++++++++++++++++
+model MockSetting {
+  name           String          @id @unique
+  value          Json
+  dataType       MockSettingDataType
+  requiredFields String[]
+  isReadOnly     Boolean         @default(false)
+  isPrivate      Boolean         @default(true)
+
+  @@map("tbl_settings")
+  @@schema("mock")
+}
