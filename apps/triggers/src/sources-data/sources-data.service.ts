@@ -32,6 +32,7 @@ import { GetSeriesDto } from './dto/get-series';
 import { DhmService as DHM } from '@lib/dhm-adapter';
 import { GlofasServices } from '@lib/glofas-adapter';
 import { GfhService } from '@lib/gfh-adapter';
+import { ScheduleSourcesDataService } from './schedule-sources-data.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
@@ -45,6 +46,7 @@ export class SourcesDataService {
     private readonly dhm: DHM,
     private readonly glofasServices: GlofasServices,
     private readonly gfhServices: GfhService,
+    private readonly scheduleSourcesDataService: ScheduleSourcesDataService,
   ) {}
 
   async create(dto: CreateSourcesDataDto) {
@@ -405,8 +407,6 @@ export class SourcesDataService {
       throw new RpcException('Type is required');
     }
 
-    const isToday = this.isToday(new Date(from), new Date(to));
-
     const sourcesData = await this.prisma.sourcesData.findMany({
       where: {
         type,
@@ -436,13 +436,13 @@ export class SourcesDataService {
 
     const dataInfos = { ...sourcesData[0], info: infos };
 
+    const isToday = this.isToday(new Date(from), new Date(to));
+
     const isRealTime =
       (type === SourceType.WATER_LEVEL &&
         dataType === SourceDataType.Point &&
         isToday) ||
-      (type === SourceType.RAINFALL &&
-        dataType === SourceDataType.Hourly &&
-        isToday);
+      type === SourceType.RAINFALL;
 
     if (isRealTime) {
       return dataInfos;
@@ -456,38 +456,10 @@ export class SourcesDataService {
       throw new RpcException('Dates must be within the last 14 days');
     }
 
-    const dhmSettings = (
-      SettingsService.get('DATASOURCE') as DataSourceValue
-    )?.[DataSource.DHM];
-    const item = dhmSettings?.find(
-      (i) => i?.WATER_LEVEL?.LOCATION === riverBasin,
-    );
-
-    if (!item) {
-      this.logger.warn(
-        `No DHM data config found for river basin: ${riverBasin}`,
-      );
-      return null;
-    }
-
-    const fetchPayload = {
-      seriesId:
-        type === SourceType.WATER_LEVEL
-          ? item.WATER_LEVEL.SERIESID
-          : item.RAINFALL.SERIESID,
-      location:
-        type === SourceType.WATER_LEVEL
-          ? item.WATER_LEVEL.LOCATION
-          : item.RAINFALL.LOCATION,
-      from: from || new Date(),
-      to: to || new Date(),
+    const response = await this.scheduleSourcesDataService.getDhmWaterLevels(
+      from,
       dataType,
-    };
-
-    const response =
-      type === SourceType.WATER_LEVEL
-        ? await this.fetchRiverLevelData(fetchPayload)
-        : await this.fetchRainfallLevelData(fetchPayload);
+    );
 
     if (!response) {
       this.logger.warn('Live data fetch failed');
