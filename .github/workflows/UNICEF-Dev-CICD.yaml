@@ -2,10 +2,10 @@ name: UNICEF Dev CI/CD
 on:
   push:
     branches:
-      - 'unicef-evm-dev'
+      - "unicef-evm-dev"
   pull_request:
     branches:
-      - 'unicef-evm-dev'
+      - "unicef-evm-dev"
   workflow_dispatch:
 
 env:
@@ -23,6 +23,13 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "run_id_short=${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
+
+      - name: install dependencies and build apps
+        run: |
+          npm install -g pnpm@8.14.1
+          pnpm install
+          pnpm --filter @lib/database db:generate
+          pnpm build
 
       - name: Import Secrets
         uses: hashicorp/vault-action@v2.4.0
@@ -47,7 +54,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.triggers
+          File: apps/triggers/Dockerfile.triggers
           push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
           tags: |
             esatya/rahat-project-triggers:unicef-evm-dev
@@ -56,4 +63,3 @@ jobs:
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
       run_id_short: ${{ steps.vars.outputs.run_id_short }}
-

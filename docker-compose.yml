@@ -1,0 +1,14 @@
+services:
+  api:
+    container_name: test-triggers
+    image: test-triggers:test-1
+    build:
+      context: .
+      dockerfile: ./apps/triggers/Dockerfile.triggers
+    restart: always
+    env_file:
+      - ./apps/triggers/.env
+    # command: >
+    #   sh -c "npx prisma migrate deploy"
+    ports:
+      - 3003:8000

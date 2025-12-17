@@ -1,0 +1,35 @@
+enum ApplicationEnvironment {
+    PRODUCTION
+    STAGING
+    DEVELOPMENT
+    TEST
+    @@schema("public")
+}
+
+model Application {
+    cuid        String                 @id @default(cuid())
+    name        String
+    publicKey   String
+    description String?
+    environment ApplicationEnvironment
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
+    updatedBy String    @default("system")
+    deletedAt DateTime?
+
+    @@map("tbl_applications")
+    @@schema("public")
+}
+
+model Stats {
+    name  String  @id @unique
+    data  Json
+    group String?
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    @@map("tbl_stats")
+    @@schema("public")
+}
