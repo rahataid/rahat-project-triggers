@@ -135,6 +135,43 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     return 0;
   }
 
+  private validateConfig(): {
+    baseUrl: string;
+    config: RainfallWaterLevelConfig["WATER_LEVEL"][];
+  } | null {
+    const baseUrl = this.getUrl();
+    const config = this.getConfig();
+
+    if (!baseUrl) {
+      this.logger.error("DHM Water Level URL is not configured");
+      return null;
+    }
+
+    return { baseUrl, config };
+  }
+
+  private async fetchSeries(
+    baseUrl: string,
+    seriesId: number,
+    period: DhmSourceDataTypeEnum,
+    location: string,
+    date?: Date
+  ): Promise<DhmFetchResponse> {
+    const queryParams = buildQueryParams(seriesId, date);
+
+    const form = new FormData();
+    form.append("date", queryParams.date_from || "");
+    form.append("period", period.toString());
+    form.append("seriesid", seriesId.toString());
+
+    return {
+      data: await this.httpService.axiosRef.post(baseUrl, form),
+      stationDetail: await this.getStationsDetailsBySeriesId(seriesId),
+      seriesId,
+      location,
+    };
+  }
+
   /**
    * Fetch raw HTML/data from DHM website
    */
@@ -143,40 +180,26 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     const successfulResults: DhmFetchResponse[] = [];
 
     try {
-      this.logger.log(`Fetching DHM data for stations`);
+      this.logger.log("Fetching DHM data for stations");
 
-      const baseUrl = this.getUrl();
+      const validated = this.validateConfig();
+      if (!validated) return Err("DHM Water Level URL is not configured");
 
-      const config: RainfallWaterLevelConfig["WATER_LEVEL"][] =
-        this.getConfig();
-
-      if (!baseUrl) {
-        this.logger.error("DHM Water Level URL is not configured");
-        return Err("DHM Water Level URL is not configured");
-      }
-
+      const { baseUrl, config } = validated;
       const allSeriesIds = config.flatMap((cfg) => cfg.SERIESID);
 
-      const results = await Promise.allSettled(
-        config.flatMap((cfg) => {
-          return cfg.SERIESID.map(async (seriesId) => {
-            const queryParams = buildQueryParams(seriesId);
-
-            const form = new FormData();
-
-            form.append("date", queryParams.date_from || "");
-            form.append("period", DhmSourceDataTypeEnum.POINT.toString());
-            form.append("seriesid", seriesId.toString());
-
-            return {
-              data: await this.httpService.axiosRef.post(baseUrl, form),
-              stationDetail: await this.getStationsDetailsBySeriesId(seriesId),
-              seriesId,
-              location: cfg.LOCATION,
-            };
-          });
-        })
+      const promises = config.flatMap((cfg) =>
+        cfg.SERIESID.map((seriesId) =>
+          this.fetchSeries(
+            baseUrl,
+            seriesId,
+            DhmSourceDataTypeEnum.POINT,
+            cfg.LOCATION
+          )
+        )
       );
+
+      const results = await Promise.allSettled(promises);
 
       results.forEach((result, index) => {
         const seriesId = allSeriesIds[index];
@@ -210,11 +233,11 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
       }
 
       if (itemErrors.length > 0) {
-        return Ok(successfulResults, {
-          totalItems: allSeriesIds.length,
-          successfulItems: successfulResults.length,
-          failedItems: itemErrors.length,
-          itemErrors,
+      return Ok(successfulResults, {
+        totalItems: allSeriesIds.length,
+        successfulItems: successfulResults.length,
+        failedItems: itemErrors.length,
+        itemErrors,
         });
       }
 
@@ -341,6 +364,78 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
       chainAsync(this.aggregate(rawData), (observations: DhmObservation[]) =>
         this.transform(observations)
       )
+    );
+  }
+
+  async fetchHourly(date: Date): Promise<Result<DhmFetchResponse[]>> {
+    try {
+      this.logger.log("Fetching DHM Hourly data for stations");
+
+      const validated = this.validateConfig();
+      if (!validated) return Err("DHM Water Level URL is not configured");
+
+      const { baseUrl, config } = validated;
+
+      const results = await Promise.all(
+        config.flatMap((cfg) =>
+          cfg.SERIESID.map((seriesId) =>
+            this.fetchSeries(
+              baseUrl,
+              seriesId,
+              DhmSourceDataTypeEnum.HOURLY,
+              cfg.LOCATION,
+              date
+            )
+          )
+        )
+      );
+
+      return Ok(results);
+    } catch (error: any) {
+      this.logger.error("Failed to fetch DHM Hourly data", error);
+      return Err("Failed to fetch DHM Hourly data", error);
+    }
+  }
+
+  async executeHourly(date: Date): Promise<Result<DhmObservation[]>> {
+    return chainAsync(this.fetchHourly(date), (rawData: DhmFetchResponse[]) =>
+      this.aggregate(rawData)
+    );
+  }
+
+  async fetchDaily(date: Date): Promise<Result<DhmFetchResponse[]>> {
+    try {
+      this.logger.log("Fetching DHM Daily data for stations");
+
+      const validated = this.validateConfig();
+      if (!validated) return Err("DHM Water Level URL is not configured");
+
+      const { baseUrl, config } = validated;
+
+      const results = await Promise.all(
+        config.flatMap((cfg) =>
+          cfg.SERIESID.map((seriesId) =>
+            this.fetchSeries(
+              baseUrl,
+              seriesId,
+              DhmSourceDataTypeEnum.DAILY,
+              cfg.LOCATION,
+              date
+            )
+          )
+        )
+      );
+
+      return Ok(results);
+    } catch (error: any) {
+      this.logger.error("Failed to fetch DHM Daily data", error);
+      return Err("Failed to fetch DHM Daily data", error);
+    }
+  }
+
+  async executeDaily(date: Date): Promise<Result<DhmObservation[]>> {
+    return chainAsync(this.fetchDaily(date), (rawData: DhmFetchResponse[]) =>
+      this.aggregate(rawData)
     );
   }
 

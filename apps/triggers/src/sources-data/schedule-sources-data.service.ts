@@ -11,6 +11,7 @@ import {
   DhmWaterLevelAdapter,
   DhmRainfallAdapter,
   DhmService,
+  DhmObservation,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -23,6 +24,7 @@ import {
   ObservationAdapter,
 } from '@lib/core';
 import { SourceType } from '@lib/database';
+import { SourceDataType } from './dto/get-source-data';
 
 @Injectable()
 export class ScheduleSourcesDataService
@@ -183,5 +185,27 @@ export class ScheduleSourcesDataService
         indicator,
       );
     });
+  }
+
+  async getDhmWaterLevels(date: Date, period: SourceDataType) {
+    let observations: DhmObservation[];
+
+    switch (period) {
+      case SourceDataType.Hourly:
+        observations = await this.dhmWaterLevelAdapter.executeHourly(date);
+        break;
+
+      case SourceDataType.Daily:
+        observations = await this.dhmWaterLevelAdapter.executeDaily(date);
+        break;
+
+      default:
+        throw new Error('Invalid period type');
+    }
+
+    return observations.map((obs) => ({
+      ...obs.stationDetail,
+      history: obs.data,
+    }));
   }
 }
