@@ -4,7 +4,7 @@ import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { GetSouceDataDto } from './dto/get-source-data';
 import { SourcesDataService } from './sources-data.service';
 import { GetSeriesDto } from './dto/get-series';
-import { GetOneDhmSeriesWaterLevelsDto } from './dto/get-one-dhm-series-water-levels.dto';
+import { GetDhmSingleSeriesDto } from './dto/get-dhm-single-series.dto';
 
 @Controller('sources-data')
 export class SourcesDataController {
@@ -50,9 +50,9 @@ export class SourcesDataController {
   }
 
   @MessagePattern({
-    cmd: MS_TRIGGERS_JOBS.SOURCE_DATA.GET_ONE_DHM_SERIES_WATER_LEVELS,
+    cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM_SINGLE_SERIES,
   })
-  async getOneDhmSeriesWaterLevels(payload: GetOneDhmSeriesWaterLevelsDto) {
+  async getOneDhmSeriesWaterLevels(payload: GetDhmSingleSeriesDto) {
     return this.sourceDataService.getOneDhmSeriesWaterLevels(payload);
   }
 }
