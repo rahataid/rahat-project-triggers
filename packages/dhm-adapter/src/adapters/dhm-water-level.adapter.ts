@@ -233,11 +233,11 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
       }
 
       if (itemErrors.length > 0) {
-      return Ok(successfulResults, {
-        totalItems: allSeriesIds.length,
-        successfulItems: successfulResults.length,
-        failedItems: itemErrors.length,
-        itemErrors,
+        return Ok(successfulResults, {
+          totalItems: allSeriesIds.length,
+          successfulItems: successfulResults.length,
+          failedItems: itemErrors.length,
+          itemErrors,
         });
       }
 
