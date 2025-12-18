@@ -198,16 +198,8 @@ export class SourcesDataService {
     return date >= fourteenDaysAgo && date <= today;
   }
 
-  isToday(from: Date, to: Date) {
-    const today = new Date();
-    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
-    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
-
-    return from >= startOfToday && to <= endOfToday;
-  }
-
   async getLevels(payload: GetSouceDataDto, type: SourceType) {
-    const { riverBasin, from, to, type: dataType, source } = payload;
+    const { riverBasin, source } = payload;
 
     if (!riverBasin) {
       this.logger.warn('River basin is not passed in the payload');
@@ -256,39 +248,7 @@ export class SourcesDataService {
 
     const dataInfos = { ...sourcesData[0], info: infos };
 
-    const isToday = this.isToday(new Date(from), new Date(to));
-
-    const isRealTime =
-      (type === SourceType.WATER_LEVEL &&
-        dataType === SourceDataType.Point &&
-        isToday) ||
-      type === SourceType.RAINFALL;
-
-    if (isRealTime) {
-      return dataInfos;
-    }
-
-    if (
-      !this.isDateWithinLast14Days(new Date(from)) ||
-      !this.isDateWithinLast14Days(new Date(to))
-    ) {
-      this.logger.error('Dates must be within the last 14 days');
-      throw new RpcException('Dates must be within the last 14 days');
-    }
-
-    const response = await this.scheduleSourcesDataService.getDhmWaterLevels(
-      from,
-      dataType,
-    );
-
-    if (!response) {
-      this.logger.warn('Live data fetch failed');
-    }
-
-    return {
-      ...dataInfos,
-      info: response,
-    };
+    return dataInfos;
   }
 
   async getGlofasWaterLevels(payload: GetSouceDataDto) {
