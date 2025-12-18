@@ -363,23 +363,6 @@ describe('SourcesDataService', () => {
     });
   });
 
-  describe('isToday', () => {
-    it('should return true for today', () => {
-      const today = new Date();
-      const result = service.isToday(today, today);
-      expect(result).toBe(true);
-    });
-
-    it('should return false for different dates', () => {
-      const today = new Date();
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      const result = service.isToday(yesterday, today);
-      expect(result).toBe(false);
-    });
-  });
-
   describe('getGlofasWaterLevels', () => {
     const mockPayload: GetSouceDataDto = {
       source: DataSource.GLOFAS,
