@@ -73,31 +73,6 @@ async function sendBatch(batch: AddTriggerJobDto[]) {
     return;
   }
 
-<<<<<<< HEAD:tools/misc/addOnChainTrigger.ts
-  //  TODO: temp fix to test
-  // const action = {
-  //   action: 'aa.stellar.addTriggerOnChain',
-  //   // payload: { triggers: batch },
-  //   payload: {
-  //     triggers: batch,
-  //   },
-  // };
-  // try {
-  //   const res = await axios.post(ONCHAIN_ENDPOINT, action, {
-  //     timeout: 30_000,
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       Authorization: `Bearer ${config.accessToken}`,
-  //     },
-  //   });
-  //   console.log(
-  //     `Posted batch of ${batch.length} triggers. Status: ${res.status} ${res.statusText}`,
-  //   );
-  // } catch (err: any) {
-  //   console.error('Failed to POST batch:', err?.response?.data || err.message);
-  //   // You might want to rethrow or implement retry logic here.
-  // }
-=======
   const action = {
     action: 'aa.stellar.addTriggerOnChain',
     // payload: { triggers: batch },
@@ -123,7 +98,6 @@ async function sendBatch(batch: AddTriggerJobDto[]) {
     );
     // You might want to rethrow or implement retry logic here.
   }
->>>>>>> dev:apps/triggers/tools/misc/addOnChainTrigger.ts
 }
 
 async function main() {

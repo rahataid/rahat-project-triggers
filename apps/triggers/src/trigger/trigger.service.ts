@@ -57,61 +57,6 @@ export class TriggerService {
     }
 
     try {
-<<<<<<< HEAD:src/trigger/trigger.service.ts
-      /*
-      We don't need to create a trigger sperately if source is manual, because,
-      we are creating a trigger in the phase itself. and phase is linked with datasource
-      */
-
-      let trigger = null;
-
-      if (dto.source === 'MANUAL') {
-        this.logger.log(
-          `User requested MANUAL Trigger, So creating manul trigger`,
-        );
-        delete dto.triggerDocuments?.type;
-        trigger = await this.createManualTrigger(appId, dto, createdBy);
-      } else {
-        const sanitizedPayload = {
-          title: dto.title,
-          description: dto.description,
-          triggerStatement: dto.triggerStatement,
-          phaseId: dto.phaseId,
-          isMandatory: dto.isMandatory,
-          dataSource: dto.source,
-          riverBasin: dto.riverBasin,
-          repeatEvery: '30000',
-          notes: dto.notes,
-          createdBy,
-        };
-        trigger = await this.scheduleJob(sanitizedPayload);
-      }
-
-      // const queueData: AddTriggerJobDto = {
-      //   id: trigger.uuid,
-      //   trigger_type: trigger.isMandatory ? 'MANDATORY' : 'OPTIONAL',
-      //   phase: trigger.phase.name,
-      //   title: trigger.title,
-      //   description: trigger.description,
-      //   source: trigger.source,
-      //   river_basin: trigger.phase.riverBasin,
-      //   params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
-      //   is_mandatory: trigger.isMandatory,
-      //   notes: trigger.notes,
-      // };
-
-      // TODO: temp fix to test
-      // const res = await lastValueFrom(
-      //   this.client.send(
-      //     { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-      //     { triggers: [queueData] },
-      //   ),
-      // );
-
-      // this.logger.log(`
-      //   Trigger added to stellar queue action: ${res?.name} with id: ${queueData.id} for AA ${appId}
-      //   `);
-=======
       const triggersData = await Promise.all(
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
@@ -119,7 +64,6 @@ export class TriggerService {
       const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
         this.buildAddTriggerJobDto(trigger),
       );
->>>>>>> dev:apps/triggers/src/trigger/trigger.service.ts
 
       const res = await this.sendAddTriggerToOnChain(appId, queueData);
 
@@ -155,25 +99,6 @@ export class TriggerService {
       throw new BadRequestException({
         message: `Invalid trigger payload: ${JSON.stringify(result.error.flatten())}`,
       });
-<<<<<<< HEAD:src/trigger/trigger.service.ts
-
-      // TODO: temp fix to test
-      // const res = await lastValueFrom(
-      //   this.client.send(
-      //     { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-      //     { triggers: queueData },
-      //   ),
-      // );
-
-      // this.logger.log(`
-      //   Total ${k.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-      //   `);
-      return k;
-    } catch (error) {
-      console.log(error);
-      throw new RpcException(error.message);
-=======
->>>>>>> dev:apps/triggers/src/trigger/trigger.service.ts
     }
 
     return await this.createTrigger(appId, dto, createdBy);
@@ -266,26 +191,11 @@ export class TriggerService {
 
       const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
-<<<<<<< HEAD:src/trigger/trigger.service.ts
-      // TODO: temp fix to test
-      // const res = await lastValueFrom(
-      //   this.client.send(
-      //     {
-      //       cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
-      //       uuid: appId,
-      //     },
-      //     {
-      //       trigger: queueData,
-      //     },
-      //   ),
-      // );
-=======
       const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
->>>>>>> dev:apps/triggers/src/trigger/trigger.service.ts
 
-      // this.logger.log(`
-      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
-      //   `);
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
+        `);
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
@@ -708,29 +618,14 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-<<<<<<< HEAD:src/trigger/trigger.service.ts
-      // TODO: temp fix to test
-      // const res = await lastValueFrom(
-      //   this.client.send(
-      //     {
-      //       cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
-      //       uuid: appId ? appId : appIds?.app,
-      //     },
-      //     {
-      //       trigger: jobDetails,
-      //     },
-      //   ),
-      // );
-=======
       const res = await this.sendUpdateTriggerToOnChain(
         appId ? appId : appIds?.app,
         jobDetails,
       );
->>>>>>> dev:apps/triggers/src/trigger/trigger.service.ts
 
-      // this.logger.log(`
-      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-      //   `);
+      this.logger.log(`
+        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
+        `);
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
