@@ -188,20 +188,29 @@ export class ScheduleSourcesDataService
   }
 
   async getDhmWaterLevels(date: Date, period: SourceDataType) {
-    let observations: DhmObservation[];
+    let result:
+      | Awaited<ReturnType<typeof this.dhmWaterLevelAdapter.executeHourly>>
+      | Awaited<ReturnType<typeof this.dhmWaterLevelAdapter.executeDaily>>;
 
     switch (period) {
       case SourceDataType.Hourly:
-        observations = await this.dhmWaterLevelAdapter.executeHourly(date);
+        result = await this.dhmWaterLevelAdapter.executeHourly(date);
         break;
 
       case SourceDataType.Daily:
-        observations = await this.dhmWaterLevelAdapter.executeDaily(date);
+        result = await this.dhmWaterLevelAdapter.executeDaily(date);
         break;
 
       default:
         throw new Error('Invalid period type');
     }
+
+    if (isErr<DhmObservation[]>(result)) {
+      this.logger.warn(result.details);
+      return [];
+    }
+
+    const observations = result.data as DhmObservation[];
 
     return observations.map((obs) => ({
       ...obs.stationDetail,
