@@ -362,4 +362,25 @@ export class SourcesDataService {
 
     return recordExists;
   }
+
+  async getOneDhmSeriesWaterLevels(payload: {
+    from: Date;
+    to: Date;
+    period: SourceDataType;
+    seriesId: number;
+  }) {
+    const { from, to, period, seriesId } = payload;
+    if (
+      !this.isDateWithinLast14Days(new Date(from)) ||
+      !this.isDateWithinLast14Days(new Date(to))
+    ) {
+      this.logger.error('Dates must be within the last 14 days');
+      throw new RpcException('Dates must be within the last 14 days');
+    }
+    return await this.scheduleSourcesDataService.getDhmWaterLevels(
+      from,
+      period,
+      seriesId,
+    );
+  }
 }

@@ -367,75 +367,94 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     );
   }
 
-  async fetchHourly(date: Date): Promise<Result<DhmFetchResponse[]>> {
+  async fetchHourly(
+    date: Date,
+    seriesId: number
+  ): Promise<Result<DhmFetchResponse[]>> {
     try {
-      this.logger.log("Fetching DHM Hourly data for stations");
+      this.logger.log(`Fetching DHM Hourly data for SeriesId: ${seriesId}`);
 
       const validated = this.validateConfig();
       if (!validated) return Err("DHM Water Level URL is not configured");
 
       const { baseUrl, config } = validated;
 
-      const results = await Promise.all(
-        config.flatMap((cfg) =>
-          cfg.SERIESID.map((seriesId) =>
-            this.fetchSeries(
-              baseUrl,
-              seriesId,
-              DhmSourceDataTypeEnum.HOURLY,
-              cfg.LOCATION,
-              date
-            )
-          )
-        )
+      const cfg = config.find((c) => c.SERIESID.includes(seriesId));
+      if (!cfg) return Err(`SeriesId ${seriesId} not found in config`);
+
+      const result = await this.fetchSeries(
+        baseUrl,
+        seriesId,
+        DhmSourceDataTypeEnum.HOURLY,
+        cfg.LOCATION,
+        date
       );
 
-      return Ok(results);
+      return Ok([result]);
     } catch (error: any) {
-      this.logger.error("Failed to fetch DHM Hourly data", error);
-      return Err("Failed to fetch DHM Hourly data", error);
+      this.logger.error(
+        `Failed to fetch DHM Hourly data for SeriesId ${seriesId}`,
+        error
+      );
+      return Err(
+        `Failed to fetch DHM Hourly data for SeriesId ${seriesId}`,
+        error
+      );
     }
   }
 
-  async executeHourly(date: Date): Promise<Result<DhmObservation[]>> {
-    return chainAsync(this.fetchHourly(date), (rawData: DhmFetchResponse[]) =>
-      this.aggregate(rawData)
+  async executeHourly(
+    date: Date,
+    seriesId: number
+  ): Promise<Result<DhmObservation[]>> {
+    return chainAsync(
+      this.fetchHourly(date, seriesId),
+      (rawData: DhmFetchResponse[]) => this.aggregate(rawData)
     );
   }
 
-  async fetchDaily(date: Date): Promise<Result<DhmFetchResponse[]>> {
+  async fetchDaily(
+    date: Date,
+    seriesId: number
+  ): Promise<Result<DhmFetchResponse[]>> {
     try {
-      this.logger.log("Fetching DHM Daily data for stations");
+      this.logger.log(`Fetching DHM Daily data for SeriesId: ${seriesId}`);
 
       const validated = this.validateConfig();
       if (!validated) return Err("DHM Water Level URL is not configured");
 
       const { baseUrl, config } = validated;
+      const cfg = config.find((c) => c.SERIESID.includes(seriesId));
+      if (!cfg) return Err(`SeriesId ${seriesId} not found in config`);
 
-      const results = await Promise.all(
-        config.flatMap((cfg) =>
-          cfg.SERIESID.map((seriesId) =>
-            this.fetchSeries(
-              baseUrl,
-              seriesId,
-              DhmSourceDataTypeEnum.DAILY,
-              cfg.LOCATION,
-              date
-            )
-          )
-        )
+      const results = await this.fetchSeries(
+        baseUrl,
+        seriesId,
+        DhmSourceDataTypeEnum.DAILY,
+        cfg.LOCATION,
+        date
       );
 
-      return Ok(results);
+      return Ok([results]);
     } catch (error: any) {
-      this.logger.error("Failed to fetch DHM Daily data", error);
-      return Err("Failed to fetch DHM Daily data", error);
+      this.logger.error(
+        `Failed to fetch DHM Daily data for SeriesId ${seriesId}`,
+        error
+      );
+      return Err(
+        `Failed to fetch DHM Daily data for SeriesId ${seriesId}`,
+        error
+      );
     }
   }
 
-  async executeDaily(date: Date): Promise<Result<DhmObservation[]>> {
-    return chainAsync(this.fetchDaily(date), (rawData: DhmFetchResponse[]) =>
-      this.aggregate(rawData)
+  async executeDaily(
+    date: Date,
+    seriesId: number
+  ): Promise<Result<DhmObservation[]>> {
+    return chainAsync(
+      this.fetchDaily(date, seriesId),
+      (rawData: DhmFetchResponse[]) => this.aggregate(rawData)
     );
   }
 

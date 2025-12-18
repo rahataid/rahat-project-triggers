@@ -109,6 +109,8 @@ export const MS_TRIGGERS_JOBS = {
   },
   SOURCE_DATA: {
     GET_SERIES_BY_DATA_SOURCE: 'ms.jobs.sources-data.getSeriesByDataSource',
+    GET_ONE_DHM_SERIES_WATER_LEVELS:
+      'ms.jobs.sources-data.getOneDhmSeriesWaterLevels',
   },
   ACTIVITIES: {
     GET_ONE: 'ms.jobs.activities.getOne',

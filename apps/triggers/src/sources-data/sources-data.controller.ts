@@ -4,6 +4,7 @@ import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { GetSouceDataDto } from './dto/get-source-data';
 import { SourcesDataService } from './sources-data.service';
 import { GetSeriesDto } from './dto/get-series';
+import { GetOneDhmSeriesWaterLevelsDto } from './dto/get-one-dhm-series-water-levels.dto';
 
 @Controller('sources-data')
 export class SourcesDataController {
@@ -46,5 +47,12 @@ export class SourcesDataController {
   async getDhmRainfallLevels(payload: GetSouceDataDto): Promise<any> {
     payload.source = 'DHM';
     return this.sourceDataService.getRainfallLevels(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.SOURCE_DATA.GET_ONE_DHM_SERIES_WATER_LEVELS,
+  })
+  async getOneDhmSeriesWaterLevels(payload: GetOneDhmSeriesWaterLevelsDto) {
+    return this.sourceDataService.getOneDhmSeriesWaterLevels(payload);
   }
 }
