@@ -12,6 +12,8 @@ import {
   DhmRainfallAdapter,
   DhmService,
   DhmObservation,
+  DhmInputItem,
+  RiverStationItem,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -187,18 +189,22 @@ export class ScheduleSourcesDataService
     });
   }
 
-  async getDhmWaterLevels(date: Date, period: SourceDataType) {
+  async getDhmWaterLevels(
+    date: Date,
+    period: SourceDataType,
+    seriesId: number,
+  ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | {}> {
     let result:
       | Awaited<ReturnType<typeof this.dhmWaterLevelAdapter.executeHourly>>
       | Awaited<ReturnType<typeof this.dhmWaterLevelAdapter.executeDaily>>;
 
     switch (period) {
       case SourceDataType.Hourly:
-        result = await this.dhmWaterLevelAdapter.executeHourly(date);
+        result = await this.dhmWaterLevelAdapter.executeHourly(date, seriesId);
         break;
 
       case SourceDataType.Daily:
-        result = await this.dhmWaterLevelAdapter.executeDaily(date);
+        result = await this.dhmWaterLevelAdapter.executeDaily(date, seriesId);
         break;
 
       default:
@@ -207,14 +213,14 @@ export class ScheduleSourcesDataService
 
     if (isErr<DhmObservation[]>(result)) {
       this.logger.warn(result.details);
-      return [];
+      return {};
     }
 
     const observations = result.data as DhmObservation[];
 
-    return observations.map((obs) => ({
-      ...obs.stationDetail,
-      history: obs.data,
-    }));
+    return {
+      ...(observations[0].stationDetail as RiverStationItem),
+      history: observations[0].data,
+    };
   }
 }
