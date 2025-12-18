@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsDate, IsEnum, IsNumber } from 'class-validator';
 import { SourceDataType } from './get-source-data';
 
-export class GetOneDhmSeriesWaterLevelsDto {
+export class GetDhmSingleSeriesDto {
   @ApiProperty({
     example: '2023-10-01T00:00:00.000Z',
     description: 'Start date',

@@ -96,6 +96,7 @@ export const MS_TRIGGERS_JOBS = {
   },
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
+    GET_DHM_SINGLE_SERIES: 'ms.jobs.waterLevels.getDhmSingleSeries',
     GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
     GET_GFH: 'ms.jobs.waterLevels.getGfh',
   },
@@ -109,8 +110,6 @@ export const MS_TRIGGERS_JOBS = {
   },
   SOURCE_DATA: {
     GET_SERIES_BY_DATA_SOURCE: 'ms.jobs.sources-data.getSeriesByDataSource',
-    GET_ONE_DHM_SERIES_WATER_LEVELS:
-      'ms.jobs.sources-data.getOneDhmSeriesWaterLevels',
   },
   ACTIVITIES: {
     GET_ONE: 'ms.jobs.activities.getOne',
