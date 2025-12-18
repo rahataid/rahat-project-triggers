@@ -3,15 +3,11 @@ import { HttpService } from '@nestjs/axios';
 import { PrismaService, DataSource } from '@lib/database';
 import { SourcesDataController } from './sources-data.controller';
 import { SourcesDataService } from './sources-data.service';
-import { DhmService } from './dhm.service';
-import { GlofasService } from './glofas.service';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { GetSouceDataDto } from './dto/get-source-data';
 
 describe('SourcesDataController', () => {
   let controller: SourcesDataController;
-  let dhmService: DhmService;
-  let glofasService: GlofasService;
   let sourceDataService: SourcesDataService;
 
   const mockPrismaService = {
@@ -29,24 +25,6 @@ describe('SourcesDataController', () => {
     trigger: {
       findUnique: jest.fn(),
     },
-  };
-
-  const mockDhmService = {
-    getRiverStations: jest.fn(),
-    getRiverStationData: jest.fn(),
-    getData: jest.fn(),
-    saveDataInDhm: jest.fn(),
-    getDhmRiverWatchData: jest.fn(),
-    getDhmRainfallWatchData: jest.fn(),
-    normalizeDhmRiverAndRainfallWatchData: jest.fn(),
-  };
-
-  const mockGlofasService = {
-    getStationData: jest.fn(),
-    saveGlofasStationData: jest.fn(),
-    getLatestWaterLevels: jest.fn(),
-    findGlofasDataByDate: jest.fn(),
-    criteriaCheck: jest.fn(),
   };
 
   const mockSourceDataService = {
@@ -74,14 +52,6 @@ describe('SourcesDataController', () => {
           useValue: mockPrismaService,
         },
         {
-          provide: DhmService,
-          useValue: mockDhmService,
-        },
-        {
-          provide: GlofasService,
-          useValue: mockGlofasService,
-        },
-        {
           provide: HttpService,
           useValue: mockHttpService,
         },
@@ -89,8 +59,6 @@ describe('SourcesDataController', () => {
     }).compile();
 
     controller = module.get<SourcesDataController>(SourcesDataController);
-    dhmService = module.get<DhmService>(DhmService);
-    glofasService = module.get<GlofasService>(GlofasService);
     sourceDataService = module.get<SourcesDataService>(SourcesDataService);
   });
 
@@ -100,42 +68,6 @@ describe('SourcesDataController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
-  });
-
-  describe('getAllSource', () => {
-    const mockRiverStations = [
-      { id: 1, name: 'Station 1' },
-      { id: 2, name: 'Station 2' },
-    ];
-
-    beforeEach(() => {
-      mockDhmService.getRiverStations.mockResolvedValue(mockRiverStations);
-    });
-
-    it('should return all river stations', async () => {
-      const result = await controller.getAllSource();
-
-      expect(mockDhmService.getRiverStations).toHaveBeenCalled();
-      expect(result).toEqual(mockRiverStations);
-    });
-  });
-
-  describe('getDhmStations', () => {
-    const mockRiverStations = [
-      { id: 1, name: 'DHM Station 1' },
-      { id: 2, name: 'DHM Station 2' },
-    ];
-
-    beforeEach(() => {
-      mockDhmService.getRiverStations.mockResolvedValue(mockRiverStations);
-    });
-
-    it('should return DHM river stations', async () => {
-      const result = await controller.getDhmStations();
-
-      expect(mockDhmService.getRiverStations).toHaveBeenCalled();
-      expect(result).toEqual(mockRiverStations);
-    });
   });
 
   describe('getDhmWaterLevels', () => {
@@ -248,57 +180,16 @@ describe('SourcesDataController', () => {
     });
   });
 
-  describe('getGlofasRainfallLevels', () => {
-    const mockPayload: GetSouceDataDto = {
-      source: DataSource.GLOFAS,
-      riverBasin: 'test-basin',
-      from: new Date('2023-01-01'),
-      to: new Date('2023-01-31'),
-      type: 'POINT' as any,
-      appId: 'test-app',
-    };
-
-    const mockRainfallLevels = { data: 'glofas-rainfall-levels' };
-
-    beforeEach(() => {
-      mockSourceDataService.getRainfallLevels.mockResolvedValue(
-        mockRainfallLevels,
-      );
-    });
-
-    it('should return Glofas rainfall levels', async () => {
-      const result = await controller.getGlofasRainfallLevels(mockPayload);
-
-      expect(mockSourceDataService.getRainfallLevels).toHaveBeenCalledWith({
-        ...mockPayload,
-        source: DataSource.GLOFAS,
-      });
-      expect(result).toEqual(mockRainfallLevels);
-    });
-  });
-
   describe('MessagePattern decorators', () => {
     it('should have correct message patterns', () => {
-      expect(MS_TRIGGERS_JOBS.RIVER_STATIONS.GET_DHM).toBeDefined();
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM).toBeDefined();
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GLOFAS).toBeDefined();
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GFH).toBeDefined();
       expect(MS_TRIGGERS_JOBS.RAINFALL_LEVELS.GET_DHM).toBeDefined();
-      expect(MS_TRIGGERS_JOBS.RAINFALL_LEVELS.GET_GLOFAS).toBeDefined();
     });
   });
 
   describe('Dependency Injection', () => {
-    it('should inject DhmService correctly', () => {
-      expect(dhmService).toBeDefined();
-      expect(dhmService).toBe(mockDhmService);
-    });
-
-    it('should inject GlofasService correctly', () => {
-      expect(glofasService).toBeDefined();
-      expect(glofasService).toBe(mockGlofasService);
-    });
-
     it('should inject SourcesDataService correctly', () => {
       expect(sourceDataService).toBeDefined();
       expect(sourceDataService).toBe(mockSourceDataService);

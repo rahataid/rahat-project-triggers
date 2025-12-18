@@ -30,9 +30,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     SourcesDataModule,
     BullModule.registerQueue(
       {
-        name: BQUEUE.SCHEDULE,
-      },
-      {
         name: BQUEUE.TRIGGER,
       },
       {

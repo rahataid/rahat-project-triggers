@@ -44,7 +44,6 @@ export class TriggerService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => PhasesService))
     private readonly phasesService: PhasesService,
-    @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
   ) {}

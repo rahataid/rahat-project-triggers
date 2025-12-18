@@ -11,23 +11,8 @@ import { PaginationDto } from 'src/common/dto';
 import { HttpService } from '@nestjs/axios';
 import { RpcException } from '@nestjs/microservices';
 import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
-import {
-  InputItem,
-  RainfallStationData,
-  RainfallStationItem,
-  RiverStationData,
-  RiverStationItem,
-  SourceDataTypeEnum,
-} from 'src/types/data-source';
-import {
-  rainfallStationUrl,
-  riverStationUrl,
-} from 'src/constant/datasourceUrls';
 import * as https from 'https';
-import { buildQueryParams, getFormattedDate } from 'src/common';
-import { SettingsService } from '@lib/core';
-import { DataSourceValue } from 'src/types/settings';
-import { DhmService } from './dhm.service';
+import { getFormattedDate } from 'src/common';
 import { GetSeriesDto } from './dto/get-series';
 import { DhmService as DHM } from '@lib/dhm-adapter';
 import { GlofasServices } from '@lib/glofas-adapter';
@@ -35,14 +20,11 @@ import { GfhService } from '@lib/gfh-adapter';
 import { ScheduleSourcesDataService } from './schedule-sources-data.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 @Injectable()
 export class SourcesDataService {
   logger = new Logger(SourcesDataService.name);
   constructor(
     private prisma: PrismaService,
-    private readonly dhmService: DhmService,
-    private readonly httpService: HttpService,
     private readonly dhm: DHM,
     private readonly glofasServices: GlofasServices,
     private readonly gfhServices: GfhService,
@@ -180,24 +162,6 @@ export class SourcesDataService {
     }
   }
 
-  async getSourceFromAppId(appId: string) {
-    const dataSource = await this.prisma.source.findFirst({
-      where: {
-        Phase: {
-          some: {
-            Activity: {
-              some: {
-                app: appId,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return dataSource;
-  }
-
   async getWaterLevels(payload: GetSouceDataDto) {
     this.logger.log('Fetching water levels');
     try {
@@ -217,150 +181,6 @@ export class SourcesDataService {
     } catch (error: any) {
       this.logger.error(`Error while getting rainfall data: ${error}`);
       throw new RpcException('Failed to fetch rainfall data');
-    }
-  }
-
-  async fetchRainfallLevelData(payload: {
-    seriesId: number[];
-    location: string;
-    from: Date;
-    to: Date;
-    dataType: string;
-  }) {
-    const { seriesId, location, from, to, dataType } = payload;
-
-    const results: RainfallStationData[] = [];
-
-    for (const id of seriesId) {
-      try {
-        const rainfallQueryParams = buildQueryParams(id, new Date(from), to);
-        const stationData = await this.fetchRainfallStation(id);
-
-        if (!stationData || !rainfallQueryParams) {
-          this.logger.warn(
-            `Missing station data or query params for ${location}`,
-          );
-          return;
-        }
-
-        const data = await this.dhmService.getDhmRainfallWatchData({
-          date: rainfallQueryParams.date_from,
-          period: SourceDataTypeEnum[dataType],
-          seriesid: id.toString(),
-          location: location,
-        });
-
-        const normalizedData =
-          await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
-            data as InputItem[],
-          );
-
-        results.push({
-          ...stationData,
-          history: normalizedData,
-        });
-      } catch (error: any) {
-        this.logger.error(`Error for ${location}: ${error.message}`, error);
-      }
-    }
-
-    return results;
-  }
-
-  async fetchRiverLevelData(payload: {
-    seriesId: number[];
-    location: string;
-    from: Date;
-    to: Date;
-    dataType: string;
-  }) {
-    const { seriesId, location, from, to, dataType } = payload;
-
-    const results: RiverStationData[] = [];
-
-    for (const id of seriesId) {
-      try {
-        const riverWatchQueryParam = buildQueryParams(id, new Date(from), to);
-        const stationData = await this.fetchRiverStation(id);
-
-        if (!stationData || !riverWatchQueryParam) {
-          this.logger.warn(
-            `Missing station data or query params for ${location}`,
-          );
-          return;
-        }
-
-        const data = await this.dhmService.getDhmRiverWatchData({
-          date: riverWatchQueryParam.date_from,
-          period: SourceDataTypeEnum[dataType],
-          seriesid: id.toString(),
-          location: location,
-        });
-
-        const normalizedData =
-          await this.dhmService.normalizeDhmRiverAndRainfallWatchData(
-            data as InputItem[],
-          );
-
-        results.push({
-          ...stationData,
-          history: normalizedData,
-        });
-      } catch (error: any) {
-        this.logger.error(
-          `Database error for ${location}: ${error.message}`,
-          Error,
-        );
-      }
-    }
-    return results;
-  }
-
-  async fetchRainfallStation(
-    seriesId: number,
-  ): Promise<RainfallStationItem | null> {
-    try {
-      const {
-        data: { data },
-      } = (await this.httpService.axiosRef.get(rainfallStationUrl, {
-        httpsAgent: httpsAgent,
-      })) as { data: { data: RainfallStationItem[][] } };
-
-      const targettedData = data[0].find((item) => item.series_id == seriesId);
-
-      if (!targettedData) {
-        this.logger.warn(`No rainfall station found for series ID ${seriesId}`);
-        return null;
-      }
-
-      return targettedData;
-    } catch (error: any) {
-      this.logger.warn('Error fetching rainfall station:', error);
-      throw error;
-    }
-  }
-
-  async fetchRiverStation(seriesId: number): Promise<RiverStationItem | null> {
-    try {
-      const {
-        data: { data: riverStation },
-      } = (await this.httpService.axiosRef.get(riverStationUrl, {
-        httpsAgent: httpsAgent,
-      })) as { data: { data: RiverStationItem[] } };
-
-      const targettedData = riverStation.find(
-        (item) => item.series_id === seriesId,
-      );
-
-      if (!targettedData) {
-        this.logger.warn(`No river station found for series ID ${seriesId}`);
-        return null;
-      }
-
-      return targettedData;
-    } catch (error: any) {
-      this.logger.warn('Error fetching river station:', error);
-      throw error;
     }
   }
 
@@ -490,108 +310,6 @@ export class SourcesDataService {
 
     const date = getFormattedDate();
     return await this.findGfhData(riverBasin, date.dateString);
-  }
-
-  aggregateDataByTime(history: any[]) {
-    const hourlyData: Record<
-      string,
-      {
-        values: number[];
-        min: number;
-        max: number;
-        total: number;
-        count: number;
-      }
-    > = {};
-    const dailyData: Record<
-      string,
-      {
-        values: number[];
-        min: number;
-        max: number;
-        total: number;
-        count: number;
-      }
-    > = {};
-
-    history.forEach(({ datetime, value }) => {
-      const date = datetime.split('T')[0];
-      const hour = datetime.split('T')[1].split(':')[0];
-
-      // Aggregate hourly data
-      const hourKey = `${date}T${hour}:00:00`;
-      if (!hourlyData[hourKey]) {
-        hourlyData[hourKey] = {
-          values: [],
-          min: Infinity,
-          max: -Infinity,
-          total: 0,
-          count: 0,
-        };
-      }
-      hourlyData[hourKey].values.push(value);
-      hourlyData[hourKey].min = Math.min(hourlyData[hourKey].min, value);
-      hourlyData[hourKey].max = Math.max(hourlyData[hourKey].max, value);
-      hourlyData[hourKey].total += value;
-      hourlyData[hourKey].count += 1;
-
-      // Aggregate daily data
-      const newDate = `${date}T00:00:00`;
-      if (!dailyData[newDate]) {
-        dailyData[newDate] = {
-          values: [],
-          min: Infinity,
-          max: -Infinity,
-          total: 0,
-          count: 0,
-        };
-      }
-      dailyData[newDate].values.push(value);
-      dailyData[newDate].min = Math.min(dailyData[newDate].min, value);
-      dailyData[newDate].max = Math.max(dailyData[newDate].max, value);
-      dailyData[newDate].total += value;
-      dailyData[newDate].count += 1;
-    });
-
-    // Convert aggregated data to arrays
-    const hourlyArray = Object.entries(hourlyData).map(([datetime, data]) => ({
-      datetime,
-      value:
-        data.count > 0 ? parseFloat((data.total / data.count).toFixed(3)) : 0,
-      min: data.min !== Infinity ? parseFloat(data.min.toFixed(3)) : 0,
-      max: data.max !== -Infinity ? parseFloat(data.max.toFixed(3)) : 0,
-    }));
-
-    const dailyArray = Object.entries(dailyData).map(([datetime, data]) => ({
-      datetime,
-      value:
-        data.count > 0 ? parseFloat((data.total / data.count).toFixed(3)) : 0,
-      min: data.min !== Infinity ? parseFloat(data.min.toFixed(3)) : 0,
-      max: data.max !== -Infinity ? parseFloat(data.max.toFixed(3)) : 0,
-    }));
-
-    return { hourly: hourlyArray, daily: dailyArray };
-  }
-
-  async processDataByType(type: SourceDataType, data: RiverStationData) {
-    switch (type) {
-      case SourceDataType.Point:
-        return data;
-      case SourceDataType.Hourly:
-        const { hourly } = this.aggregateDataByTime(data.history);
-        return {
-          ...data,
-          history: hourly,
-        };
-      case SourceDataType.Daily:
-        const { daily } = this.aggregateDataByTime(data.history);
-        return {
-          ...data,
-          history: daily,
-        };
-      default:
-        return data;
-    }
   }
 
   async findGlofasData(riverBasin: string, forecastDate: string) {
