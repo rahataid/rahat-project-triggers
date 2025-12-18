@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
 import { PrismaService, DataSource, SourceType } from '@lib/database';
 import { SourcesDataService } from './sources-data.service';
-import { DhmService } from './dhm.service';
 import { CreateSourcesDataDto, UpdateSourcesDataDto } from './dto';
 import { PaginationDto } from 'src/common/dto';
 import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
@@ -68,16 +67,6 @@ describe('SourcesDataService', () => {
     },
   };
 
-  const mockDhmService = {
-    getRiverStations: jest.fn(),
-    getRiverStationData: jest.fn(),
-    getData: jest.fn(),
-    saveDataInDhm: jest.fn(),
-    getDhmRiverWatchData: jest.fn(),
-    getDhmRainfallWatchData: jest.fn(),
-    normalizeDhmRiverAndRainfallWatchData: jest.fn(),
-  };
-
   const mockHttpService = {
     get: jest.fn(),
     post: jest.fn(),
@@ -92,10 +81,6 @@ describe('SourcesDataService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
-        },
-        {
-          provide: DhmService,
-          useValue: mockDhmService,
         },
         {
           provide: HttpService,
@@ -303,34 +288,6 @@ describe('SourcesDataService', () => {
         'Error while updating source data info',
         error,
       );
-    });
-  });
-
-  describe('getSourceFromAppId', () => {
-    const mockAppId = 'test-app';
-    const mockSourceData = { id: 1, riverBasin: 'test-basin' };
-
-    beforeEach(() => {
-      mockPrismaService.source.findFirst.mockResolvedValue(mockSourceData);
-    });
-
-    it('should return source data by app id', async () => {
-      const result = await service.getSourceFromAppId(mockAppId);
-
-      expect(mockPrismaService.source.findFirst).toHaveBeenCalledWith({
-        where: {
-          Phase: {
-            some: {
-              Activity: {
-                some: {
-                  app: mockAppId,
-                },
-              },
-            },
-          },
-        },
-      });
-      expect(result).toEqual(mockSourceData);
     });
   });
 

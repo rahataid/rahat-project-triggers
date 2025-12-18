@@ -8,9 +8,6 @@ import { SourcesDataModule } from './sources-data.module';
 import { SourcesDataService } from './sources-data.service';
 import { SourcesDataController } from './sources-data.controller';
 import { ScheduleSourcesDataService } from './schedule-sources-data.service';
-import { DhmService } from './dhm.service';
-import { GlofasService } from './glofas.service';
-import { GfhService } from './gfh.service';
 import { BQUEUE } from 'src/constant';
 
 describe('SourcesDataModule', () => {
@@ -103,21 +100,6 @@ describe('SourcesDataModule', () => {
     expect(scheduleSourcesDataService).toBeDefined();
   });
 
-  it('should have DhmService defined', () => {
-    const dhmService = module.get<DhmService>(DhmService);
-    expect(dhmService).toBeDefined();
-  });
-
-  it('should have GlofasService defined', () => {
-    const glofasService = module.get<GlofasService>(GlofasService);
-    expect(glofasService).toBeDefined();
-  });
-
-  it('should have GfhService defined', () => {
-    const gfhService = module.get<GfhService>(GfhService);
-    expect(gfhService).toBeDefined();
-  });
-
   it('should have ConfigService defined', () => {
     const configService = module.get<ConfigService>(ConfigService);
     expect(configService).toBeDefined();
@@ -137,21 +119,6 @@ describe('SourcesDataModule', () => {
       expect(scheduleSourcesDataService).toBeInstanceOf(
         ScheduleSourcesDataService,
       );
-    });
-
-    it('should export DhmService', () => {
-      const dhmService = module.get<DhmService>(DhmService);
-      expect(dhmService).toBeInstanceOf(DhmService);
-    });
-
-    it('should export GlofasService', () => {
-      const glofasService = module.get<GlofasService>(GlofasService);
-      expect(glofasService).toBeInstanceOf(GlofasService);
-    });
-
-    it('should export GfhService', () => {
-      const gfhService = module.get<GfhService>(GfhService);
-      expect(gfhService).toBeInstanceOf(GfhService);
     });
   });
 

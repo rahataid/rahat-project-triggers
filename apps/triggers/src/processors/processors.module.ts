@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SourcesDataModule } from 'src/sources-data/sources-data.module';
 import { PhasesModule } from '../phases/phases.module';
-import { ScheduleProcessor } from './schedule.processor';
 import { TriggerProcessor } from './trigger.processor';
 import { StatsProcessor } from './stats.processor';
 import { CommunicationProcessor } from './communication.processor';
@@ -35,9 +34,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     StatsModule,
   ],
   providers: [
-    ScheduleProcessor,
     TriggerProcessor,
-    // ContractProcessor,
     CommunicationProcessor,
     StatsProcessor,
     NotificationProcessor,
