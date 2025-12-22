@@ -29,23 +29,10 @@ RUN find apps/triggers -type f -not -path 'apps/triggers/dist/*' -not -name 'pac
 RUN pnpm install --prod && pnpm store prune
 
 FROM base AS runner
-# Install su-exec for user switching
-RUN apk add --no-cache su-exec
-
-# Create user and group first
-RUN addgroup --system --gid 1001 nestjs && \
-    adduser --system --uid 1001 nestjs
-
 WORKDIR /usr/src/app
 
-# Copy application files and set ownership
-COPY --from=installer --chown=nestjs:nestjs /app ./
+COPY --from=installer /app ./
 
-# Create log directory with proper permissions
-RUN mkdir -p /usr/src/app/.log && \
-    chown -R nestjs:nestjs /usr/src/app
-
-# Switch to non-root user
-USER nestjs
+RUN chmod -R 777 /usr/src/app
 
 CMD ["node", "apps/triggers/dist/src/main.js"]
