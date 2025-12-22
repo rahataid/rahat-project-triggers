@@ -33,16 +33,10 @@ RUN pnpm install --prod && pnpm store prune
 
 
 FROM base AS runner
-WORKDIR /app
+WORKDIR /usr/src/app
 
-# Create log directory and set permissions
-RUN mkdir -p /app/.log && chmod -R 777 /app/.log
-# Don't run production as root
-RUN addgroup --system --gid 1001 nestjs
-RUN adduser --system --uid 1001 nestjs
-USER nestjs
-COPY --from=installer /app .
-# Tag the final image
-LABEL stage="final"
-RUN docker rmi $(docker images -f "label=stage=intermediate" -q) || true
-CMD node apps/forcast-api/dist/src/main.js
+COPY --from=installer /app ./
+
+RUN chmod -R 777 /usr/src/app
+
+CMD ["node", "apps/forcast-api/dist/src/main.js"]
