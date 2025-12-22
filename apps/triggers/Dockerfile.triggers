@@ -41,6 +41,7 @@ RUN mkdir -p /app/.log && chmod -R 777 /app/.log
 RUN addgroup --system --gid 1001 nestjs
 RUN adduser --system --uid 1001 nestjs
 COPY --from=installer  --chown=nestjs:nestjs /app .
+RUN chown -R nestjs:nestjs /app
 USER nestjs
 # Tag the final image
 LABEL stage="final"
