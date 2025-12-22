@@ -6,10 +6,9 @@ import { DataSource } from '@lib/database';
 
 describe('TriggerProcessor', () => {
   let processor: TriggerProcessor;
-  let phasesService: PhasesService;
 
   const mockPhasesService = {
-    getOne: jest.fn(),
+    findOne: jest.fn(),
     activatePhase: jest.fn(),
   };
 
@@ -25,7 +24,6 @@ describe('TriggerProcessor', () => {
     }).compile();
 
     processor = module.get<TriggerProcessor>(TriggerProcessor);
-    phasesService = module.get<PhasesService>(PhasesService);
   });
 
   afterEach(() => {
@@ -117,14 +115,14 @@ describe('TriggerProcessor', () => {
         },
       };
 
-      mockPhasesService.getOne.mockResolvedValue(mockPhaseData);
+      mockPhasesService.findOne.mockResolvedValue(mockPhaseData);
       jest
         .spyOn(processor as any, 'checkTriggerConditions')
         .mockReturnValue(true);
 
       await processor['processAutomatedData'](payload);
 
-      expect(mockPhasesService.getOne).toHaveBeenCalledWith(payload.phaseId);
+      expect(mockPhasesService.findOne).toHaveBeenCalledWith(payload.phaseId);
       expect(processor['checkTriggerConditions']).toHaveBeenCalledWith(
         mockPhaseData.triggerRequirements,
       );
@@ -154,14 +152,14 @@ describe('TriggerProcessor', () => {
         },
       };
 
-      mockPhasesService.getOne.mockResolvedValue(mockPhaseData);
+      mockPhasesService.findOne.mockResolvedValue(mockPhaseData);
       jest
         .spyOn(processor as any, 'checkTriggerConditions')
         .mockReturnValue(false);
 
       await processor['processAutomatedData'](payload);
 
-      expect(mockPhasesService.getOne).toHaveBeenCalledWith(payload.phaseId);
+      expect(mockPhasesService.findOne).toHaveBeenCalledWith(payload.phaseId);
       expect(processor['checkTriggerConditions']).toHaveBeenCalledWith(
         mockPhaseData.triggerRequirements,
       );
@@ -189,89 +187,17 @@ describe('TriggerProcessor', () => {
         },
       };
 
-      mockPhasesService.getOne.mockResolvedValue(mockPhaseData);
+      mockPhasesService.findOne.mockResolvedValue(mockPhaseData);
       jest
         .spyOn(processor as any, 'checkTriggerConditions')
         .mockReturnValue(true);
 
       await processor['processAutomatedData'](payload);
 
-      expect(mockPhasesService.getOne).toHaveBeenCalledWith(payload.phaseId);
+      expect(mockPhasesService.findOne).toHaveBeenCalledWith(payload.phaseId);
       expect(processor['checkTriggerConditions']).toHaveBeenCalledWith(
         mockPhaseData.triggerRequirements,
       );
-    });
-  });
-
-  describe('processManualTrigger', () => {
-    it('should process manual trigger and activate phase when conditions are met', async () => {
-      const payload = {
-        phaseId: 'test-phase-id',
-      };
-
-      const mockPhaseData = {
-        uuid: 'test-phase-uuid',
-        name: 'Test Phase',
-        triggerRequirements: {
-          mandatoryTriggers: {
-            requiredTriggers: 1,
-            receivedTriggers: 1,
-          },
-          optionalTriggers: {
-            requiredTriggers: 0,
-            receivedTriggers: 0,
-          },
-        },
-      };
-
-      mockPhasesService.getOne.mockResolvedValue(mockPhaseData);
-      jest
-        .spyOn(processor as any, 'checkTriggerConditions')
-        .mockReturnValue(true);
-
-      await processor['processManualTrigger'](payload);
-
-      expect(mockPhasesService.getOne).toHaveBeenCalledWith(payload.phaseId);
-      expect(processor['checkTriggerConditions']).toHaveBeenCalledWith(
-        mockPhaseData.triggerRequirements,
-      );
-      expect(mockPhasesService.activatePhase).toHaveBeenCalledWith(
-        mockPhaseData.uuid,
-      );
-    });
-
-    it('should process manual trigger but not activate phase when conditions are not met', async () => {
-      const payload = {
-        phaseId: 'test-phase-id',
-      };
-
-      const mockPhaseData = {
-        uuid: 'test-phase-uuid',
-        name: 'Test Phase',
-        triggerRequirements: {
-          mandatoryTriggers: {
-            requiredTriggers: 2,
-            receivedTriggers: 1,
-          },
-          optionalTriggers: {
-            requiredTriggers: 1,
-            receivedTriggers: 0,
-          },
-        },
-      };
-
-      mockPhasesService.getOne.mockResolvedValue(mockPhaseData);
-      jest
-        .spyOn(processor as any, 'checkTriggerConditions')
-        .mockReturnValue(false);
-
-      await processor['processManualTrigger'](payload);
-
-      expect(mockPhasesService.getOne).toHaveBeenCalledWith(payload.phaseId);
-      expect(processor['checkTriggerConditions']).toHaveBeenCalledWith(
-        mockPhaseData.triggerRequirements,
-      );
-      expect(mockPhasesService.activatePhase).not.toHaveBeenCalled();
     });
   });
 
@@ -424,7 +350,6 @@ describe('TriggerProcessor', () => {
     it('should cover all methods in the class', () => {
       expect(typeof processor.processTrigger).toBe('function');
       expect(typeof processor['processAutomatedData']).toBe('function');
-      expect(typeof processor['processManualTrigger']).toBe('function');
       expect(typeof processor['checkTriggerConditions']).toBe('function');
     });
   });

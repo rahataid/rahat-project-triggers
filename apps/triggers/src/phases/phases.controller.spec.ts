@@ -5,15 +5,13 @@ jest.mock('cheerio', () => ({
   }),
 }));
 import { Test, TestingModule } from '@nestjs/testing';
-import { ClientProxy } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@lib/database';
-import type { Queue } from 'bull';
 import { PhasesController } from './phases.controller';
 import { PhasesService } from './phases.service';
 import { TriggerService } from 'src/trigger/trigger.service';
-import { MS_TRIGGER_CLIENTS, BQUEUE } from 'src/constant';
+import { MS_TRIGGER_CLIENTS } from 'src/constant';
 
 describe('PhasesController', () => {
   let controller: PhasesController;
