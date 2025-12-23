@@ -21,6 +21,8 @@ model Source {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime?    @updatedAt()
 
+  SourceBlockchain  SourceBlockchain?
+
   SourcesData     SourcesData[]
   DailyMonitoring DailyMonitoring[]
   Phase           Phase[]
@@ -63,5 +65,19 @@ model DailyMonitoring {
   updatedAt  DateTime? @updatedAt()
 
   @@map("tbl_daily_monitoring")
+  @@schema("public")
+}
+
+model SourceBlockchain {
+  id             Int      @id @default(autoincrement())
+  sourceId       Int      @unique
+  source         Source   @relation(fields: [sourceId], references: [id])
+  transactionHash String
+  blockchainId   String
+  chain          String   @default("evm")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime? @updatedAt()
+
+  @@map("tbl_source_blockchain")
   @@schema("public")
 }

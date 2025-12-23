@@ -20,6 +20,8 @@ export class DataSourceEventsListener {
 
   @OnEvent(core.DATA_SOURCE_EVENTS.DHM.WATER_LEVEL)
   async handleDhmWaterLevel(event: core.DataSourceEventPayload) {
+    console.log('DHM WATER LEVEL EVENT RECEIVED', event);
+
     const indicators: core.Indicator[] = event.indicators;
 
     this.logger.log(

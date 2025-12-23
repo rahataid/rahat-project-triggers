@@ -1,14 +1,7 @@
-import {
-  PrismaClient,
-  Prisma,
-  DataSource,
-  SourceType,
-} from '../../generated/prisma';
-import { DataSourceType } from '../../index';
+import { DataSource, SourceType } from '../generated/prisma';
+import { DataSourceType } from './nestjs/types';
 
-const prisma = new PrismaClient();
-
-const config: DataSourceType = {
+export const datasourceSeedConfig: DataSourceType = {
   name: 'DATASOURCE',
   value: {
     [DataSource.DHM]: [
@@ -76,58 +69,3 @@ const config: DataSourceType = {
   },
   isPrivate: false,
 };
-
-const main = async () => {
-  console.log('#'.repeat(30));
-  console.log('Seeding DATASOURCE');
-  console.log('#'.repeat(30));
-  try {
-    const dataSource = await prisma.setting.findUnique({
-      where: { name: 'DATASOURCE' },
-    });
-
-    if (dataSource) {
-      console.log('DATASOURCE already exists');
-      await prisma.setting.delete({
-        where: { name: 'DATASOURCE' },
-      });
-      console.log('Old DATASOURCE deleted');
-    }
-    await prisma.setting.create({
-      data: {
-        name: config.name,
-        value: config.value as unknown as Prisma.InputJsonValue,
-        isPrivate: config.isPrivate,
-        dataType: 'OBJECT',
-        requiredFields: [],
-        isReadOnly: false,
-      },
-    });
-  } catch (error: any) {
-    await prisma.setting.create({
-      data: {
-        name: config.name,
-        value: config.value as unknown as Prisma.InputJsonValue,
-        isPrivate: config.isPrivate,
-        dataType: 'OBJECT',
-        requiredFields: [],
-        isReadOnly: false,
-      },
-    });
-  }
-};
-
-main()
-  .catch(async (error) => {
-    console.log('#'.repeat(30));
-    console.log('Error during seeding DATASOURCE');
-    console.log(error);
-    console.log('#'.repeat(30));
-  })
-  .finally(async () => {
-    console.log('#'.repeat(30));
-    console.log('Seeding completed for DATASOURCE');
-    console.log('#'.repeat(30));
-    console.log('\n');
-    await prisma.$disconnect();
-  });
