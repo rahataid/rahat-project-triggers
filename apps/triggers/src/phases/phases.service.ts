@@ -25,7 +25,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
-import { GetPhaseByName, GetPhaseDto } from './dto';
+import { GetPhaseByDetailDto, GetPhaseDto, RevertPhaseDto } from './dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -93,25 +93,24 @@ export class PhasesService {
         },
       });
     } catch (error: any) {
-      this.logger.error('Error while creatiing new Phase', error);
+      this.logger.error('Error while creating new Phase', error);
       throw new RpcException(error);
     }
   }
 
   async findAll(payload: GetPhaseDto) {
-    const { activeYear, name, riverBasin, source, ...dto } = payload;
+    this.logger.log(`Fetching all phases`);
+    const { activeYear, name, riverBasin, ...dto } = payload;
 
     // Created a conditions array to filter the data based on the query params
     const conditions = {
       ...(name && { name: name }),
       ...(riverBasin && {
         source: {
-          ...(riverBasin && {
-            riverBasin: {
-              contains: riverBasin,
-              mode: 'insensitive',
-            },
-          }),
+          riverBasin: {
+            contains: riverBasin,
+            mode: 'insensitive',
+          },
         },
       }),
       ...(activeYear && {
@@ -148,7 +147,8 @@ export class PhasesService {
 
     const newData = await Promise.all(
       paginatedData.data.map(async (phase: any) => {
-        const phaseStats = await this.generatePhaseTriggersStats(phase.uuid);
+        const phaseStats =
+          await this.triggerService.generateTriggersStatsForPhase(phase.uuid);
         return {
           ...phase,
           phaseStats,
@@ -160,78 +160,6 @@ export class PhasesService {
       ...paginatedData,
       data: newData,
     };
-  }
-
-  async generatePhaseTriggersStats(phaseId: string) {
-    try {
-      const totalMandatoryTriggers = await this.prisma.trigger.count({
-        where: {
-          phaseId: phaseId,
-          isMandatory: true,
-          isDeleted: false,
-        },
-      });
-
-      const totalMandatoryTriggersTriggered = await this.prisma.trigger.count({
-        where: {
-          phaseId: phaseId,
-          isMandatory: true,
-          isTriggered: true,
-          isDeleted: false,
-        },
-      });
-
-      const totalOptionalTriggers = await this.prisma.trigger.count({
-        where: {
-          phaseId: phaseId,
-          isMandatory: false,
-          isDeleted: false,
-        },
-      });
-
-      const totalOptionalTriggersTriggered = await this.prisma.trigger.count({
-        where: {
-          phaseId: phaseId,
-          isMandatory: false,
-          isTriggered: true,
-          isDeleted: false,
-        },
-      });
-
-      const triggers = await this.prisma.trigger.findMany({
-        where: {
-          phaseId: phaseId,
-          isDeleted: false,
-        },
-      });
-
-      return {
-        triggers,
-        totalTriggers: triggers.length,
-        totalMandatoryTriggers,
-        totalMandatoryTriggersTriggered,
-        totalOptionalTriggers,
-        totalOptionalTriggersTriggered,
-      };
-    } catch (error: any) {
-      this.logger.warn('Error while generating phase triggers stats', error);
-      throw new RpcException(error);
-    }
-  }
-
-  async findOne(uuid: string) {
-    try {
-      this.logger.log(`Fetching phase with uuid: ${uuid}`);
-      return await this.prisma.phase.findUnique({
-        where: { uuid },
-        include: {
-          source: true,
-        },
-      });
-    } catch (error: any) {
-      this.logger.error('Error while fetching phase', error);
-      throw new RpcException(error);
-    }
   }
 
   async update(uuid: string, dto: UpdatePhaseDto) {
@@ -255,53 +183,26 @@ export class PhasesService {
     }
   }
 
-  async getOne(uuid: string) {
+  async findOne(uuid: string) {
     this.logger.log(`Fetching phase with uuid: ${uuid}`);
     try {
       const phase = await this.prisma.phase.findUnique({
         where: {
           uuid,
         },
-        include: {
-          Trigger: {
-            where: {
-              isDeleted: false,
-            },
-            include: {
-              phase: true,
-            },
-            orderBy: {
-              title: 'desc',
-            },
-          },
-          source: true,
-          Activity: true,
-        },
       });
 
-      const totalMandatoryTriggers = await this.prisma.trigger.count({
-        where: {
-          phaseId: phase.uuid,
-          isMandatory: true,
-          isDeleted: false,
-        },
-      });
-      const totalOptionalTriggers = await this.prisma.trigger.count({
-        where: {
-          phaseId: phase.uuid,
-          isMandatory: false,
-          isDeleted: false,
-        },
-      });
+      const triggerStash =
+        await this.triggerService.generateTriggersStatsForPhase(phase.uuid);
 
       const triggerRequirements = {
         mandatoryTriggers: {
-          totalTriggers: totalMandatoryTriggers,
+          totalTriggers: triggerStash.totalMandatoryTriggers,
           requiredTriggers: phase.requiredMandatoryTriggers,
           receivedTriggers: phase.receivedMandatoryTriggers,
         },
         optionalTriggers: {
-          totalTriggers: totalOptionalTriggers,
+          totalTriggers: triggerStash.totalOptionalTriggers,
           requiredTriggers: phase.requiredOptionalTriggers,
           receivedTriggers: phase.receivedOptionalTriggers,
         },
@@ -314,7 +215,9 @@ export class PhasesService {
     }
   }
 
-  async getOneByDetail(payload: GetPhaseByName) {
+  async getOneByDetail(payload: GetPhaseByDetailDto) {
+    this.logger.log(`Getting phase with: ${JSON.stringify(payload)}`);
+
     const { appId, phase, uuid, activeYear, riverBasin } = payload;
     let phaseDetails = null;
 
@@ -355,58 +258,14 @@ export class PhasesService {
       throw new RpcException(`Phase with uuid ${uuid} not found`);
     }
 
-    const triggers = await this.prisma.trigger.findMany({
-      where: {
-        phaseId: phaseDetails.uuid,
-        isDeleted: false,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    const totalMandatoryTriggers = await this.prisma.trigger.count({
-      where: {
-        phaseId: phaseDetails.uuid,
-        isMandatory: true,
-        isDeleted: false,
-      },
-    });
-
-    const totalMandatoryTriggersTriggered = await this.prisma.trigger.count({
-      where: {
-        phaseId: phaseDetails.uuid,
-        isMandatory: true,
-        isTriggered: true,
-        isDeleted: false,
-      },
-    });
-
-    const totalOptionalTriggers = await this.prisma.trigger.count({
-      where: {
-        phaseId: phaseDetails.uuid,
-        isMandatory: false,
-        isDeleted: false,
-      },
-    });
-
-    const totalOptionalTriggersTriggered = await this.prisma.trigger.count({
-      where: {
-        phaseId: phaseDetails.uuid,
-        isMandatory: false,
-        isTriggered: true,
-        isDeleted: false,
-      },
-    });
+    const triggerStash =
+      await this.triggerService.generateTriggersStatsForPhase(
+        phaseDetails.uuid,
+      );
 
     return {
       ...phaseDetails,
-      triggers,
-      totalTriggers: triggers.length,
-      totalMandatoryTriggers,
-      totalMandatoryTriggersTriggered,
-      totalOptionalTriggers,
-      totalOptionalTriggersTriggered,
+      ...triggerStash,
     };
   }
 
@@ -656,13 +515,9 @@ export class PhasesService {
       }
 
       for (const trigger of triggers) {
-        const tg = await this.prisma.trigger.findUnique({
-          where: { repeatKey: trigger.repeatKey },
-        });
-
         await this.prisma.trigger.update({
           where: {
-            uuid: tg.uuid,
+            uuid: trigger.uuid,
           },
           data: {
             isMandatory: trigger.isMandatory,
@@ -689,7 +544,8 @@ export class PhasesService {
     }
   }
 
-  async revertPhase(appId: string, phaseId: string) {
+  async revertPhase(payload: RevertPhaseDto) {
+    const { appId, phaseId } = payload;
     const activitiesCompletedBeforePhaseActivated =
       await this.prisma.activity.findMany({
         where: {
@@ -798,17 +654,18 @@ export class PhasesService {
     return updatedPhase;
   }
 
-  async findByLocation(river_basin: string, activeYear?: string) {
+  async findByLocation(payload: GetPhaseByDetailDto) {
+    const { riverBasin, activeYear } = payload;
     try {
       this.logger.log(
-        `Fetching phase by location ${river_basin} activeYear: ${activeYear}`,
+        `Fetching phase by location ${riverBasin} activeYear: ${activeYear}`,
       );
       return await this.prisma.phase.findMany({
         where: {
           ...(activeYear && { activeYear }),
           source: {
             riverBasin: {
-              contains: river_basin,
+              contains: riverBasin,
               mode: 'insensitive',
             },
           },

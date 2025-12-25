@@ -43,6 +43,7 @@ describe('TriggerService', () => {
     activity: {
       findFirst: jest.fn(),
     },
+    $queryRawUnsafe: jest.fn(),
   };
 
   const mockClientProxyImplementation = {
@@ -174,7 +175,7 @@ describe('TriggerService', () => {
 
     it('should successfully create a manual trigger', async () => {
       // Mock phase service to return a valid phase
-      mockPhasesService.getOne.mockResolvedValue({
+      mockPhasesService.findOne.mockResolvedValue({
         id: 1,
         uuid: 'phase-uuid',
         name: 'Test Phase',
@@ -218,7 +219,7 @@ describe('TriggerService', () => {
       };
 
       // Mock phase service to return a valid phase
-      mockPhasesService.getOne.mockResolvedValue({
+      mockPhasesService.findOne.mockResolvedValue({
         id: 1,
         uuid: 'phase-uuid',
         name: 'Test Phase',
@@ -456,7 +457,7 @@ describe('TriggerService', () => {
       };
 
       mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
-      mockPhasesService.getOne.mockResolvedValue(mockPhaseDetail);
+      mockPhasesService.findOne.mockResolvedValue(mockPhaseDetail);
       mockPrismaService.trigger.update.mockResolvedValue(mockRemovedTrigger);
       mockPrismaService.phase.update.mockResolvedValue({});
 
@@ -526,7 +527,7 @@ describe('TriggerService', () => {
         include: { phase: true },
       });
       // Ensure no further calls are made
-      expect(mockPhasesService.getOne).not.toHaveBeenCalled();
+      expect(mockPhasesService.findOne).not.toHaveBeenCalled();
       expect(mockPrismaService.trigger.update).not.toHaveBeenCalled();
     });
   });
@@ -1008,6 +1009,69 @@ describe('TriggerService', () => {
 
       await expect(
         service.activeAutomatedTriggers(mockTriggerIds),
+      ).rejects.toThrow(RpcException);
+    });
+  });
+
+  describe('generateTriggersStatsForPhase', () => {
+    const phaseId = 'test-phase-id';
+
+    it('should successfully generate triggers stats for phase', async () => {
+      const mockStats = [
+        {
+          totalTriggers: 5,
+          totalMandatoryTriggers: 3,
+          totalMandatoryTriggersTriggered: 2,
+          totalOptionalTriggers: 2,
+          totalOptionalTriggersTriggered: 1,
+          triggers: [
+            { uuid: 'trigger-1', isMandatory: true, isTriggered: true },
+            { uuid: 'trigger-2', isMandatory: true, isTriggered: true },
+            { uuid: 'trigger-3', isMandatory: true, isTriggered: false },
+            { uuid: 'trigger-4', isMandatory: false, isTriggered: true },
+            { uuid: 'trigger-5', isMandatory: false, isTriggered: false },
+          ],
+        },
+      ];
+
+      mockPrismaService.$queryRawUnsafe.mockResolvedValue(mockStats);
+
+      const result = await service.generateTriggersStatsForPhase(phaseId);
+
+      expect(mockPrismaService.$queryRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT'),
+        phaseId,
+      );
+      expect(result).toEqual(mockStats[0]);
+    });
+
+    it('should handle empty triggers', async () => {
+      const mockStats = [
+        {
+          totalTriggers: 0,
+          totalMandatoryTriggers: 0,
+          totalMandatoryTriggersTriggered: 0,
+          totalOptionalTriggers: 0,
+          totalOptionalTriggersTriggered: 0,
+          triggers: [],
+        },
+      ];
+
+      mockPrismaService.$queryRawUnsafe.mockResolvedValue(mockStats);
+
+      const result = await service.generateTriggersStatsForPhase(phaseId);
+
+      expect(result).toEqual(mockStats[0]);
+      expect(result.totalTriggers).toBe(0);
+      expect(result.triggers).toEqual([]);
+    });
+
+    it('should throw RpcException when database error occurs', async () => {
+      const dbError = new Error('Database error');
+      mockPrismaService.$queryRawUnsafe.mockRejectedValue(dbError);
+
+      await expect(
+        service.generateTriggersStatsForPhase(phaseId),
       ).rejects.toThrow(RpcException);
     });
   });
