@@ -335,7 +335,7 @@ export class SourcesDataService {
   async getOneDhmSeriesWaterLevels(payload: GetDhmSingleSeriesDto) {
     const { from, to, period, seriesId, riverBasin } = payload;
     const isToday = this.isToday(new Date(from), new Date(to));
-    if (isToday) {
+    if (isToday && period === SourceDataType.Point) {
       return await this.prisma.sourcesData.findFirst({
         where: {
           type: SourceType.WATER_LEVEL,
