@@ -130,3 +130,11 @@ export type DhmInfo = {
   series_id: string;
   name: string;
 };
+
+export interface SeriesFetchParams {
+  baseUrl: string;
+  seriesId: number;
+  period: DhmSourceDataTypeEnum;
+  location: string;
+  date?: Date;
+}

@@ -18,6 +18,7 @@ import { DhmService as DHM } from '@lib/dhm-adapter';
 import { GlofasServices } from '@lib/glofas-adapter';
 import { GfhService } from '@lib/gfh-adapter';
 import { ScheduleSourcesDataService } from './schedule-sources-data.service';
+import { GetDhmSingleSeriesDto } from './dto/get-dhm-single-series.dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 @Injectable()
@@ -323,13 +324,32 @@ export class SourcesDataService {
     return recordExists;
   }
 
-  async getOneDhmSeriesWaterLevels(payload: {
-    from: Date;
-    to: Date;
-    period: SourceDataType;
-    seriesId: number;
-  }) {
-    const { from, to, period, seriesId } = payload;
+  isToday(from: Date, to: Date) {
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
+    return from >= startOfToday && to <= endOfToday;
+  }
+
+  async getOneDhmSeriesWaterLevels(payload: GetDhmSingleSeriesDto) {
+    const { from, to, period, seriesId, riverBasin } = payload;
+    const isToday = this.isToday(new Date(from), new Date(to));
+    if (isToday) {
+      return await this.prisma.sourcesData.findFirst({
+        where: {
+          type: SourceType.WATER_LEVEL,
+          dataSource: DataSource.DHM,
+          source: { riverBasin },
+        },
+        include: {
+          source: {
+            select: { riverBasin: true, source: true },
+          },
+        },
+      });
+    }
+
     if (
       !this.isDateWithinLast14Days(new Date(from)) ||
       !this.isDateWithinLast14Days(new Date(to))
@@ -337,10 +357,12 @@ export class SourcesDataService {
       this.logger.error('Dates must be within the last 14 days');
       throw new RpcException('Dates must be within the last 14 days');
     }
-    return await this.scheduleSourcesDataService.getDhmWaterLevels(
+    const result = await this.scheduleSourcesDataService.getDhmWaterLevels(
       from,
       period,
       seriesId,
     );
+
+    return { info: result };
   }
 }

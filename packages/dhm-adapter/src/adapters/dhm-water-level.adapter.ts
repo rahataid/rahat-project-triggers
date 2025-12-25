@@ -11,6 +11,7 @@ import {
   RiverStationData,
   RainfallStationItem,
   RiverStationItem,
+  SeriesFetchParams,
 } from "../types/dhm-observation.type";
 import {
   Indicator,
@@ -151,12 +152,9 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
   }
 
   private async fetchSeries(
-    baseUrl: string,
-    seriesId: number,
-    period: DhmSourceDataTypeEnum,
-    location: string,
-    date?: Date
+    params: SeriesFetchParams
   ): Promise<DhmFetchResponse> {
+    const { baseUrl, seriesId, period, location, date } = params;
     const queryParams = buildQueryParams(seriesId, date);
 
     const form = new FormData();
@@ -190,12 +188,12 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
 
       const promises = config.flatMap((cfg) =>
         cfg.SERIESID.map((seriesId) =>
-          this.fetchSeries(
+          this.fetchSeries({
             baseUrl,
             seriesId,
-            DhmSourceDataTypeEnum.POINT,
-            cfg.LOCATION
-          )
+            period: DhmSourceDataTypeEnum.POINT,
+            location: cfg.LOCATION,
+          })
         )
       );
 
@@ -367,12 +365,13 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     );
   }
 
-  async fetchHourly(
+  async fetchByPeriod(
     date: Date,
-    seriesId: number
+    seriesId: number,
+    period: DhmSourceDataTypeEnum
   ): Promise<Result<DhmFetchResponse[]>> {
     try {
-      this.logger.log(`Fetching DHM Hourly data for SeriesId: ${seriesId}`);
+      this.logger.log(`Fetching DHM data for SeriesId: ${seriesId}`);
 
       const validated = this.validateConfig();
       if (!validated) return Err("DHM Water Level URL is not configured");
@@ -382,78 +381,31 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
       const cfg = config.find((c) => c.SERIESID.includes(seriesId));
       if (!cfg) return Err(`SeriesId ${seriesId} not found in config`);
 
-      const result = await this.fetchSeries(
+      const result = await this.fetchSeries({
         baseUrl,
         seriesId,
-        DhmSourceDataTypeEnum.HOURLY,
-        cfg.LOCATION,
-        date
-      );
+        period,
+        location: cfg.LOCATION,
+        date,
+      });
 
       return Ok([result]);
     } catch (error: any) {
       this.logger.error(
-        `Failed to fetch DHM Hourly data for SeriesId ${seriesId}`,
+        `Failed to fetch DHM  data for SeriesId ${seriesId}`,
         error
       );
-      return Err(
-        `Failed to fetch DHM Hourly data for SeriesId ${seriesId}`,
-        error
-      );
+      return Err(`Failed to fetch DHM data for SeriesId ${seriesId}`, error);
     }
   }
 
-  async executeHourly(
+  async executeByPeriod(
     date: Date,
-    seriesId: number
+    seriesId: number,
+    period: DhmSourceDataTypeEnum
   ): Promise<Result<DhmObservation[]>> {
     return chainAsync(
-      this.fetchHourly(date, seriesId),
-      (rawData: DhmFetchResponse[]) => this.aggregate(rawData)
-    );
-  }
-
-  async fetchDaily(
-    date: Date,
-    seriesId: number
-  ): Promise<Result<DhmFetchResponse[]>> {
-    try {
-      this.logger.log(`Fetching DHM Daily data for SeriesId: ${seriesId}`);
-
-      const validated = this.validateConfig();
-      if (!validated) return Err("DHM Water Level URL is not configured");
-
-      const { baseUrl, config } = validated;
-      const cfg = config.find((c) => c.SERIESID.includes(seriesId));
-      if (!cfg) return Err(`SeriesId ${seriesId} not found in config`);
-
-      const results = await this.fetchSeries(
-        baseUrl,
-        seriesId,
-        DhmSourceDataTypeEnum.DAILY,
-        cfg.LOCATION,
-        date
-      );
-
-      return Ok([results]);
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to fetch DHM Daily data for SeriesId ${seriesId}`,
-        error
-      );
-      return Err(
-        `Failed to fetch DHM Daily data for SeriesId ${seriesId}`,
-        error
-      );
-    }
-  }
-
-  async executeDaily(
-    date: Date,
-    seriesId: number
-  ): Promise<Result<DhmObservation[]>> {
-    return chainAsync(
-      this.fetchDaily(date, seriesId),
+      this.fetchByPeriod(date, seriesId, period),
       (rawData: DhmFetchResponse[]) => this.aggregate(rawData)
     );
   }
