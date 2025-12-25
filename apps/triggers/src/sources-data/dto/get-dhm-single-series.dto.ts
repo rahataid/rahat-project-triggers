@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsEnum, IsNumber } from 'class-validator';
+import { IsDate, IsEnum, IsNumber, IsString } from 'class-validator';
 import { SourceDataType } from './get-source-data';
 
 export class GetDhmSingleSeriesDto {
@@ -30,4 +30,12 @@ export class GetDhmSingleSeriesDto {
   })
   @IsNumber()
   seriesId: number;
+
+  @ApiProperty({
+    type: String,
+    example: 'Doda',
+    description: 'River basin name',
+  })
+  @IsString()
+  riverBasin: string;
 }

@@ -14,6 +14,7 @@ import {
   DhmObservation,
   DhmInputItem,
   RiverStationItem,
+  DhmSourceDataTypeEnum,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -194,22 +195,13 @@ export class ScheduleSourcesDataService
     period: SourceDataType,
     seriesId: number,
   ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | {}> {
-    let result:
-      | Awaited<ReturnType<typeof this.dhmWaterLevelAdapter.executeHourly>>
-      | Awaited<ReturnType<typeof this.dhmWaterLevelAdapter.executeDaily>>;
-
-    switch (period) {
-      case SourceDataType.Hourly:
-        result = await this.dhmWaterLevelAdapter.executeHourly(date, seriesId);
-        break;
-
-      case SourceDataType.Daily:
-        result = await this.dhmWaterLevelAdapter.executeDaily(date, seriesId);
-        break;
-
-      default:
-        throw new Error('Invalid period type');
-    }
+    const result: Awaited<
+      ReturnType<typeof this.dhmWaterLevelAdapter.executeByPeriod>
+    > = await this.dhmWaterLevelAdapter.executeByPeriod(
+      date,
+      seriesId,
+      DhmSourceDataTypeEnum[period],
+    );
 
     if (isErr<DhmObservation[]>(result)) {
       this.logger.warn(result.details);
