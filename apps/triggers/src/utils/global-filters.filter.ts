@@ -14,7 +14,6 @@ export function setupProcessHandlers(logger: Logger) {
     logger.error(
       'Application encountered an uncaught exception. Shutting down gracefully...',
     );
-    process.exit(1);
   });
 
   process.on('SIGTERM', () => {
