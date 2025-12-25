@@ -28,6 +28,7 @@ import {
 } from '@lib/core';
 import { SourceType } from '@lib/database';
 import { SourceDataType } from './dto/get-source-data';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class ScheduleSourcesDataService
@@ -204,8 +205,8 @@ export class ScheduleSourcesDataService
     );
 
     if (isErr<DhmObservation[]>(result)) {
-      this.logger.warn(result.details);
-      return {};
+      this.logger.warn(result.error);
+      throw new RpcException(result.error);
     }
 
     const observations = result.data as DhmObservation[];
