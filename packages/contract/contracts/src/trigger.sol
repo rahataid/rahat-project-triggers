@@ -1,11 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import "../interface/IOracle.sol";
+interface ISourceOracle {
+    struct Source {
+        uint256 id;
+        string name;
+        uint256 value;
+        uint256 timestamp;
+        string unit;
+        uint256 decimal;
+    }
+
+    function getSource(uint256 sourceId)
+        external
+        view
+        returns (Source memory);
+}
 
 contract TriggerContract {
     address public owner;
     ISourceOracle public oracle;
+
+    enum TriggerType {
+    MANUAL,
+    AUTOMATIC
+    }
 
     constructor(address oracleAddress) {
         owner = msg.sender;
@@ -19,16 +38,19 @@ contract TriggerContract {
 
     struct Trigger {
         uint256 id;
+        TriggerType triggerType;
         uint256 phaseId;
         uint256 sourceId;
         uint256 threshold;
         bool triggered;
         string name;
+        string uuid;
     }
 
     struct Phase {
         uint256 id;
         string name;
+        string uuid;
         uint256 threshold;
         uint256[] triggerIds;
     }
@@ -38,8 +60,10 @@ contract TriggerContract {
 
     mapping(uint256 => Trigger) public triggers;
     mapping(uint256 => Phase) public phases;
+    mapping(string => uint256) public phaseByUuid;
+    mapping(string => uint256) public triggerByUuid;
 
-    event PhaseCreated(uint256 indexed phaseId, string name, uint256 threshold);
+    event PhaseCreated(uint256 indexed phaseId, string name, string uuid, uint256 threshold);
     event TriggerCreated(
         uint256 indexed triggerId,
         uint256 indexed phaseId,
@@ -52,18 +76,22 @@ contract TriggerContract {
     /**
      * @notice Create a phase FIRST before creating triggers
      */
-    function createPhase(string memory name, uint256 threshold)
+    function createPhase(string memory name, string memory uuid, uint256 threshold)
     external
     onlyOwner
     returns (uint256)
 {
+    require(phaseByUuid[uuid] == 0, "uuid already exists");
+    
     uint256 id = nextPhaseId++;
 
     phases[id].id = id;
     phases[id].name = name;
+    phases[id].uuid = uuid;
     phases[id].threshold = threshold;
+    phaseByUuid[uuid] = id;
 
-    emit PhaseCreated(id, name, threshold);
+    emit PhaseCreated(id, name, uuid, threshold);
     return id;
 }
 
@@ -71,7 +99,9 @@ contract TriggerContract {
      * @notice Create a trigger and attach it to a phase
      */
     function createTrigger(
-        uint256 phaseId,
+        TriggerType triggerType,
+        string memory phaseUuid,
+        string memory triggerUuid,
         uint256 sourceId,
         uint256 threshold,
         string memory name
@@ -80,24 +110,36 @@ contract TriggerContract {
         onlyOwner
         returns (uint256)
     {
-        require(phases[phaseId].id != 0, "phase not found");
+        require(triggerByUuid[triggerUuid] == 0, "trigger uuid already exists");
 
-        ISourceOracle.Source memory s = oracle.getSource(sourceId);
-        require(s.id != 0, "source doesn't exist");
+        uint256 phaseId = phaseByUuid[phaseUuid];
+        require(phaseId != 0, "phase not found");
+
+        // Only validate source for AUTOMATIC triggers
+        if (triggerType == TriggerType.AUTOMATIC) {
+            require(sourceId != 0, "sourceId required for automatic trigger");
+            ISourceOracle.Source memory s = oracle.getSource(sourceId);
+            require(s.id != 0, "source doesn't exist");
+        }
 
         uint256 id = nextTriggerId++;
 
         triggers[id] = Trigger({
             id: id,
+            triggerType: triggerType,
             phaseId: phaseId,
             sourceId: sourceId,
             threshold: threshold,
             triggered: false,
-            name: name
+            name: name,
+            uuid: triggerUuid
         });
 
         // Store trigger under its phase
         phases[phaseId].triggerIds.push(id);
+        
+        // Store trigger UUID mapping
+        triggerByUuid[triggerUuid] = id;
 
         emit TriggerCreated(id, phaseId, sourceId, threshold, name);
         return id;
@@ -110,17 +152,21 @@ contract TriggerContract {
         require(t.id != 0, "trigger not found");
         require(!t.triggered, "already triggered");
 
-        // check live oracle value
-        ISourceOracle.Source memory s = oracle.getSource(t.sourceId);
-        require(s.value >= t.threshold, "threshold not reached");
+        // Only check oracle value for AUTOMATIC triggers
+        if (t.triggerType == TriggerType.AUTOMATIC) {
+            ISourceOracle.Source memory s = oracle.getSource(t.sourceId);
+            require(s.value >= t.threshold, "threshold not reached");
+        }
 
         t.triggered = true;
         emit TriggerActivated(triggerId);
     }
 
-    function isPhaseTriggered(uint256 phaseId) external view returns (bool) {
+    function isPhaseTriggered(string memory phaseUuid) external view returns (bool) {
+        uint256 phaseId = phaseByUuid[phaseUuid];
+        require(phaseId != 0, "phase not found");
+        
         Phase storage p = phases[phaseId];
-        require(p.id != 0, "phase not found");
 
         uint256 triggeredCount = 0;
 
@@ -132,6 +178,24 @@ contract TriggerContract {
         }
 
         return triggeredCount >= p.threshold;
+    }
+
+    /**
+     * @notice Get phase details by uuid
+     */
+    function getPhaseByUuid(string memory uuid) external view returns (Phase memory) {
+        uint256 phaseId = phaseByUuid[uuid];
+        require(phaseId != 0, "phase not found");
+        return phases[phaseId];
+    }
+
+    /**
+     * @notice Get trigger details by uuid
+     */
+    function getTriggerByUuid(string memory uuid) external view returns (Trigger memory) {
+        uint256 triggerId = triggerByUuid[uuid];
+        require(triggerId != 0, "trigger not found");
+        return triggers[triggerId];
     }
 
     function transferOwnership(address newOwner) external onlyOwner {

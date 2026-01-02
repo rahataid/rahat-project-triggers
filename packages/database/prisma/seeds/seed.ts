@@ -19,7 +19,7 @@ const config: DataSourceType = {
         },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'Doda river at East-West Highway',
-          SERIESID: [29089],
+          SERIESID: [1508],
         },
       },
       {
@@ -29,7 +29,7 @@ const config: DataSourceType = {
         },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'karnali river at chisapani',
-          SERIESID: [29089],
+          SERIESID: [1508],
         },
       },
     ],

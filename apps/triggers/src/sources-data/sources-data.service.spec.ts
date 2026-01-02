@@ -18,7 +18,7 @@ jest.mock('@lib/database', () => ({
           },
           WATER_LEVEL: {
             LOCATION: 'Doda river at East-West Highway',
-            SERIESID: [29089],
+            SERIESID: [1508],
           },
         },
       ],

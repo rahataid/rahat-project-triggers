@@ -19,7 +19,8 @@ export class DhmService {
   async saveDataInDhm(
     type: SourceType,
     riverBasin: string,
-    payload: RiverStationData | RainfallStationData
+    payload: RiverStationData | RainfallStationData,
+    stationRef?: string
   ): Promise<any> {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -52,6 +53,7 @@ export class DhmService {
                   ...existingInfo,
                   ...payloadData,
                 },
+                stationRef,
                 updatedAt: new Date(),
               },
             });
@@ -71,6 +73,7 @@ export class DhmService {
             type,
             dataSource: DataSource.DHM,
             info: payloadData,
+            stationRef: stationRef as any,
             source: {
               connectOrCreate: {
                 where: { riverBasin },

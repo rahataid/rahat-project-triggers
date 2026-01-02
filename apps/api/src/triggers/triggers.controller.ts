@@ -4,6 +4,7 @@ import { Get, Post, Patch, Delete, Body } from '@nestjs/common';
 import { TriggersService } from './trigger.service';
 import { Prisma } from '@lib/database';
 import { TriggerDto } from './dto/trigger.dto';
+import { ActivateTriggerDto } from './dto/activate-trigger.dto';
 
 @ApiTags('triggers')
 @Controller('triggers')
@@ -31,6 +32,15 @@ export class TriggersController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   create(@Body() data: TriggerDto) {
     return this.triggersService.create(data);
+  }
+
+  @Post('activate')
+  @ApiOperation({ summary: 'Activate a trigger' })
+  @ApiResponse({ status: 200, description: 'Trigger activated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 404, description: 'Trigger not found' })
+  activate(@Body() data: ActivateTriggerDto) {
+    return this.triggersService.activate(data);
   }
 
   @Patch(':id')

@@ -8,7 +8,9 @@
     "test": "hardhat test",
     "clean": "hardhat clean",
     "build": "tsc",
-    "deployContract": "npx ts-node scripts/deploy.ts"
+    "deployContract": "npx ts-node scripts/deploy.ts",
+    "compileContract": "npx hardhat compile",
+    "seed": "npx ts-node scripts/seed.ts"
   },
   "exports": {
     ".": "./dist/index.js"

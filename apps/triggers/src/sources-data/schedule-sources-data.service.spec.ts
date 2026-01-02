@@ -133,7 +133,7 @@ describe('ScheduleSourcesDataService', () => {
         {
           WATER_LEVEL: {
             LOCATION: 'Doda river at East-West Highway',
-            SERIESID: [29089],
+            SERIESID: [1508],
           },
           RAINFALL: {
             LOCATION: 'Doda river at East-West Highway',
@@ -150,10 +150,10 @@ describe('ScheduleSourcesDataService', () => {
         config: {
           WATER_LEVEL: {
             LOCATION: 'Doda river at East-West Highway',
-            SERIESID: [29089],
+            SERIESID: [1508],
           },
         },
-        seriesId: 29089,
+        seriesId: 1508,
       },
     ];
 
@@ -261,7 +261,7 @@ describe('ScheduleSourcesDataService', () => {
         {
           WATER_LEVEL: {
             LOCATION: 'Doda river at East-West Highway',
-            SERIESID: [29089],
+            SERIESID: [1508],
           },
           RAINFALL: {
             LOCATION: 'Doda river at East-West Highway',

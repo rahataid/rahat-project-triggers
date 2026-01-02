@@ -259,6 +259,7 @@ export class DhmService implements AbstractSource, OnApplicationBootstrap {
     type: SourceType,
     riverBasin: string,
     payload: RiverStationData | RainfallStationData,
+    stationRef?: string,
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -291,6 +292,7 @@ export class DhmService implements AbstractSource, OnApplicationBootstrap {
                   ...existingInfo,
                   ...payloadData,
                 },
+                stationRef,
                 updatedAt: new Date(),
               },
             });
@@ -310,6 +312,7 @@ export class DhmService implements AbstractSource, OnApplicationBootstrap {
             type,
             dataSource: DataSource.DHM,
             info: payloadData,
+            stationRef,
             source: {
               connectOrCreate: {
                 where: { riverBasin },

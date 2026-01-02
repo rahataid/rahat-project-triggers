@@ -12,18 +12,24 @@ import {
   findOneTriggerDto,
 } from './dto';
 import { TriggerService } from './trigger.service';
+import { AddOnchainTriggerService } from './onchainTrigger.service';
 
 @Controller('trigger')
 export class TriggerController {
   private readonly logger = new Logger(TriggerController.name);
 
-  constructor(private readonly triggerService: TriggerService) {}
+  constructor(
+    private readonly triggerService: TriggerService,
+    private readonly addOnchainTriggerService: AddOnchainTriggerService,
+  ) {}
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ADD,
   })
   async create(payload: CreateTriggerPayloadDto) {
-    return this.triggerService.create(payload);
+    const result = await this.triggerService.create(payload);
+    await this.addOnchainTriggerService.addTriggersOnChain(result);
+    return result;
   }
 
   @MessagePattern({
@@ -50,15 +56,17 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ACTIVATE,
   })
-  activateTrigger(payload: ActivateTriggerPayloadDto) {
-    return this.triggerService.activateTrigger(payload);
+  async activateTrigger(payload: ActivateTriggerPayloadDto) {
+    const result = await this.triggerService.activateTrigger(payload);
+    await this.addOnchainTriggerService.updateTriggerOnChain(result);
+    return result;
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE,
   })
-  updateTrigger(payload: UpdateTriggerPayloadDto) {
-    return this.triggerService.update(payload);
+  async updateTrigger(payload: UpdateTriggerPayloadDto) {
+    return await this.triggerService.update(payload);
   }
 
   @MessagePattern({

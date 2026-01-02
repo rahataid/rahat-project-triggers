@@ -11,6 +11,7 @@ import { BullModule } from '@nestjs/bull';
 import { BQUEUE } from 'src/constant';
 import Redis from 'ioredis';
 import { DataSourceEventsListener } from './data-source-events.listener';
+import { DataSourceEventsOracleListener } from './data-source-oracle.listener';
 import { HealthMonitoringService, HealthCacheService } from '@lib/core';
 import { GlofasModule, GlofasServices } from '@lib/glofas-adapter';
 import { TriggerModule } from 'src/trigger/trigger.module';
@@ -21,6 +22,9 @@ import { GfhModule, GfhService } from '@lib/gfh-adapter';
     HttpModule,
     BullModule.registerQueue({
       name: BQUEUE.TRIGGER,
+    }),
+    BullModule.registerQueue({
+      name: BQUEUE.BLOCKCHAIN_TRANSFER,
     }),
     DhmModule.forRoot(),
     GlofasModule.forRoot(),
@@ -41,6 +45,7 @@ import { GfhModule, GfhService } from '@lib/gfh-adapter';
     DhmServiceLib,
     GlofasServices,
     GfhService,
+    DataSourceEventsOracleListener,
     {
       provide: 'REDIS_CLIENT',
       useFactory: (configService: ConfigService) => {

@@ -20,8 +20,6 @@ export class DataSourceEventsListener {
 
   @OnEvent(core.DATA_SOURCE_EVENTS.DHM.WATER_LEVEL)
   async handleDhmWaterLevel(event: core.DataSourceEventPayload) {
-    console.log('DHM WATER LEVEL EVENT RECEIVED', event);
-
     const indicators: core.Indicator[] = event.indicators;
 
     this.logger.log(
@@ -71,6 +69,10 @@ export class DataSourceEventsListener {
       const stationId =
         indicator.location.type === 'BASIN'
           ? indicator.location.seriesId
+          : undefined;
+      const seriesId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId?.toString()
           : undefined;
 
       const triggers = triggerMap[stationId];

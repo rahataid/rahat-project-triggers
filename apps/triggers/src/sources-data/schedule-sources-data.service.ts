@@ -85,7 +85,7 @@ export class ScheduleSourcesDataService
   }
 
   // run every 15 minutes
-  @Cron('*/15 * * * * *')
+  @Cron('*/15 * * * *')
   async syncRiverWaterData() {
     const riverData = await this.dhmWaterMonitored.execute();
 
@@ -102,11 +102,16 @@ export class ScheduleSourcesDataService
 
     riverData.data.forEach(async (indicator) => {
       const riverId = (indicator.location as any)?.basinId;
+      const seriesId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId?.toString()
+          : undefined;
 
       await this.dhmService.saveDataInDhm(
         SourceType.WATER_LEVEL,
         riverId,
         indicator.info,
+        seriesId,
       );
     });
   }
@@ -128,10 +133,16 @@ export class ScheduleSourcesDataService
 
     rainfallData.data.forEach(async (indicator) => {
       const riverId = (indicator.location as any)?.basinId;
+      const seriesId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId?.toString()
+          : undefined;
+
       await this.dhmService.saveDataInDhm(
         SourceType.RAINFALL,
         riverId,
         indicator.info,
+        seriesId,
       );
     });
   }
