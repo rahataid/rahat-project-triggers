@@ -80,7 +80,7 @@ When creating a trigger, you need to specify:
 2. **Source Subtype**: The specific metric within that data type
    - For Water Level: `warning_level` or `danger_level`
    - For Rainfall: `hourly` or `daily`
-   - For Flood Probability: `two_years_max_prob`, `five_years_max_prob`, or `twenty_years_max_prob`
+   - For Flood Probability: `two_years_return_period`, `five_years_return_period`, or `twenty_years_return_period`
    - For Discharge: `warning_discharge` or `danger_discharge`
 
 3. **Comparison Operator**: How to compare the value
@@ -98,7 +98,7 @@ When creating a trigger, you need to specify:
 5. **Expression**: A mathematical formula that combines the above elements
    - Example: `warning_level >= 5.5`
    - Example: `hourly > 50`
-   - Example: `two_years_max_prob >= 75`
+   - Example: `two_years_return_period >= 75`
 
 6. **Station ID** (Optional): If the trigger is specific to a particular monitoring station
 
@@ -180,9 +180,9 @@ When a trigger's threshold is met:
 - The system splits this into three separate values
 - Each value is evaluated against triggers monitoring that specific probability type
 - Example: If the data contains "60/75/85", the system evaluates:
-  - 2-year max probability (60%) against `two_years_max_prob` triggers
-  - 5-year max probability (75%) against `five_years_max_prob` triggers
-  - 20-year max probability (85%) against `twenty_years_max_prob` triggers
+  - 2-year max probability (60%) against `two_years_return_period` triggers
+  - 5-year max probability (75%) against `five_years_return_period` triggers
+  - 20-year max probability (85%) against `twenty_years_return_period` triggers
 
 #### GFH Discharge
 

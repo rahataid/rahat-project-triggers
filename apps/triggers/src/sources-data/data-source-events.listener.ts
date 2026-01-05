@@ -182,9 +182,10 @@ export class DataSourceEventsListener {
       const [twoYearsMaxProb, fiveYearsMaxProb, twentyYearsMaxProb] =
         indicator.value.toString().split('/');
 
-      const twoYearsMaxProbTriggers = triggerMap['two_years_max_prob'];
-      const fiveYearsMaxProbTriggers = triggerMap['five_years_max_prob'];
-      const twentyYearsMaxProbTriggers = triggerMap['twenty_years_max_prob'];
+      const twoYearsMaxProbTriggers = triggerMap['two_years_return_period'];
+      const fiveYearsMaxProbTriggers = triggerMap['five_years_return_period'];
+      const twentyYearsMaxProbTriggers =
+        triggerMap['twenty_years_return_period'];
 
       await this.processAndEvaluateTriggers(
         twoYearsMaxProbTriggers,
