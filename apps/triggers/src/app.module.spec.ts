@@ -1,7 +1,6 @@
 import { AppModule } from './app.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaService } from '@lib/database';
 
 describe('AppModule', () => {
   let appModule: AppModule;
@@ -34,7 +33,6 @@ describe('AppModule', () => {
 
     expect(controllerMetadata).toContain(AppController);
     expect(providerMetadata).toContain(AppService);
-    expect(providerMetadata).toContain(PrismaService);
   });
 
   it('should have proper module imports', () => {
@@ -55,11 +53,6 @@ describe('AppModule', () => {
     it('should have AppService in metadata', () => {
       const providerMetadata = Reflect.getMetadata('providers', AppModule);
       expect(providerMetadata).toContain(AppService);
-    });
-
-    it('should have PrismaService in metadata', () => {
-      const providerMetadata = Reflect.getMetadata('providers', AppModule);
-      expect(providerMetadata).toContain(PrismaService);
     });
   });
 

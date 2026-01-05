@@ -44,7 +44,6 @@ export class TriggerService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => PhasesService))
     private readonly phasesService: PhasesService,
-    @InjectQueue(BQUEUE.SCHEDULE) private readonly scheduleQueue: Queue,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
   ) {}
@@ -267,7 +266,7 @@ export class TriggerService {
     this.logger.log(`Creating ${dto.source} trigger for app: ${appId}`);
     try {
       const { phaseId, ...rest } = dto;
-      const phase = await this.phasesService.getOne(phaseId);
+      const phase = await this.phasesService.findOne(phaseId);
 
       if (!phase) {
         this.logger.error(`Phase with id: ${phaseId} not found.`);
@@ -338,7 +337,7 @@ export class TriggerService {
         throw new RpcException(`Cannot remove triggers from an active phase.`);
       }
 
-      const phaseDetail = await this.phasesService.getOne(trigger.phaseId);
+      const phaseDetail = await this.phasesService.findOne(trigger.phaseId);
 
       // check if optional triggers criterias are disrupted
       if (!trigger.isMandatory) {
@@ -770,5 +769,31 @@ export class TriggerService {
       );
       throw error;
     });
+  }
+
+  async generateTriggersStatsForPhase(phaseId: string) {
+    try {
+      const [stats] = await this.prisma.$queryRawUnsafe<any[]>(
+        `
+        SELECT
+          COUNT(*) FILTER (WHERE "isDeleted" = false)::INT AS "totalTriggers",
+          COUNT(*) FILTER (WHERE "isMandatory" = true AND "isDeleted" = false)::INT AS "totalMandatoryTriggers",
+          COUNT(*) FILTER (WHERE "isMandatory" = true AND "isTriggered" = true AND "isDeleted" = false)::INT AS "totalMandatoryTriggersTriggered",
+          COUNT(*) FILTER (WHERE "isMandatory" = false AND "isDeleted" = false)::INT AS "totalOptionalTriggers",
+          COUNT(*) FILTER (WHERE "isMandatory" = false AND "isTriggered" = true AND "isDeleted" = false)::INT AS "totalOptionalTriggersTriggered",
+          COALESCE(json_agg(t.*) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
+        FROM public.tbl_triggers t
+        WHERE "phaseId" = $1
+      `,
+        phaseId,
+      );
+
+      return {
+        ...stats,
+      };
+    } catch (error: any) {
+      this.logger.warn('Error while generating phase triggers stats', error);
+      throw new RpcException(error);
+    }
   }
 }

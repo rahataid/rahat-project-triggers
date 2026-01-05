@@ -16,16 +16,14 @@ export class TriggerProcessor {
   async processTrigger(job: Job) {
     const payload = job.data;
 
-    this.logger.log(
-      `Processing trigger job for repeatKey: ${payload.repeatKey}`,
-    );
+    this.logger.log(`Processing trigger job for uuid: ${payload.uuid}`);
     if (payload.source) {
       this.processAutomatedData(payload);
     }
   }
 
   async processAutomatedData(payload) {
-    const phaseData = await this.phaseService.getOne(payload.phaseId);
+    const phaseData = await this.phaseService.findOne(payload.phaseId);
     this.logger.log(
       `Processing automated data for phase ${phaseData.uuid}: ${phaseData.name}`,
     );
@@ -35,18 +33,6 @@ export class TriggerProcessor {
     );
     this.logger.log(
       `Conditions met to activate phase ${phaseData.uuid}: ${conditionsMet}`,
-    );
-    if (conditionsMet) {
-      this.phaseService.activatePhase(phaseData.uuid);
-    }
-    return;
-  }
-
-  async processManualTrigger(payload) {
-    const phaseData = await this.phaseService.getOne(payload.phaseId);
-
-    const conditionsMet = this.checkTriggerConditions(
-      phaseData.triggerRequirements,
     );
     if (conditionsMet) {
       this.phaseService.activatePhase(phaseData.uuid);

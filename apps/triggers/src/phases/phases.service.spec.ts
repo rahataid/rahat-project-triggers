@@ -4,6 +4,14 @@ jest.mock('cheerio', () => ({
     html: jest.fn(),
   }),
 }));
+
+// Mock the paginator function
+const mockPaginateFn = jest.fn();
+jest.mock('@lib/database', () => ({
+  ...jest.requireActual('@lib/database'),
+  paginator: jest.fn(() => mockPaginateFn),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -22,7 +30,7 @@ import {
   CreatePhaseDto,
   UpdatePhaseDto,
   GetPhaseDto,
-  GetPhaseByName,
+  GetPhaseByDetailDto,
   ConfigureThresholdPhaseDto,
 } from './dto';
 import { of } from 'rxjs';
@@ -69,6 +77,8 @@ describe('PhasesService', () => {
     remove: jest.fn(),
     activateTrigger: jest.fn(),
     archive: jest.fn(),
+    createTrigger: jest.fn(),
+    generateTriggersStatsForPhase: jest.fn(),
   };
 
   const mockEventEmitter = {
@@ -212,21 +222,28 @@ describe('PhasesService', () => {
       perPage: 10,
       activeYear: '2025',
       riverBasin: 'Karnali',
-      source: DataSource.DHM,
       name: Phases.PREPAREDNESS,
     };
 
     it('should return paginated phases with stats', async () => {
-      const mockPaginatedData = [
-        {
-          uuid: 'test-uuid',
-          name: Phases.PREPAREDNESS,
-          source: { riverBasin: 'Karnali' },
+      const mockPaginatedData = {
+        data: [
+          {
+            uuid: 'test-uuid',
+            name: Phases.PREPAREDNESS,
+            source: { riverBasin: 'Karnali' },
+            Trigger: [],
+          },
+        ],
+        meta: {
+          total: 2,
+          lastPage: 1,
+          currentPage: 1,
+          perPage: 10,
+          prev: null,
+          next: null,
         },
-      ];
-
-      mockPrismaService.phase.findMany.mockResolvedValue(mockPaginatedData);
-      mockPrismaService.phase.count.mockResolvedValue(2);
+      };
 
       const mockPhaseStats = {
         triggers: [],
@@ -237,89 +254,89 @@ describe('PhasesService', () => {
         totalOptionalTriggersTriggered: 0,
       };
 
-      jest
-        .spyOn(service, 'generatePhaseTriggersStats')
-        .mockResolvedValue(mockPhaseStats);
+      mockPaginateFn.mockResolvedValue(mockPaginatedData);
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockPhaseStats);
 
       const result = await service.findAll(getPhaseDto);
-      expect(result.meta.total).toBe(2);
       expect(result.data.length).toBe(1);
       expect(result.data[0].phaseStats).toEqual(mockPhaseStats);
+      expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
+        'test-uuid',
+      );
     });
 
     it('should handle undefined data gracefully', async () => {
-      mockPrismaService.phase.findMany.mockResolvedValue(undefined);
-      mockPrismaService.phase.count.mockResolvedValue(0);
+      const mockPaginatedData = {
+        data: undefined,
+        meta: {
+          total: 0,
+          lastPage: 0,
+          currentPage: 1,
+          perPage: 10,
+          prev: null,
+          next: null,
+        },
+      };
+
+      mockPaginateFn.mockResolvedValue(mockPaginatedData);
 
       const result = await service.findAll(getPhaseDto);
 
       expect(result.data).toEqual([]);
-      expect(result.meta.total).toBe(0);
-    });
-  });
-
-  describe('generatePhaseTriggersStats', () => {
-    const phaseId = 'test-phase-id';
-
-    it('should generate phase triggers stats successfully', async () => {
-      const mockTriggers = [
-        { uuid: 'trigger-1', isMandatory: true, isTriggered: true },
-        { uuid: 'trigger-2', isMandatory: false, isTriggered: false },
-      ];
-
-      (prismaService.trigger.count as jest.Mock)
-        .mockResolvedValueOnce(2) // totalMandatoryTriggers
-        .mockResolvedValueOnce(1) // totalMandatoryTriggersTriggered
-        .mockResolvedValueOnce(1) // totalOptionalTriggers
-        .mockResolvedValueOnce(0); // totalOptionalTriggersTriggered
-
-      (prismaService.trigger.findMany as jest.Mock).mockResolvedValue(
-        mockTriggers,
-      );
-
-      const result = await service.generatePhaseTriggersStats(phaseId);
-
-      expect(result).toEqual({
-        triggers: mockTriggers,
-        totalTriggers: 2,
-        totalMandatoryTriggers: 2,
-        totalMandatoryTriggersTriggered: 1,
-        totalOptionalTriggers: 1,
-        totalOptionalTriggersTriggered: 0,
-      });
-    });
-
-    it('should throw RpcException when database error occurs', async () => {
-      const dbError = new Error('Database error');
-      (prismaService.trigger.count as jest.Mock).mockRejectedValue(dbError);
-
-      await expect(service.generatePhaseTriggersStats(phaseId)).rejects.toThrow(
-        RpcException,
-      );
     });
   });
 
   describe('findOne', () => {
     const uuid = 'test-uuid';
 
-    it('should return a phase by uuid', async () => {
+    it('should return a phase by uuid with trigger requirements', async () => {
       const mockPhase = {
         uuid,
         name: Phases.PREPAREDNESS,
         source: { riverBasin: 'Karnali' },
+        requiredMandatoryTriggers: 2,
+        requiredOptionalTriggers: 1,
+        receivedMandatoryTriggers: 1,
+        receivedOptionalTriggers: 0,
+      };
+
+      const mockTriggerStats = {
+        totalMandatoryTriggers: 2,
+        totalOptionalTriggers: 1,
       };
 
       (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
         mockPhase,
       );
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
 
       const result = await service.findOne(uuid);
 
-      expect(result).toEqual(mockPhase);
+      expect(result).toEqual({
+        ...mockPhase,
+        triggerRequirements: {
+          mandatoryTriggers: {
+            totalTriggers: 2,
+            requiredTriggers: 2,
+            receivedTriggers: 1,
+          },
+          optionalTriggers: {
+            totalTriggers: 1,
+            requiredTriggers: 1,
+            receivedTriggers: 0,
+          },
+        },
+      });
       expect(prismaService.phase.findUnique).toHaveBeenCalledWith({
         where: { uuid },
-        include: { source: true },
       });
+      expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
+        uuid,
+      );
     });
 
     it('should throw RpcException when database error occurs', async () => {
@@ -374,61 +391,8 @@ describe('PhasesService', () => {
     });
   });
 
-  describe('getOne', () => {
-    const uuid = 'test-uuid';
-
-    it('should return a phase with triggers and activities', async () => {
-      const mockPhase = {
-        uuid,
-        name: Phases.PREPAREDNESS,
-        requiredMandatoryTriggers: 2,
-        requiredOptionalTriggers: 1,
-        receivedMandatoryTriggers: 1,
-        receivedOptionalTriggers: 0,
-        Trigger: [
-          { uuid: 'trigger-1', isMandatory: true },
-          { uuid: 'trigger-2', isMandatory: false },
-        ],
-        source: { riverBasin: 'Karnali' },
-        Activity: [],
-      };
-
-      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
-        mockPhase,
-      );
-      (prismaService.trigger.count as jest.Mock)
-        .mockResolvedValueOnce(2) // totalMandatoryTriggers
-        .mockResolvedValueOnce(1); // totalOptionalTriggers
-
-      const result = await service.getOne(uuid);
-
-      expect(result).toEqual({
-        ...mockPhase,
-        triggerRequirements: {
-          mandatoryTriggers: {
-            totalTriggers: 2,
-            requiredTriggers: 2,
-            receivedTriggers: 1,
-          },
-          optionalTriggers: {
-            totalTriggers: 1,
-            requiredTriggers: 1,
-            receivedTriggers: 0,
-          },
-        },
-      });
-    });
-
-    it('should throw RpcException when database error occurs', async () => {
-      const dbError = new Error('Database error');
-      (prismaService.phase.findUnique as jest.Mock).mockRejectedValue(dbError);
-
-      await expect(service.getOne(uuid)).rejects.toThrow(RpcException);
-    });
-  });
-
   describe('getOneByDetail', () => {
-    const getPhaseByName: GetPhaseByName = {
+    const getPhaseByName: GetPhaseByDetailDto = {
       appId: 'test-app',
       phase: Phases.PREPAREDNESS,
       uuid: 'test-uuid',
@@ -443,32 +407,36 @@ describe('PhasesService', () => {
         source: { riverBasin: 'Karnali' },
       };
 
-      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
-        mockPhase,
-      );
-      (prismaService.trigger.findMany as jest.Mock).mockResolvedValue([]);
-      (prismaService.trigger.count as jest.Mock)
-        .mockResolvedValueOnce(0) // totalMandatoryTriggers
-        .mockResolvedValueOnce(0) // totalMandatoryTriggersTriggered
-        .mockResolvedValueOnce(0) // totalOptionalTriggers
-        .mockResolvedValueOnce(0); // totalOptionalTriggersTriggered
-
-      const result = await service.getOneByDetail(getPhaseByName);
-
-      expect(result).toEqual({
-        ...mockPhase,
+      const mockTriggerStats = {
         triggers: [],
         totalTriggers: 0,
         totalMandatoryTriggers: 0,
         totalMandatoryTriggersTriggered: 0,
         totalOptionalTriggers: 0,
         totalOptionalTriggersTriggered: 0,
+      };
+
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
+        mockPhase,
+      );
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
+
+      const result = await service.getOneByDetail(getPhaseByName);
+
+      expect(result).toEqual({
+        ...mockPhase,
+        ...mockTriggerStats,
       });
 
       expect(prismaService.phase.findUnique).toHaveBeenCalledWith({
         where: { uuid: 'test-uuid' },
         include: { source: true },
       });
+      expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
+        'test-uuid',
+      );
     });
 
     it('should return phase details by name, activeYear, and riverBasin', async () => {
@@ -485,24 +453,25 @@ describe('PhasesService', () => {
         source: { riverBasin: 'Karnali' },
       };
 
-      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(mockPhase);
-      (prismaService.trigger.findMany as jest.Mock).mockResolvedValue([]);
-      (prismaService.trigger.count as jest.Mock)
-        .mockResolvedValueOnce(0) // totalMandatoryTriggers
-        .mockResolvedValueOnce(0) // totalMandatoryTriggersTriggered
-        .mockResolvedValueOnce(0) // totalOptionalTriggers
-        .mockResolvedValueOnce(0); // totalOptionalTriggersTriggered
-
-      const result = await service.getOneByDetail(getPhaseByNameWithoutUuid);
-
-      expect(result).toEqual({
-        ...mockPhase,
+      const mockTriggerStats = {
         triggers: [],
         totalTriggers: 0,
         totalMandatoryTriggers: 0,
         totalMandatoryTriggersTriggered: 0,
         totalOptionalTriggers: 0,
         totalOptionalTriggersTriggered: 0,
+      };
+
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(mockPhase);
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
+
+      const result = await service.getOneByDetail(getPhaseByNameWithoutUuid);
+
+      expect(result).toEqual({
+        ...mockPhase,
+        ...mockTriggerStats,
       });
 
       expect(prismaService.phase.findFirst).toHaveBeenCalledWith({
@@ -518,6 +487,9 @@ describe('PhasesService', () => {
         },
         include: { source: true },
       });
+      expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
+        'test-uuid',
+      );
     });
 
     it('should throw RpcException when activeYear and riverBasin are missing', async () => {
@@ -675,7 +647,7 @@ describe('PhasesService', () => {
         isActive: true,
       });
 
-      const result = await service.activatePhase(uuid);
+      await service.activatePhase(uuid);
 
       expect(prismaService.phase.findUnique).toHaveBeenCalledWith({
         where: { uuid },
@@ -747,7 +719,7 @@ describe('PhasesService', () => {
         isActive: true,
       });
 
-      const result = await service.activatePhase(uuid);
+      await service.activatePhase(uuid);
 
       expect(clientProxy.send).not.toHaveBeenCalled();
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_ACTIVATED, {
@@ -786,8 +758,8 @@ describe('PhasesService', () => {
     const payload = {
       uuid: 'test-uuid',
       triggers: [
-        { repeatKey: 'trigger-1', isMandatory: true },
-        { repeatKey: 'trigger-2', isMandatory: false },
+        { uuid: 'trigger-1', isMandatory: true },
+        { uuid: 'trigger-2', isMandatory: false },
       ],
       triggerRequirements: {
         mandatoryTriggers: { requiredTriggers: 2 },
@@ -801,16 +773,8 @@ describe('PhasesService', () => {
         isActive: false,
       };
 
-      const mockTrigger = {
-        uuid: 'trigger-uuid',
-        repeatKey: 'trigger-1',
-      };
-
       (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
         mockPhase,
-      );
-      (prismaService.trigger.findUnique as jest.Mock).mockResolvedValue(
-        mockTrigger,
       );
       (prismaService.trigger.update as jest.Mock).mockResolvedValue({});
       (prismaService.phase.update as jest.Mock).mockResolvedValue({
@@ -818,9 +782,23 @@ describe('PhasesService', () => {
         requiredMandatoryTriggers: 2,
       });
 
-      const result = await service.addTriggersToPhases(payload);
+      await service.addTriggersToPhases(payload);
 
       expect(prismaService.trigger.update).toHaveBeenCalledTimes(2);
+      expect(prismaService.trigger.update).toHaveBeenCalledWith({
+        where: { uuid: 'trigger-1' },
+        data: {
+          isMandatory: true,
+          phaseId: 'test-uuid',
+        },
+      });
+      expect(prismaService.trigger.update).toHaveBeenCalledWith({
+        where: { uuid: 'trigger-2' },
+        data: {
+          isMandatory: false,
+          phaseId: 'test-uuid',
+        },
+      });
       expect(prismaService.phase.update).toHaveBeenCalledWith({
         where: { uuid: 'test-uuid' },
         data: {
@@ -864,8 +842,10 @@ describe('PhasesService', () => {
   });
 
   describe('revertPhase', () => {
-    const appId = 'test-app';
-    const phaseId = 'test-phase-id';
+    const payload = {
+      appId: 'test-app',
+      phaseId: 'test-phase-id',
+    };
 
     it('should revert phase successfully', async () => {
       const mockActivities = [
@@ -880,7 +860,7 @@ describe('PhasesService', () => {
       ];
 
       const mockPhase = {
-        uuid: phaseId,
+        uuid: payload.phaseId,
         isActive: true,
         canRevert: true,
         Trigger: [
@@ -890,7 +870,7 @@ describe('PhasesService', () => {
             title: 'Test Trigger',
             description: 'Test Description',
             isMandatory: true,
-            phaseId,
+            phaseId: payload.phaseId,
             source: DataSource.MANUAL,
             createdBy: 'user-1',
           },
@@ -904,14 +884,14 @@ describe('PhasesService', () => {
       (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
         mockPhase,
       );
-      (triggerService.create as jest.Mock).mockResolvedValue({});
+      (triggerService.createTrigger as jest.Mock).mockResolvedValue({});
       (triggerService.archive as jest.Mock).mockResolvedValue({});
       (prismaService.phase.update as jest.Mock).mockResolvedValue({
         ...mockPhase,
         isActive: false,
       });
 
-      const result = await service.revertPhase(appId, phaseId);
+      await service.revertPhase(payload);
 
       expect(prismaService.activity.findMany).toHaveBeenCalledWith({
         where: {
@@ -924,13 +904,13 @@ describe('PhasesService', () => {
         },
       });
 
-      expect(triggerService.create).toHaveBeenCalledWith(
-        appId,
+      expect(triggerService.createTrigger).toHaveBeenCalledWith(
+        payload.appId,
         {
           title: 'Test Trigger',
           description: 'Test Description',
           isMandatory: true,
-          phaseId,
+          phaseId: payload.phaseId,
           source: DataSource.MANUAL,
         },
         'user-1',
@@ -938,14 +918,14 @@ describe('PhasesService', () => {
 
       expect(triggerService.archive).toHaveBeenCalledWith('trigger-1');
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_REVERTED, {
-        phaseId,
+        phaseId: payload.phaseId,
         revertedAt: expect.any(String),
       });
     });
 
     it('should handle non-manual triggers', async () => {
       const mockPhase = {
-        uuid: phaseId,
+        uuid: payload.phaseId,
         isActive: true,
         canRevert: true,
         Trigger: [
@@ -955,7 +935,7 @@ describe('PhasesService', () => {
             title: 'Test Trigger',
             description: 'Test Description',
             isMandatory: true,
-            phaseId,
+            phaseId: payload.phaseId,
             source: DataSource.DHM,
             triggerStatement: { condition: 'test' },
             createdBy: 'user-1',
@@ -967,23 +947,23 @@ describe('PhasesService', () => {
       (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
         mockPhase,
       );
-      (triggerService.create as jest.Mock).mockResolvedValue({});
+      (triggerService.createTrigger as jest.Mock).mockResolvedValue({});
       (triggerService.archive as jest.Mock).mockResolvedValue({});
       (prismaService.phase.update as jest.Mock).mockResolvedValue({
         ...mockPhase,
         isActive: false,
       });
 
-      await service.revertPhase(appId, phaseId);
+      await service.revertPhase(payload);
 
-      expect(triggerService.create).toHaveBeenCalledWith(
-        appId,
+      expect(triggerService.createTrigger).toHaveBeenCalledWith(
+        payload.appId,
         {
           title: 'Test Trigger',
           description: 'Test Description',
           triggerStatement: { condition: 'test' },
           isMandatory: true,
-          phaseId,
+          phaseId: payload.phaseId,
           source: DataSource.DHM,
         },
         'user-1',
@@ -994,14 +974,14 @@ describe('PhasesService', () => {
       (prismaService.activity.findMany as jest.Mock).mockResolvedValue([]);
       (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.revertPhase(appId, phaseId)).rejects.toThrow(
+      await expect(service.revertPhase(payload)).rejects.toThrow(
         new RpcException('Phase not found.'),
       );
     });
 
     it('should throw RpcException when phase cannot be reverted', async () => {
       const mockPhase = {
-        uuid: phaseId,
+        uuid: payload.phaseId,
         isActive: false,
         canRevert: false,
         Trigger: [],
@@ -1012,15 +992,17 @@ describe('PhasesService', () => {
         mockPhase,
       );
 
-      await expect(service.revertPhase(appId, phaseId)).rejects.toThrow(
+      await expect(service.revertPhase(payload)).rejects.toThrow(
         new RpcException('Phase cannot be reverted.'),
       );
     });
   });
 
   describe('findByLocation', () => {
-    const river_basin = 'Karnali';
-    const activeYear = '2025';
+    const payload = {
+      riverBasin: 'Karnali',
+      activeYear: '2025',
+    };
 
     it('should return phases by location', async () => {
       const mockPhases = [
@@ -1030,15 +1012,15 @@ describe('PhasesService', () => {
 
       (prismaService.phase.findMany as jest.Mock).mockResolvedValue(mockPhases);
 
-      const result = await service.findByLocation(river_basin, activeYear);
+      const result = await service.findByLocation(payload);
 
       expect(result).toEqual(mockPhases);
       expect(prismaService.phase.findMany).toHaveBeenCalledWith({
         where: {
-          activeYear,
+          activeYear: payload.activeYear,
           source: {
             riverBasin: {
-              contains: river_basin,
+              contains: payload.riverBasin,
               mode: 'insensitive',
             },
           },
@@ -1047,11 +1029,14 @@ describe('PhasesService', () => {
     });
 
     it('should return phases without activeYear filter', async () => {
+      const payloadWithoutYear = {
+        riverBasin: 'Karnali',
+      };
       const mockPhases = [{ uuid: 'phase-1', name: Phases.PREPAREDNESS }];
 
       (prismaService.phase.findMany as jest.Mock).mockResolvedValue(mockPhases);
 
-      const result = await service.findByLocation(river_basin);
+      const result = await service.findByLocation(payloadWithoutYear);
 
       expect(result).toEqual(mockPhases);
     });
@@ -1060,9 +1045,9 @@ describe('PhasesService', () => {
       const dbError = new Error('Database error');
       (prismaService.phase.findMany as jest.Mock).mockRejectedValue(dbError);
 
-      await expect(
-        service.findByLocation(river_basin, activeYear),
-      ).rejects.toThrow(RpcException);
+      await expect(service.findByLocation(payload)).rejects.toThrow(
+        RpcException,
+      );
     });
   });
 

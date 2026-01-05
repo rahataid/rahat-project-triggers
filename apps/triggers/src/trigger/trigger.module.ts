@@ -28,11 +28,7 @@ import { AddOnchainTriggerService } from './onchainTrigger.service';
       },
     ]),
     HttpModule,
-    SourcesDataModule,
     BullModule.registerQueue(
-      {
-        name: BQUEUE.SCHEDULE,
-      },
       {
         name: BQUEUE.TRIGGER,
       },
@@ -43,6 +39,7 @@ import { AddOnchainTriggerService } from './onchainTrigger.service';
         name: BQUEUE.BLOCKCHAIN_TRANSFER,
       },
     ),
+    forwardRef(() => SourcesDataModule),
     forwardRef(() => PhasesModule),
   ],
   controllers: [TriggerController],

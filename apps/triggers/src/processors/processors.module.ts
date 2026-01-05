@@ -1,7 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { SourcesDataModule } from 'src/sources-data/sources-data.module';
 import { PhasesModule } from '../phases/phases.module';
-import { ScheduleProcessor } from './schedule.processor';
 import { TriggerProcessor } from './trigger.processor';
 import { StatsProcessor } from './stats.processor';
 import { CommunicationProcessor } from './communication.processor';
@@ -40,9 +39,7 @@ import { TriggerModule } from '../trigger/trigger.module';
     forwardRef(() => TriggerModule),
   ],
   providers: [
-    ScheduleProcessor,
     TriggerProcessor,
-    // ContractProcessor,
     CommunicationProcessor,
     StatsProcessor,
     NotificationProcessor,

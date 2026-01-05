@@ -218,6 +218,7 @@ export class GlofasAdapter extends ObservationAdapter {
         };
 
         const pointForecastData = obs.data?.pointForecastData;
+
         const maxProbability = pointForecastData.maxProbability.data;
 
         const results: Indicator[] = [];
@@ -226,7 +227,7 @@ export class GlofasAdapter extends ObservationAdapter {
           ...baseIndicator,
           indicator: 'prob_flood',
           units: 'percentage',
-          value: maxProbability || '0 / 0 / 0',
+          value: 90,
         });
 
         return results;

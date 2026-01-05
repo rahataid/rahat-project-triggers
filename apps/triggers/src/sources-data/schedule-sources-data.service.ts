@@ -11,6 +11,10 @@ import {
   DhmWaterLevelAdapter,
   DhmRainfallAdapter,
   DhmService,
+  DhmObservation,
+  DhmInputItem,
+  RiverStationItem,
+  DhmSourceDataTypeEnum,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -23,6 +27,8 @@ import {
   ObservationAdapter,
 } from '@lib/core';
 import { SourceType } from '@lib/database';
+import { SourceDataType } from './dto/get-source-data';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class ScheduleSourcesDataService
@@ -194,5 +200,31 @@ export class ScheduleSourcesDataService
         indicator,
       );
     });
+  }
+
+  async getDhmWaterLevels(
+    date: Date,
+    period: SourceDataType,
+    seriesId: number,
+  ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | {}> {
+    const result: Awaited<
+      ReturnType<typeof this.dhmWaterLevelAdapter.executeByPeriod>
+    > = await this.dhmWaterLevelAdapter.executeByPeriod(
+      date,
+      seriesId,
+      DhmSourceDataTypeEnum[period],
+    );
+
+    if (isErr<DhmObservation[]>(result)) {
+      this.logger.warn(result.error);
+      throw new RpcException(result.error);
+    }
+
+    const observations = result.data as DhmObservation[];
+
+    return {
+      ...(observations[0].stationDetail as RiverStationItem),
+      history: observations[0].data,
+    };
   }
 }
