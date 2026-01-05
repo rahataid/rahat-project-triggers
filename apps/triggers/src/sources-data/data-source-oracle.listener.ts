@@ -19,6 +19,10 @@ export class DataSourceEventsOracleListener {
   @OnEvent(core.DATA_SOURCE_EVENTS.DHM.WATER_LEVEL)
   async handleDhmWaterLevel(event: core.DataSourceEventPayload) {
     const indicators: core.Indicator[] = event.indicators;
+    const sourcesToUpdate: Array<{
+      sourceId: number | string;
+      value: number | string;
+    }> = [];
 
     for (const indicator of indicators) {
       const seriesId =
@@ -42,33 +46,49 @@ export class DataSourceEventsOracleListener {
         },
       });
 
-      this.logger.log(
-        `Found sourcesData for seriesId: ${seriesId}, updating on-chain with value: ${indicator.value}`,
-      );
-
       if (sourcesData?.onChainRef) {
-        this.blockchainQueue.add(
-          JOBS.BLOCKCHAIN.UPDATE_SOURCE_VALUE,
-          { sourceId: sourcesData.onChainRef, value: indicator.value },
-          {
-            attempts: 5,
-            backoff: { type: 'exponential', delay: 2000 },
-            removeOnComplete: true,
-            removeOnFail: false,
-          },
+        this.logger.log(
+          `Found sourcesData for seriesId: ${seriesId}, will update on-chain with value: ${indicator.value}`,
         );
+        sourcesToUpdate.push({
+          sourceId: sourcesData.onChainRef,
+          value: indicator.value,
+        });
       } else {
         this.logger.error(`No blockchain ID found for seriesId: ${seriesId}`);
       }
     }
+
+    if (sourcesToUpdate.length > 0) {
+      this.blockchainQueue.add(
+        JOBS.BLOCKCHAIN.UPDATE_SOURCE_VALUE_BATCH,
+        { sources: sourcesToUpdate },
+        {
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 2000 },
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      this.logger.log(
+        `Queued ${sourcesToUpdate.length} source updates for batch processing`,
+      );
+    }
   }
 
   @OnEvent(core.DATA_SOURCE_EVENTS.DHM.RAINFALL)
-  async handleDhmRainfall(event: core.DataSourceEventPayload) {}
+  async handleDhmRainfall(event: core.DataSourceEventPayload) {
+    console.log('DHM RAIN FALL EVENT RECEIVED');
+  }
 
   @OnEvent(core.DATA_SOURCE_EVENTS.GLOFAS.WATER_LEVEL)
-  async handleGlofasWaterLevel(event: core.DataSourceEventPayload) {}
+  async handleGlofasWaterLevel(event: core.DataSourceEventPayload) {
+    console.log(event);
+    console.log('GLOFAS WATER LEVEL EVENT RECEIVED');
+  }
 
   @OnEvent(core.DATA_SOURCE_EVENTS.GFH.WATER_LEVEL)
-  async handleGfsWaterLevel(event: core.DataSourceEventPayload) {}
+  async handleGfsWaterLevel(event: core.DataSourceEventPayload) {
+    console.log('GFH WATER LEVEL EVENT RECEIVED');
+  }
 }

@@ -9,6 +9,13 @@ export type BlockchainUpdateSourceValuePayload = {
   value: number | string;
 };
 
+export type BlockchainUpdateSourceValueBatchPayload = {
+  sources: Array<{
+    sourceId: number | string;
+    value: number | string;
+  }>;
+};
+
 export type SourceOracleContractReader = {
   getSource: (sourceId: bigint) => Promise<{
     id: bigint;

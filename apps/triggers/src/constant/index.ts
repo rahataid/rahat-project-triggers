@@ -15,6 +15,7 @@ export const JOBS = {
     ADD_TRIGGER_BATCH: 'rahat.jobs.addTriggerBatch',
     ACTIVATE_TRIGGER: 'rahat.jobs.activateTrigger',
     UPDATE_SOURCE_VALUE: 'rahat.jobs.updateSourceValue',
+    UPDATE_SOURCE_VALUE_BATCH: 'rahat.jobs.updateSourceValueBatch',
     CREATE_PHASE: 'rahat.jobs.createPhase',
   },
   SCHEDULE: {
