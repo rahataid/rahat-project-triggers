@@ -1,0 +1,36 @@
+{
+  "name": "@lib/database",
+  "private": true,
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "db:generate": "prisma generate --schema=./prisma/schema",
+    "db:generate:prod": "prisma generate  --schema=./prisma/schema --no-engine",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema --skip-generate",
+    "db:deploy": "prisma migrate deploy --schema=./prisma/schema",
+    "seed": "./prisma/seed-db.sh",
+    "seed:dist": "./dist/prisma/seed-db.sh",
+    "format": "npx prisma format --schema=./prisma/schema"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.17.1",
+    "@prisma/extension-accelerate": "^2.0.2",
+    "@workspace/typescript-config": "workspace:*",
+    "prisma": "^6.17.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.7",
+    "express": "^5.1.0",
+    "tsup": "^8.5.0"
+  },
+  "peerDependencies": {
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  }
+}

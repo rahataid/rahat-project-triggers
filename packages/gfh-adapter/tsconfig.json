@@ -1,0 +1,12 @@
+{
+  "extends": "@workspace/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./src",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "experimentalDecorators": true,
+  },
+  "include": ["src", "index.ts"],
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}
