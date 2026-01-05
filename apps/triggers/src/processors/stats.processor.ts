@@ -11,18 +11,6 @@ export class StatsProcessor implements OnApplicationBootstrap {
     this.statsService.calculateAllStats();
   }
 
-  @OnEvent(EVENTS.PHASE_ACTIVATED)
-  async onPhaseTriggered(eventObject) {
-    return;
-    // return this.statsService.savePhaseActivatedStats(eventObject.phaseId);
-  }
-
-  @OnEvent(EVENTS.PHASE_REVERTED)
-  async onPhaseReverted(eventObject) {
-    return;
-    // return this.statsService.savePhaseRevertStats(eventObject.phaseId);
-  }
-
   @OnEvent(EVENTS.ACTIVITY_COMPLETED)
   @OnEvent(EVENTS.ACTIVITY_DELETED)
   @OnEvent(EVENTS.ACTIVITY_ADDED)
