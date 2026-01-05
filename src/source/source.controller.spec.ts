@@ -1,34 +1,46 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RpcException } from '@nestjs/microservices';
-import { PrismaService } from '@rumsan/prisma';
 import { SourceController } from './source.controller';
 import { SourceService } from './source.service';
 import { GetSouceDto } from './dto/get-source.dto';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
+import { HealthCacheService } from './health-cache.service';
 
 // Mock the paginator function
 jest.mock('@rumsan/prisma', () => ({
   ...jest.requireActual('@rumsan/prisma'),
-  paginator: jest.fn(() => jest.fn().mockResolvedValue({
-    data: [],
-    meta: {
-      total: 0,
-      lastPage: 1,
-      currentPage: 1,
-      perPage: 10,
-      prev: null,
-      next: null,
-    },
-  })),
+  paginator: jest.fn(() =>
+    jest.fn().mockResolvedValue({
+      data: [],
+      meta: {
+        total: 0,
+        lastPage: 1,
+        currentPage: 1,
+        perPage: 10,
+        prev: null,
+        next: null,
+      },
+    }),
+  ),
 }));
 
 describe('SourceController', () => {
   let controller: SourceController;
   let sourceService: SourceService;
+  let healthCacheService: HealthCacheService;
+
+  const mockHealthSummary = {
+    overall_status: 'UP',
+    last_updated: new Date().toISOString(),
+    sources: [],
+  };
 
   const mockSourceService = {
     findAll: jest.fn(),
     findOne: jest.fn(),
+  };
+  const mockHealthCacheService = {
+    getHealthSummary: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -39,11 +51,16 @@ describe('SourceController', () => {
           provide: SourceService,
           useValue: mockSourceService,
         },
+        {
+          provide: HealthCacheService,
+          useValue: mockHealthCacheService,
+        },
       ],
     }).compile();
 
     controller = module.get<SourceController>(SourceController);
     sourceService = module.get<SourceService>(SourceService);
+    healthCacheService = module.get<HealthCacheService>(HealthCacheService);
   });
 
   afterEach(() => {
@@ -135,7 +152,9 @@ describe('SourceController', () => {
       const error = new RpcException('Service error');
       mockSourceService.findAll.mockRejectedValue(error);
 
-      await expect(controller.getAllSource(mockDto)).rejects.toThrow(RpcException);
+      await expect(controller.getAllSource(mockDto)).rejects.toThrow(
+        RpcException,
+      );
       expect(mockSourceService.findAll).toHaveBeenCalledWith(mockDto);
     });
 
@@ -224,7 +243,7 @@ describe('SourceController', () => {
   describe('Message Pattern Decorators', () => {
     it('should have correct message pattern decorators', () => {
       const prototype = Object.getPrototypeOf(controller);
-      
+
       // Check that the methods have the correct decorators
       expect(prototype.getAllSource).toBeDefined();
       expect(prototype.findOne).toBeDefined();
@@ -241,6 +260,7 @@ describe('SourceController', () => {
     it('should cover all methods in the class', () => {
       expect(typeof controller.getAllSource).toBe('function');
       expect(typeof controller.findOne).toBe('function');
+      expect(typeof controller.getSourcesHealth).toBe('function');
     });
   });
 
@@ -249,6 +269,19 @@ describe('SourceController', () => {
       expect(sourceService).toBeDefined();
       expect(sourceService.findAll).toBeDefined();
       expect(sourceService.findOne).toBeDefined();
+      expect(healthCacheService).toBeDefined();
+      expect(healthCacheService.getHealthSummary).toBeDefined();
+    });
+  });
+
+  describe('getSourcesHealth', () => {
+    it('should get sources health successfully', async () => {
+      mockHealthCacheService.getHealthSummary.mockResolvedValue(
+        mockHealthSummary,
+      );
+      const result = await controller.getSourcesHealth();
+      expect(mockHealthCacheService.getHealthSummary).toHaveBeenCalled();
+      expect(result).toEqual(mockHealthSummary);
     });
   });
 });

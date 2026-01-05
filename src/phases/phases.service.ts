@@ -614,6 +614,13 @@ export class PhasesService {
           notify: true,
         },
       });
+
+      if (!disbursementCompleted) {
+        this.logger.warn(
+          `Phase ${uuid} activated but disbursement had errors. Check logs for details.`,
+        );
+      }
+
       return updatedPhase;
     } catch (error) {
       this.logger.error('Error while activating phase', error);

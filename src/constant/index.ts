@@ -109,6 +109,7 @@ export const MS_TRIGGERS_JOBS = {
   SOURCE: {
     GET_ALL: 'ms.jobs.sources.getAll',
     GET_ONE: 'ms.jobs.sources.getOne',
+    GET_HEALTH: 'ms.jobs.sources.getHealth',
   },
   ACTIVITIES: {
     GET_ONE: 'ms.jobs.activities.getOne',
