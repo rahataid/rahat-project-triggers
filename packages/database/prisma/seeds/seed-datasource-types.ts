@@ -8,9 +8,9 @@ const config: DataSourceTypesSetting = {
     ['GLOFAS']: {
       type: 'prob_flood',
       subtypes: [
-        'two_years_max_prob',
-        'five_years_max_prob',
-        'twenty_years_max_prob',
+        'two_years_return_period',
+        'five_years_return_period',
+        'twenty_years_return_period',
       ],
     },
     ['DHM:RAINFALL']: {
