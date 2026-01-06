@@ -179,27 +179,32 @@ export class DataSourceEventsListener {
     }, {});
 
     for await (const indicator of indicators) {
-      const [twoYearsMaxProb, fiveYearsMaxProb, twentyYearsMaxProb] =
-        indicator.value.toString().split('/');
+      const [
+        twoYearsReturnPeriod,
+        fiveYearsReturnPeriod,
+        twentyYearsReturnPeriod,
+      ] = indicator.value.toString().split('/');
 
-      const twoYearsMaxProbTriggers = triggerMap['two_years_return_period'];
-      const fiveYearsMaxProbTriggers = triggerMap['five_years_return_period'];
-      const twentyYearsMaxProbTriggers =
+      const twoYearsReturnPeriodTriggers =
+        triggerMap['two_years_return_period'];
+      const fiveYearsReturnPeriodTriggers =
+        triggerMap['five_years_return_period'];
+      const twentyYearsReturnPeriodTriggers =
         triggerMap['twenty_years_return_period'];
 
       await this.processAndEvaluateTriggers(
-        twoYearsMaxProbTriggers,
-        Number(twoYearsMaxProb.trim()) || 0,
+        twoYearsReturnPeriodTriggers,
+        Number(twoYearsReturnPeriod.trim()) || 0,
       );
 
       await this.processAndEvaluateTriggers(
-        fiveYearsMaxProbTriggers,
-        Number(fiveYearsMaxProb.trim()) || 0,
+        fiveYearsReturnPeriodTriggers,
+        Number(fiveYearsReturnPeriod.trim()) || 0,
       );
 
       await this.processAndEvaluateTriggers(
-        twentyYearsMaxProbTriggers,
-        Number(twentyYearsMaxProb.trim()) || 0,
+        twentyYearsReturnPeriodTriggers,
+        Number(twentyYearsReturnPeriod.trim()) || 0,
       );
     }
   }

@@ -176,13 +176,13 @@ When a trigger's threshold is met:
 
 #### GLOFAS Flood Probability
 
-- GLOFAS provides three different probability values in a single data point (2-year, 5-year, and 20-year maximum probabilities)
+- GLOFAS provides three different probability values in a single data point (2-year, 5-year, and 20-year return period)
 - The system splits this into three separate values
 - Each value is evaluated against triggers monitoring that specific probability type
 - Example: If the data contains "60/75/85", the system evaluates:
-  - 2-year max probability (60%) against `two_years_return_period` triggers
-  - 5-year max probability (75%) against `five_years_return_period` triggers
-  - 20-year max probability (85%) against `twenty_years_return_period` triggers
+  - 2-year return period (60%) against `two_years_return_period` triggers
+  - 5-year return period (75%) against `five_years_return_period` triggers
+  - 20-year return period (85%) against `twenty_years_return_period` triggers
 
 #### GFH Discharge
 
