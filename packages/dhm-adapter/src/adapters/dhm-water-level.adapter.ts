@@ -154,7 +154,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
   private async fetchSeries(
     params: SeriesFetchParams
   ): Promise<DhmFetchResponse> {
-    const { baseUrl, seriesId, period, location, date } = params;
+    const { baseUrl, seriesId, period, location, date = new Date() } = params;
     const queryParams = buildQueryParams(seriesId, new Date(date!));
 
     const form = new FormData();
