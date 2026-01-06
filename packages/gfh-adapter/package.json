@@ -1,0 +1,27 @@
+{
+  "name": "@lib/gfh-adapter",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@lib/core": "workspace:*",
+    "@lib/database": "workspace:*",
+    "axios": "^1.12.2",
+    "@nestjs/axios": "^4.0.1",
+    "cheerio": "^1.1.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^27.0.2",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "jest": "^27.0.6",
+    "typescript": "5.9.2"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  }
+}
