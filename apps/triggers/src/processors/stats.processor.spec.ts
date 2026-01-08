@@ -2,12 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StatsProcessor } from './stats.processor';
 import { StatsService } from '../stats/stat.service';
-import { EVENTS } from '../constant';
 
 describe('StatsProcessor', () => {
   let processor: StatsProcessor;
-  let statsService: StatsService;
-  let eventEmitter: EventEmitter2;
 
   const mockStatsService = {
     calculateAllStats: jest.fn(),
@@ -37,8 +34,6 @@ describe('StatsProcessor', () => {
     }).compile();
 
     processor = module.get<StatsProcessor>(StatsProcessor);
-    statsService = module.get<StatsService>(StatsService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
   afterEach(() => {
@@ -54,46 +49,6 @@ describe('StatsProcessor', () => {
       await processor.onApplicationBootstrap();
 
       expect(mockStatsService.calculateAllStats).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('onPhaseTriggered', () => {
-    it('should handle PHASE_ACTIVATED event', async () => {
-      const eventObject = { phaseId: 'test-phase-id' };
-
-      const result = await processor.onPhaseTriggered(eventObject);
-
-      expect(result).toBeUndefined();
-      // Note: The method currently returns early, so savePhaseActivatedStats is not called
-      expect(mockStatsService.savePhaseActivatedStats).not.toHaveBeenCalled();
-    });
-
-    it('should handle PHASE_ACTIVATED event with different phaseId', async () => {
-      const eventObject = { phaseId: 'another-phase-id' };
-
-      const result = await processor.onPhaseTriggered(eventObject);
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('onPhaseReverted', () => {
-    it('should handle PHASE_REVERTED event', async () => {
-      const eventObject = { phaseId: 'test-phase-id' };
-
-      const result = await processor.onPhaseReverted(eventObject);
-
-      expect(result).toBeUndefined();
-      // Note: The method currently returns early, so savePhaseRevertStats is not called
-      expect(mockStatsService.savePhaseRevertStats).not.toHaveBeenCalled();
-    });
-
-    it('should handle PHASE_REVERTED event with different phaseId', async () => {
-      const eventObject = { phaseId: 'another-phase-id' };
-
-      const result = await processor.onPhaseReverted(eventObject);
-
-      expect(result).toBeUndefined();
     });
   });
 
@@ -139,8 +94,6 @@ describe('StatsProcessor', () => {
       const prototype = Object.getPrototypeOf(processor);
 
       // Check that the methods have the correct decorators
-      expect(prototype.onPhaseTriggered).toBeDefined();
-      expect(prototype.onPhaseReverted).toBeDefined();
       expect(prototype.onActivityCompleted).toBeDefined();
     });
   });
@@ -149,8 +102,6 @@ describe('StatsProcessor', () => {
     it('should cover all methods in the class', () => {
       // This test ensures we're testing all methods
       expect(typeof processor.onApplicationBootstrap).toBe('function');
-      expect(typeof processor.onPhaseTriggered).toBe('function');
-      expect(typeof processor.onPhaseReverted).toBe('function');
       expect(typeof processor.onActivityCompleted).toBe('function');
     });
   });

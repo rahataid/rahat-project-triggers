@@ -8,6 +8,7 @@ services:
     restart: always
     env_file:
       - ./apps/triggers/.env
+
     # command: >
     #   sh -c "npx prisma migrate deploy"
     ports:

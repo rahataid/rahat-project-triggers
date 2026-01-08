@@ -20,7 +20,11 @@ const SOURCE_CONFIG = {
   prob_flood: {
     label: 'Glofas',
     sourceSubType: 'Flood Probability',
-    subTypes: ['2_years_max_prob', '5_years_max_prob', '20_years_max_prob'],
+    subTypes: [
+      'two_years_return_period',
+      'five_years_return_period',
+      'twenty_years_return_period',
+    ],
   },
 } as const;
 

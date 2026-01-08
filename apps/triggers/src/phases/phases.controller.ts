@@ -2,7 +2,14 @@ import { Body, Controller, Logger } from '@nestjs/common';
 import { MessagePattern, RpcException } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { PhasesService } from './phases.service';
-import { ConfigureThresholdPhaseDto, GetPhaseByName } from './dto';
+import {
+  ConfigureThresholdPhaseDto,
+  CreatePhaseDto,
+  GetPhaseByDetailDto,
+  GetPhaseByLocationDto,
+  GetPhaseDto,
+  RevertPhaseDto,
+} from './dto';
 import { ConfigService } from '@nestjs/config';
 
 @Controller('phases')
@@ -16,22 +23,21 @@ export class PhasesController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.CREATE,
   })
-  async create(payload) {
+  async create(payload: CreatePhaseDto) {
     return this.phasesService.create(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ALL,
   })
-  async getAll(payload: any): Promise<any> {
+  async getAll(payload: GetPhaseDto) {
     return this.phasesService.findAll(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ONE,
   })
-  async getOne(payload: GetPhaseByName) {
-    this.logger.log(`Getting phase with: ${JSON.stringify(payload)}`);
+  async getOne(payload: GetPhaseByDetailDto) {
     return this.phasesService.getOneByDetail(payload);
   }
 
@@ -45,16 +51,15 @@ export class PhasesController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.REVERT_PHASE,
   })
-  async revertPhase(payload) {
-    const { appId, ...rest } = payload;
-    return this.phasesService.revertPhase(appId, rest);
+  async revertPhase(payload: RevertPhaseDto) {
+    return this.phasesService.revertPhase(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_BY_LOCATION,
   })
-  async getByLocation(payload) {
-    return this.phasesService.findByLocation(payload.appId, payload.location);
+  async getByLocation(payload: GetPhaseByLocationDto) {
+    return this.phasesService.findByLocation(payload);
   }
 
   @MessagePattern({

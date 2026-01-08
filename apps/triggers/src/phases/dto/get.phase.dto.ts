@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { ApiProperty } from '@nestjs/swagger';
-import { DataSource, Phases } from '@lib/database';
+import { Phases } from '@lib/database';
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from 'src/common/dto';
 
@@ -21,14 +21,6 @@ export class GetPhaseDto extends PartialType(PaginationDto) {
   riverBasin?: string;
 
   @ApiProperty({
-    example: DataSource.DHM,
-  })
-  @IsEnum(DataSource)
-  @IsOptional()
-  @IsString()
-  source?: DataSource;
-
-  @ApiProperty({
     example: Phases.PREPAREDNESS,
   })
   @IsEnum(Phases)
@@ -37,7 +29,7 @@ export class GetPhaseDto extends PartialType(PaginationDto) {
   name?: Phases;
 }
 
-export class GetPhaseByName {
+export class GetPhaseByDetailDto {
   @ApiProperty({
     example: Phases.PREPAREDNESS,
   })
@@ -71,4 +63,36 @@ export class GetPhaseByName {
   @IsOptional()
   @IsString()
   appId?: string;
+}
+
+export class GetPhaseByLocationDto {
+  @ApiProperty({
+    example: 'sfs-sfs-sfs-sfs-sfs',
+  })
+  @IsString()
+  @IsNotEmpty()
+  riverBasin: string;
+
+  @ApiProperty({
+    example: 'Jhapa',
+  })
+  @IsString()
+  @IsNotEmpty()
+  activeYear: string;
+}
+
+export class RevertPhaseDto {
+  @ApiProperty({
+    example: 'sfs-sfs-sfs-sfs-sfs',
+  })
+  @IsString()
+  @IsNotEmpty()
+  appId: string;
+
+  @ApiProperty({
+    example: 'sfs-sfs-sfs-sfs-sfs',
+  })
+  @IsString()
+  @IsNotEmpty()
+  phaseId: string;
 }
