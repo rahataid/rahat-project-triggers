@@ -27,11 +27,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       },
     ]),
     HttpModule,
-    SourcesDataModule,
     BullModule.registerQueue(
-      {
-        name: BQUEUE.SCHEDULE,
-      },
       {
         name: BQUEUE.TRIGGER,
       },
@@ -39,6 +35,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         name: BQUEUE.STELLAR,
       },
     ),
+    forwardRef(() => SourcesDataModule),
     forwardRef(() => PhasesModule),
   ],
   controllers: [TriggerController],

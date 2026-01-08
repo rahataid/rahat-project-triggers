@@ -32,7 +32,7 @@ export class GlofasServices {
             data: {
               info: {
                 ...existingInfo,
-                ...payload,
+                ...payload.info,
               },
               updatedAt: new Date(),
             },
@@ -44,7 +44,7 @@ export class GlofasServices {
           data: {
             type: SourceType.WATER_LEVEL,
             dataSource: DataSource.GLOFAS,
-            info: JSON.parse(JSON.stringify(payload)),
+            info: JSON.parse(JSON.stringify(payload.info)),
             source: {
               connectOrCreate: {
                 where: { riverBasin },

@@ -53,7 +53,7 @@ export const JOBS = {
   STELLAR: {
     ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
     UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
-    DISBURSE: 'aa.jobs.stellar.disburse',
+    DISBURSE: 'jobs.stellar.disburse',
   },
   CHAIN: {
     DISBURSE: 'aa.jobs.chain.disburse',
@@ -94,17 +94,14 @@ export const MS_TRIGGERS_JOBS = {
     GET_BY_LOCATION: 'ms.jobs.phases.getByLocation',
     CONFIGURE_THRESHOLD: 'ms.jobs.phase.configureThreshold',
   },
-  RIVER_STATIONS: {
-    GET_DHM: 'ms.jobs.riverStations.getDhm',
-  },
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
+    GET_DHM_SINGLE_SERIES: 'ms.jobs.waterLevels.getDhmSingleSeries',
     GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
     GET_GFH: 'ms.jobs.waterLevels.getGfh',
   },
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
-    GET_GLOFAS: 'ms.jobs.rainfallLevels.getGlofas',
   },
   SOURCE: {
     GET_ALL: 'ms.jobs.sources.getAll',

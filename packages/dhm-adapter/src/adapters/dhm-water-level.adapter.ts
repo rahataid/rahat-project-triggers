@@ -11,6 +11,7 @@ import {
   RiverStationData,
   RainfallStationItem,
   RiverStationItem,
+  SeriesFetchParams,
 } from "../types/dhm-observation.type";
 import {
   Indicator,
@@ -135,6 +136,40 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     return 0;
   }
 
+  private validateConfig(): {
+    baseUrl: string;
+    config: RainfallWaterLevelConfig["WATER_LEVEL"][];
+  } | null {
+    const baseUrl = this.getUrl();
+    const config = this.getConfig();
+
+    if (!baseUrl) {
+      this.logger.error("DHM Water Level URL is not configured");
+      return null;
+    }
+
+    return { baseUrl, config };
+  }
+
+  private async fetchSeries(
+    params: SeriesFetchParams
+  ): Promise<DhmFetchResponse> {
+    const { baseUrl, seriesId, period, location, date = new Date() } = params;
+    const queryParams = buildQueryParams(seriesId, new Date(date!));
+
+    const form = new FormData();
+    form.append("date", queryParams.date_from || "");
+    form.append("period", period.toString());
+    form.append("seriesid", seriesId.toString());
+
+    return {
+      data: await this.httpService.axiosRef.post(baseUrl, form),
+      stationDetail: await this.getStationsDetailsBySeriesId(seriesId),
+      seriesId,
+      location,
+    };
+  }
+
   /**
    * Fetch raw HTML/data from DHM website
    */
@@ -143,40 +178,26 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     const successfulResults: DhmFetchResponse[] = [];
 
     try {
-      this.logger.log(`Fetching DHM data for stations`);
+      this.logger.log("Fetching DHM data for stations");
 
-      const baseUrl = this.getUrl();
+      const validated = this.validateConfig();
+      if (!validated) return Err("DHM Water Level URL is not configured");
 
-      const config: RainfallWaterLevelConfig["WATER_LEVEL"][] =
-        this.getConfig();
-
-      if (!baseUrl) {
-        this.logger.error("DHM Water Level URL is not configured");
-        return Err("DHM Water Level URL is not configured");
-      }
-
+      const { baseUrl, config } = validated;
       const allSeriesIds = config.flatMap((cfg) => cfg.SERIESID);
 
-      const results = await Promise.allSettled(
-        config.flatMap((cfg) => {
-          return cfg.SERIESID.map(async (seriesId) => {
-            const queryParams = buildQueryParams(seriesId);
-
-            const form = new FormData();
-
-            form.append("date", queryParams.date_from || "");
-            form.append("period", DhmSourceDataTypeEnum.POINT.toString());
-            form.append("seriesid", seriesId.toString());
-
-            return {
-              data: await this.httpService.axiosRef.post(baseUrl, form),
-              stationDetail: await this.getStationsDetailsBySeriesId(seriesId),
-              seriesId,
-              location: cfg.LOCATION,
-            };
-          });
-        })
+      const promises = config.flatMap((cfg) =>
+        cfg.SERIESID.map((seriesId) =>
+          this.fetchSeries({
+            baseUrl,
+            seriesId,
+            period: DhmSourceDataTypeEnum.POINT,
+            location: cfg.LOCATION,
+          })
+        )
       );
+
+      const results = await Promise.allSettled(promises);
 
       results.forEach((result, index) => {
         const seriesId = allSeriesIds[index];
@@ -341,6 +362,51 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
       chainAsync(this.aggregate(rawData), (observations: DhmObservation[]) =>
         this.transform(observations)
       )
+    );
+  }
+
+  async fetchByPeriod(
+    date: Date,
+    seriesId: number,
+    period: DhmSourceDataTypeEnum
+  ): Promise<Result<DhmFetchResponse[]>> {
+    try {
+      this.logger.log(`Fetching DHM data for SeriesId: ${seriesId}`);
+
+      const validated = this.validateConfig();
+      if (!validated) return Err("DHM Water Level URL is not configured");
+
+      const { baseUrl, config } = validated;
+
+      const cfg = config.find((c) => c.SERIESID.includes(seriesId));
+      if (!cfg) return Err(`SeriesId ${seriesId} not found in config`);
+
+      const result = await this.fetchSeries({
+        baseUrl,
+        seriesId,
+        period,
+        location: cfg.LOCATION,
+        date,
+      });
+
+      return Ok([result]);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to fetch DHM  data for SeriesId ${seriesId}`,
+        error
+      );
+      return Err(`Failed to fetch DHM data for SeriesId ${seriesId}`, error);
+    }
+  }
+
+  async executeByPeriod(
+    date: Date,
+    seriesId: number,
+    period: DhmSourceDataTypeEnum
+  ): Promise<Result<DhmObservation[]>> {
+    return chainAsync(
+      this.fetchByPeriod(date, seriesId, period),
+      (rawData: DhmFetchResponse[]) => this.aggregate(rawData)
     );
   }
 

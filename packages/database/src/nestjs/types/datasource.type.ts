@@ -32,3 +32,18 @@ export type DataSourceType = {
   value: DataSourceValue;
   isPrivate: boolean;
 };
+
+export type DataSourceKey = 'GLOFAS' | 'DHM:RAINFALL' | 'DHM:WATERLEVEL';
+
+export type DataSourceTypesValue = {
+  type: string;
+  subtypes: string[];
+};
+
+export type DataSourceTypes = Record<DataSourceKey, DataSourceTypesValue>;
+
+export type DataSourceTypesSetting = {
+  name: string;
+  value: DataSourceTypes;
+  isPrivate: boolean;
+};
