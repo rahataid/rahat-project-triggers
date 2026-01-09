@@ -44,6 +44,6 @@ import { AddOnchainTriggerService } from './onchainTrigger.service';
   ],
   controllers: [TriggerController],
   providers: [TriggerService, AddOnchainTriggerService],
-  exports: [TriggerService],
+  exports: [TriggerService, AddOnchainTriggerService],
 })
 export class TriggerModule {}

@@ -70,6 +70,7 @@ export class DataSourceEventsListener {
         indicator.location.type === 'BASIN'
           ? indicator.location.seriesId
           : undefined;
+
       const seriesId =
         indicator.location.type === 'BASIN'
           ? indicator.location.seriesId?.toString()
@@ -81,7 +82,7 @@ export class DataSourceEventsListener {
         continue;
       }
 
-      await this.processAndEvaluateTriggers(triggers, indicator.value);
+      await this.processAndEvaluateTriggers(triggers, +indicator.value);
     }
   }
 
@@ -142,11 +143,11 @@ export class DataSourceEventsListener {
         continue;
       }
 
-      await this.processAndEvaluateTriggers(triggers, indicator.value);
+      await this.processAndEvaluateTriggers(triggers, +indicator.value);
     }
   }
 
-  @OnEvent(core.DATA_SOURCE_EVENTS.GLOFAS.WATER_LEVEL)
+  // @OnEvent(core.DATA_SOURCE_EVENTS.GLOFAS.WATER_LEVEL)
   async handleGlofasWaterLevel(event: core.DataSourceEventPayload) {
     const indicators = event.indicators;
 
@@ -192,17 +193,17 @@ export class DataSourceEventsListener {
 
       await this.processAndEvaluateTriggers(
         twoYearsMaxProbTriggers,
-        Number(twoYearsMaxProb.trim()) || 0,
+        Number(twoYearsMaxProb?.trim()) || 0,
       );
 
       await this.processAndEvaluateTriggers(
         fiveYearsMaxProbTriggers,
-        Number(fiveYearsMaxProb.trim()) || 0,
+        Number(fiveYearsMaxProb?.trim()) || 0,
       );
 
       await this.processAndEvaluateTriggers(
         twentyYearsMaxProbTriggers,
-        Number(twentyYearsMaxProb.trim()) || 0,
+        Number(twentyYearsMaxProb?.trim()) || 0,
       );
     }
   }
@@ -236,7 +237,8 @@ export class DataSourceEventsListener {
 
       // 2. Compute MEAN of all indicator values
       const meanValue =
-        indicators.reduce((sum, ind) => sum + ind.value, 0) / indicators.length;
+        indicators.reduce((sum, ind) => sum + +ind.value, 0) /
+        indicators.length;
 
       const meetsThreshold = this.evaluateConditionExpression(
         {

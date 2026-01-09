@@ -7,7 +7,11 @@ export class GlofasServices {
   private readonly logger = new Logger(GlofasServices.name);
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async saveDataInGlofas(riverBasin: string, payload: GlofasDataObject) {
+  async saveDataInGlofas(
+    riverBasin: string,
+    payload: GlofasDataObject,
+    stationRef?: string,
+  ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const existingRecord = await tx.sourcesData.findFirst({
@@ -17,7 +21,7 @@ export class GlofasServices {
               riverBasin,
             },
             info: {
-              path: ['info', 'forecastDate'],
+              path: ['forecastDate'],
               equals: payload.info.forecastDate,
             },
           },
@@ -34,6 +38,7 @@ export class GlofasServices {
                 ...existingInfo,
                 ...payload.info,
               },
+              stationRef: stationRef as any,
               updatedAt: new Date(),
             },
           });
@@ -45,6 +50,7 @@ export class GlofasServices {
             type: SourceType.WATER_LEVEL,
             dataSource: DataSource.GLOFAS,
             info: JSON.parse(JSON.stringify(payload.info)),
+            stationRef: stationRef as any,
             source: {
               connectOrCreate: {
                 where: { riverBasin },

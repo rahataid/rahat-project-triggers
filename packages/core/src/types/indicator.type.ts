@@ -12,7 +12,7 @@ export type LocationType =
 export interface Indicator<T = any> {
   kind: 'OBSERVATION' | 'FORECAST';
   indicator: IndicatorType;
-  value: number;
+  value: number | string;
   info?: T | T[];
   units: string;
   issuedAt: string;

@@ -93,16 +93,6 @@ export class AddTriggerOnchainProcessor {
       threshold = BigInt(trigger.triggerStatement.value);
     }
 
-    const contractWithStaticCall = contract as any;
-    const blockchainId = await contractWithStaticCall.createTrigger.staticCall(
-      triggerType,
-      phaseUuid,
-      triggerUuidParam,
-      sourceBlockchainId,
-      threshold,
-      triggerName,
-    );
-
     const transactionResponse = await contract.createTrigger(
       triggerType,
       phaseUuid,
@@ -128,7 +118,7 @@ export class AddTriggerOnchainProcessor {
     });
 
     this.logger.log(
-      `Trigger ${trigger.uuid} created on-chain. Tx hash: ${transaction.hash}, Blockchain ID: ${blockchainId.toString()}`,
+      `Trigger ${trigger.uuid} created on-chain. Tx hash: ${transaction.hash}}`,
     );
   }
 }

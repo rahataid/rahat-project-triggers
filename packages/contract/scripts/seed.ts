@@ -106,8 +106,6 @@ export const seedSources = async () => {
       const name = `${dataSource}_${type}_${stationRef}`;
       const unit = getUnitFromType(type);
 
-      console.log(`Creating source: ${name}`);
-
       try {
         const tx = await oracleContract.createSource({
           name: name,
