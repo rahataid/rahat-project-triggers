@@ -285,6 +285,9 @@ export class SourcesDataService {
           equals: forecastDate,
         },
       },
+      include: {
+        source: { select: { riverBasin: true } },
+      },
     });
     return recordExists;
   }
