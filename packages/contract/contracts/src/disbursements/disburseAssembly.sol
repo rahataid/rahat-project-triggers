@@ -7,6 +7,16 @@ pragma solidity 0.8.30;
  * @dev Uses inline assembly to reduce gas by directly manipulating calldata and memory.
  */
 contract ERC20Disburser {
+    address public immutable owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "not owner");
+        _;
+    }
     /**
      * @notice Disburse ERC20 tokens to multiple recipients
      * @param token The ERC20 token address
@@ -63,5 +73,12 @@ contract ERC20Disburser {
                 }
             }
         }
+    }
+
+    /**
+     * @notice Withdraw any ETH accidentally sent to this contract
+     */
+    function withdraw() external onlyOwner {
+        payable(owner).transfer(address(this).balance);
     }
 }

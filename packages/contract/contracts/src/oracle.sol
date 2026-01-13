@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-contract SourceOracle {
-    address public owner;
+import "../interface/IOracle.sol";
+
+contract SourceOracle is ISourceOracle {
+    address public immutable owner;
     uint256 public nextSourceId = 1;
 
-    struct Source {
-        uint256 id;
-        string name;
-        uint256 value;
-        uint256 timestamp;
-        string unit;
-        uint256 decimal;
+    constructor() {
+        owner = msg.sender;
     }
 
     mapping(uint256 => Source) private sources;
