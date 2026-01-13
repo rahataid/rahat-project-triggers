@@ -19,7 +19,7 @@ interface ISourceOracle {
 
 contract TriggerContract {
     address public owner;
-    ISourceOracle public oracle;
+    ISourceOracle public immutable oracle;
 
     enum TriggerType {
     MANUAL,
@@ -72,6 +72,7 @@ contract TriggerContract {
         string name
     );
     event TriggerActivated(uint256 indexed triggerId);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
      * @notice Create a phase FIRST before creating triggers
@@ -200,6 +201,8 @@ contract TriggerContract {
 
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "invalid owner");
+        address previousOwner = owner;
         owner = newOwner;
+        emit OwnershipTransferred(previousOwner, newOwner);
     }
 }
