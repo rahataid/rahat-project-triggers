@@ -10,6 +10,12 @@ export enum SourceDataType {
   Daily = 'DAILY',
 }
 
+export enum GlofasProbFloodReturnPeriod {
+  TwoYears = '2 years',
+  FiveYears = '5 years',
+  TwentyYears = '20 years',
+}
+
 export class GetSouceDataDto extends PartialType(PaginationDto) {
   @ApiProperty({
     type: String,
@@ -51,4 +57,26 @@ export class GetSouceDataDto extends PartialType(PaginationDto) {
   })
   @IsString()
   appId: string;
+}
+
+export class GetAllGlofasProbFloodDto {
+  @ApiProperty({
+    type: String,
+    example: 'Doda River',
+    description: 'River basin name',
+  })
+  @IsString()
+  riverBasin: string;
+}
+
+export class GetOneGlofasProbFloodDto extends GetAllGlofasProbFloodDto {
+  @ApiProperty({
+    type: String,
+    example: GlofasProbFloodReturnPeriod.TwoYears,
+    description: 'Return period',
+    enum: GlofasProbFloodReturnPeriod,
+  })
+  @IsString()
+  @IsEnum(GlofasProbFloodReturnPeriod)
+  returnPeriod: GlofasProbFloodReturnPeriod;
 }
