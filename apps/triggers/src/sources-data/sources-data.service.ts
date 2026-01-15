@@ -286,6 +286,9 @@ export class SourcesDataService {
       include: {
         source: { select: { riverBasin: true } },
       },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
     return records;
   }
