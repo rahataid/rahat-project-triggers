@@ -306,7 +306,7 @@ export class SourcesDataService {
         AND: [
           {
             info: {
-              path: ['forecastDate'],
+              path: ['info', 'forecastDate'],
               equals: forecastDate,
             },
           },
@@ -314,7 +314,7 @@ export class SourcesDataService {
             ? [
                 {
                   info: {
-                    path: ['stationName'],
+                    path: ['info', 'stationName'],
                     equals: stationName,
                   },
                 },
