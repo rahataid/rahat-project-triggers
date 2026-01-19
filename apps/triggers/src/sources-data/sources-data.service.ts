@@ -285,6 +285,9 @@ export class SourcesDataService {
           equals: forecastDate,
         },
       },
+      include: {
+        source: { select: { riverBasin: true } },
+      },
     });
     return recordExists;
   }
@@ -303,7 +306,7 @@ export class SourcesDataService {
         AND: [
           {
             info: {
-              path: ['forecastDate'],
+              path: ['info', 'forecastDate'],
               equals: forecastDate,
             },
           },
@@ -311,7 +314,7 @@ export class SourcesDataService {
             ? [
                 {
                   info: {
-                    path: ['stationName'],
+                    path: ['info', 'stationName'],
                     equals: stationName,
                   },
                 },
