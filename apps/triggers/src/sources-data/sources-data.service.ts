@@ -30,7 +30,7 @@ export class SourcesDataService {
     private readonly glofasServices: GlofasServices,
     private readonly gfhServices: GfhService,
     private readonly scheduleSourcesDataService: ScheduleSourcesDataService,
-  ) {}
+  ) { }
 
   async create(dto: CreateSourcesDataDto) {
     const { info, source, riverBasin, type } = dto;
@@ -305,20 +305,30 @@ export class SourcesDataService {
         dataSource: DataSource.GFH,
         AND: [
           {
-            info: {
-              path: ['info', 'forecastDate'],
-              equals: forecastDate,
-            },
+            OR: [
+              {
+                info: {
+                  path: ['info', 'forecastDate'],
+                  equals: forecastDate,
+                },
+              },
+              {
+                info: {
+                  path: ['forecastDate'],
+                  equals: forecastDate,
+                }
+              },
+            ]
           },
           ...(stationName
             ? [
-                {
-                  info: {
-                    path: ['info', 'stationName'],
-                    equals: stationName,
-                  },
+              {
+                info: {
+                  path: ['stationName'],
+                  equals: stationName,
                 },
-              ]
+              },
+            ]
             : []),
         ],
       },
