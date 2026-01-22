@@ -1,7 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
-import { GetSouceDataDto } from './dto/get-source-data';
+import {
+  GetAllGlofasProbFloodDto,
+  GetOneGlofasProbFloodDto,
+  GetSouceDataDto,
+} from './dto/get-source-data';
 import { SourcesDataService } from './sources-data.service';
 import { GetSeriesDto } from './dto/get-series';
 import { GetDhmSingleSeriesDto } from './dto/get-dhm-single-series.dto';
@@ -26,11 +30,17 @@ export class SourcesDataController {
   }
 
   @MessagePattern({
-    cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GLOFAS,
+    cmd: MS_TRIGGERS_JOBS.PROB_FLOOD.GET_ALL_GLOFAS,
   })
-  async getGlofasWaterLevels(payload: GetSouceDataDto): Promise<any> {
-    payload.source = 'GLOFAS';
-    return this.sourceDataService.getWaterLevels(payload);
+  async getAllGlofasProbFlood(payload: GetAllGlofasProbFloodDto): Promise<any> {
+    return this.sourceDataService.getAllGlofasProbFlood(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PROB_FLOOD.GET_ONE_GLOFAS,
+  })
+  async getOneGlofasProbFlood(payload: GetOneGlofasProbFloodDto): Promise<any> {
+    return this.sourceDataService.getOneGlofasProbFlood(payload);
   }
 
   @MessagePattern({

@@ -10,7 +10,12 @@ import {
 import { PaginationDto } from 'src/common/dto';
 import { HttpService } from '@nestjs/axios';
 import { RpcException } from '@nestjs/microservices';
-import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
+import {
+  GetAllGlofasProbFloodDto,
+  GetOneGlofasProbFloodDto,
+  GetSouceDataDto,
+  SourceDataType,
+} from './dto/get-source-data';
 import * as https from 'https';
 import { getFormattedDate } from 'src/common';
 import { GetSeriesDto } from './dto/get-series';
@@ -212,7 +217,7 @@ export class SourcesDataService {
     }
 
     if (source !== DataSource.DHM) {
-      return this.getGlofasWaterLevels(payload);
+      return;
     }
 
     if (!type) {
@@ -252,30 +257,23 @@ export class SourcesDataService {
     return dataInfos;
   }
 
-  async getGlofasWaterLevels(payload: GetSouceDataDto) {
-    let { riverBasin } = payload;
-
-    // DHM uses Doda for Dhoda where as Glofas uses Dhoda
-    riverBasin = riverBasin.replace('Dhoda', 'Doda');
+  private getGlofasForecastDate() {
     const yesterdayDate = new Date();
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const date = getFormattedDate(yesterdayDate);
-
-    const data = await this.findGlofasData(riverBasin, date.dateString);
-
-    return data;
+    return date.dateString;
   }
 
-  async getGfhWaterLevels(payload: GetSouceDataDto) {
+  async getAllGlofasProbFlood(payload: GetAllGlofasProbFloodDto) {
+    this.logger.log('Fetching all Glofas Prob Flood data');
+
     const { riverBasin } = payload;
 
-    const date = getFormattedDate();
-    return await this.findGfhData(riverBasin, date.dateString);
-  }
+    const forecastDate = this.getGlofasForecastDate();
 
-  async findGlofasData(riverBasin: string, forecastDate: string) {
-    const recordExists = await this.prisma.sourcesData.findFirst({
+    const records = await this.prisma.sourcesData.findMany({
       where: {
+        type: SourceType.PROB_FLOOD,
         dataSource: DataSource.GLOFAS,
         source: {
           riverBasin,
@@ -288,8 +286,57 @@ export class SourcesDataService {
       include: {
         source: { select: { riverBasin: true } },
       },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
-    return recordExists;
+    return records;
+  }
+
+  async getOneGlofasProbFlood(payload: GetOneGlofasProbFloodDto) {
+    const { riverBasin, returnPeriod } = payload;
+
+    this.logger.log(
+      `Fetching Glofas Prob Flood data; return period ${returnPeriod}`,
+    );
+
+    const forecastDate = this.getGlofasForecastDate();
+
+    const record = await this.prisma.sourcesData.findFirst({
+      where: {
+        type: SourceType.PROB_FLOOD,
+        dataSource: DataSource.GLOFAS,
+        source: {
+          riverBasin,
+        },
+        AND: [
+          {
+            info: {
+              path: ['forecastDate'],
+              equals: forecastDate,
+            },
+          },
+          {
+            info: {
+              path: ['returnPeriod'],
+              equals: returnPeriod,
+            },
+          },
+        ],
+      },
+      include: {
+        source: { select: { riverBasin: true } },
+      },
+    });
+
+    return record;
+  }
+
+  async getGfhWaterLevels(payload: GetSouceDataDto) {
+    const { riverBasin } = payload;
+
+    const date = getFormattedDate();
+    return await this.findGfhData(riverBasin, date.dateString);
   }
 
   async findGfhData(
