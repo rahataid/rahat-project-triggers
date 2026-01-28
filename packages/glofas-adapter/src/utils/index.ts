@@ -138,3 +138,35 @@ export function parseGlofasData(content: string) {
     hydrographImageUrl,
   };
 }
+
+export interface ParsedReturnPeriodValue {
+  period: 2 | 5 | 20;
+  value: number;
+  returnPeriod: '2 years' | '5 years' | '20 years';
+}
+
+export function parseReturnPeriodValues(
+  value: string,
+): ParsedReturnPeriodValue[] {
+  const values = value
+    .split('/')
+    .map((v) => Number(v.trim()) || 0);
+
+  return [
+    {
+      period: 2,
+      value: values[0] ?? 0,
+      returnPeriod: '2 years',
+    },
+    {
+      period: 5,
+      value: values[1] ?? 0,
+      returnPeriod: '5 years',
+    },
+    {
+      period: 20,
+      value: values[2] ?? 0,
+      returnPeriod: '20 years',
+    },
+  ];
+}

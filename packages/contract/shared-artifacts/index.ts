@@ -1,5 +1,5 @@
-import TriggerContract from "../artifacts/contracts/src/trigger.sol/TriggerContract.json";
-import SourceOracle from "../artifacts/contracts/src/oracle.sol/SourceOracle.json";
+import TriggerContract from "./TriggerContract.json";
+import SourceOracle from "./SourceOracle.json";
 
 export type ContractArtifact = typeof TriggerContract | typeof SourceOracle;
 export type ContractArtifactMap = Record<string, ContractArtifact>;

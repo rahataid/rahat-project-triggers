@@ -401,6 +401,7 @@ describe('ScheduleSourcesDataService', () => {
       expect(mockGlofasServices.saveDataInGlofas).toHaveBeenCalledWith(
         'test-basin-id',
         mockIndicators[0],
+        undefined,
       );
     });
 
@@ -476,11 +477,13 @@ describe('ScheduleSourcesDataService', () => {
         1,
         'basin-1',
         multipleIndicators[0],
+        undefined,
       );
       expect(mockGlofasServices.saveDataInGlofas).toHaveBeenNthCalledWith(
         2,
         'basin-2',
         multipleIndicators[1],
+        undefined,
       );
     });
   });

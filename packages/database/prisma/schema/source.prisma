@@ -1,6 +1,7 @@
 enum SourceType {
   RAINFALL
   WATER_LEVEL
+  PROB_FLOOD
   @@schema("public")
 }
 

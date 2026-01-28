@@ -375,23 +375,3 @@ prismaOptions: {
   log: ['query', 'info', 'warn', 'error'],
 }
 ```
-
-## Production Considerations
-
-- Use `pnpm db:generate:prod` for production builds
-- Set appropriate connection pool sizes
-- Enable query logging only for debugging
-- Use environment-specific database configurations
-- Implement proper backup and recovery procedures
-
-## Contributing
-
-When contributing to the database package:
-
-1. Update schema files in the `prisma/` directory
-2. Generate and test migrations
-3. Update TypeScript interfaces if needed
-4. Add tests for new functionality
-5. Update documentation
-
-The database package is designed to be a robust, reusable foundation for all database operations in the monorepo.

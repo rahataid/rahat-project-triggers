@@ -9,6 +9,7 @@ import { TriggerService } from 'src/trigger/trigger.service';
 import { TriggerEvaluationService } from './trigger-evaluation.service';
 import { TriggerStatement } from 'src/trigger/validation/trigger.schema';
 import { AddOnchainTriggerService } from 'src/trigger/onchainTrigger.service';
+import { parseReturnPeriodValues } from '@lib/glofas-adapter';
 
 type TriggerType = Prisma.TriggerGetPayload<{
   include: {
@@ -179,30 +180,39 @@ export class DataSourceEventsOracleListener {
       }
 
       const stationRef = `${String(i)}-${String(j)}`;
+      const returnPeriodValues = parseReturnPeriodValues(
+        indicator.value.toString(),
+      );
 
-      const sourcesData = await this.prisma.sourcesData.findFirst({
-        where: {
-          dataSource: DataSource.GLOFAS,
-          type: SourceType.WATER_LEVEL,
-          stationRef: stationRef,
-        },
-        select: {
-          onChainRef: true,
-        },
-      });
-
-      if (sourcesData?.onChainRef) {
-        this.logger.log(
-          `Found sourcesData for stationRef: ${stationRef}, will update on-chain with value: ${indicator.value}`,
-        );
-        sourcesToUpdate.push({
-          sourceId: sourcesData.onChainRef,
-          value: indicator.value,
+      for (const returnPeriodValue of returnPeriodValues) {
+        const sourcesData = await this.prisma.sourcesData.findFirst({
+          where: {
+            dataSource: DataSource.GLOFAS,
+            type: SourceType.PROB_FLOOD,
+            stationRef: stationRef,
+            info: {
+              path: ['returnPeriod'],
+              equals: returnPeriodValue.returnPeriod,
+            },
+          },
+          select: {
+            onChainRef: true,
+          },
         });
-      } else {
-        this.logger.error(
-          `No blockchain ID found for stationRef: ${stationRef}`,
-        );
+
+        if (sourcesData?.onChainRef) {
+          this.logger.log(
+            `Found sourcesData for stationRef: ${stationRef}, returnPeriod: ${returnPeriodValue.returnPeriod}, will update on-chain with value: ${returnPeriodValue.value}`,
+          );
+          sourcesToUpdate.push({
+            sourceId: sourcesData.onChainRef,
+            value: returnPeriodValue.value,
+          });
+        } else {
+          this.logger.error(
+            `No blockchain ID found for stationRef: ${stationRef}, returnPeriod: ${returnPeriodValue.returnPeriod}`,
+          );
+        }
       }
     }
 

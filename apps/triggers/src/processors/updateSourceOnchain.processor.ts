@@ -22,7 +22,10 @@ export class BlockchainProcessor {
 
   constructor(private readonly configService: ConfigService) {}
 
-  @Process(JOBS.BLOCKCHAIN.UPDATE_SOURCE_VALUE_BATCH)
+  @Process({
+    name: JOBS.BLOCKCHAIN.UPDATE_SOURCE_VALUE_BATCH,
+    concurrency: 1,
+  })
   async handleUpdateSourceValueBatch(
     job: Job<BlockchainUpdateSourceValueBatchPayload>,
   ): Promise<void> {
@@ -53,33 +56,6 @@ export class BlockchainProcessor {
     this.logger.log(
       `Completed processing ${sources.length} source updates for on-chain update`,
     );
-  }
-
-  @Process(JOBS.BLOCKCHAIN.UPDATE_SOURCE_VALUE)
-  async handleUpdateSourceValue(
-    job: Job<BlockchainUpdateSourceValuePayload>,
-  ): Promise<void> {
-    const { sourceId, value } = job.data;
-    const contractAddress = (deployments as Record<string, string>)
-      ?.oracleContract;
-
-    if (!contractAddress) {
-      this.logger.error('Oracle contract address is not configured.');
-      throw new Error('Oracle contract address missing.');
-    }
-
-    try {
-      await this.processSingleSourceUpdate(
-        { sourceId, value },
-        contractAddress,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to update source ${sourceId} value on-chain`,
-        error as Error,
-      );
-      throw error;
-    }
   }
 
   private async processSingleSourceUpdate(
