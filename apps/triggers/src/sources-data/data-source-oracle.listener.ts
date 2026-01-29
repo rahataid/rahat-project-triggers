@@ -216,22 +216,6 @@ export class DataSourceEventsOracleListener {
       }
     }
 
-    if (sourcesToUpdate.length > 0) {
-      this.blockchainQueue.add(
-        JOBS.BLOCKCHAIN.UPDATE_SOURCE_VALUE_BATCH,
-        { sources: sourcesToUpdate },
-        {
-          attempts: 5,
-          backoff: { type: 'exponential', delay: 2000 },
-          removeOnComplete: true,
-          removeOnFail: false,
-        },
-      );
-      this.logger.log(
-        `Queued ${sourcesToUpdate.length} GLOFAS source updates for batch processing`,
-      );
-    }
-
     if (indicators.length === 0) {
       return;
     }
@@ -265,9 +249,9 @@ export class DataSourceEventsOracleListener {
       const [twoYearsMaxProb, fiveYearsMaxProb, twentyYearsMaxProb] =
         indicator.value.toString().split('/');
 
-      const twoYearsMaxProbTriggers = triggerMap['two_years_max_prob'];
-      const fiveYearsMaxProbTriggers = triggerMap['five_years_max_prob'];
-      const twentyYearsMaxProbTriggers = triggerMap['twenty_years_max_prob'];
+      const twoYearsMaxProbTriggers = triggerMap['two_years_return_period'];
+      const fiveYearsMaxProbTriggers = triggerMap['five_years_return_period'];
+      const twentyYearsMaxProbTriggers = triggerMap['twenty_years_return_period'];
 
       const twoYearsMeets =
         this.triggerEvaluationService.checkTriggersMeetCondition(

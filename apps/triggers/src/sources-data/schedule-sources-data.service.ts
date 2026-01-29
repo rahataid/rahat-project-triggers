@@ -93,7 +93,7 @@ export class ScheduleSourcesDataService
   }
 
   // run every 15 minutes
-  @Cron('*/15 * * * *')
+  @Cron('*/15 * * * * *')
   async syncRiverWaterData() {
     const riverData = await this.dhmWaterMonitored.execute();
 
@@ -156,7 +156,7 @@ export class ScheduleSourcesDataService
   }
 
   // run every hour
-  @Cron('*/15 * * * *')
+  @Cron('*/15 * * * * *')
   async synchronizeGlofas() {
     const glofasResult = await this.glofasMonitored.execute(null);
 

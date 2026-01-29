@@ -26,6 +26,8 @@ export class ActiveTriggerOnchainProcessor {
     const { triggerUuid } = job.data;
     const contractAddress = deployments?.triggerContract;
 
+    console.log('this is trigger uuid while activating trigger on chain', triggerUuid);
+
     if (!contractAddress) {
       this.logger.error('Trigger contract address is not configured.');
       throw new Error('Trigger contract address missing.');
