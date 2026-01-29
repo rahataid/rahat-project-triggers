@@ -32,8 +32,6 @@ model Phase {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt()
 
-  PhaseBlockchain PhaseBlockchain?
-
   source         Source           @relation(fields: [riverBasin], references: [riverBasin])
   Trigger        Trigger[]
   TriggerHistory TriggerHistory[]
@@ -44,16 +42,3 @@ model Phase {
   @@schema("public")
 }
 
-model PhaseBlockchain {
-  id             Int      @id @default(autoincrement())
-  phaseId        Int      @unique
-  phase          Phase    @relation(fields: [phaseId], references: [id])
-  transactionHash String
-  blockchainId   String
-  chain          Chain    @default(EVM)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime? @updatedAt()
-
-  @@map("tbl_phase_blockchain")
-  @@schema("public")
-}
