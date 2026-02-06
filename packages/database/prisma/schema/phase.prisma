@@ -5,6 +5,12 @@ enum Phases {
   @@schema("public")
 }
 
+enum Chain {
+  EVM
+  STELLAR
+  @@schema("public")
+}
+
 model Phase {
   id         Int    @id @default(autoincrement())
   uuid       String @unique @default(uuid())
@@ -35,3 +41,4 @@ model Phase {
   @@map("tbl_phases")
   @@schema("public")
 }
+

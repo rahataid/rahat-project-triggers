@@ -14,10 +14,12 @@ export class GlofasServices {
   async saveDataInGlofas(
     riverBasin: string,
     payload: GlofasDataObject,
+    stationRef?: string,
   ): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
         const returnPeriodInfos = this.expandReturnPeriodInfos(payload.info);
+
         for (const info of returnPeriodInfos) {
           const existingRecord = await tx.sourcesData.findFirst({
             where: {
@@ -57,6 +59,7 @@ export class GlofasServices {
                   ...existingInfo,
                   ...info,
                 },
+                stationRef,
                 updatedAt: new Date(),
               },
             });
@@ -70,6 +73,7 @@ export class GlofasServices {
                 type: SourceType.PROB_FLOOD,
                 dataSource: DataSource.GLOFAS,
                 info: info,
+                stationRef,
                 source: {
                   connectOrCreate: {
                     where: { riverBasin },

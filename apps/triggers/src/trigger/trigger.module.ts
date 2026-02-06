@@ -8,6 +8,7 @@ import { HttpModule } from '@nestjs/axios';
 import { SourcesDataModule } from 'src/sources-data/sources-data.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AddOnchainTriggerService } from './onchainTrigger.service';
 
 @Module({
   imports: [
@@ -34,12 +35,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       {
         name: BQUEUE.STELLAR,
       },
+      {
+        name: BQUEUE.BLOCKCHAIN_TRANSFER,
+      },
     ),
     forwardRef(() => SourcesDataModule),
     forwardRef(() => PhasesModule),
   ],
   controllers: [TriggerController],
-  providers: [TriggerService],
-  exports: [TriggerService],
+  providers: [TriggerService, AddOnchainTriggerService],
+  exports: [TriggerService, AddOnchainTriggerService],
 })
 export class TriggerModule {}

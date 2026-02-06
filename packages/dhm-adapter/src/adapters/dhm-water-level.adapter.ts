@@ -321,7 +321,8 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
           ...baseIndicator,
           indicator: "water_level_m",
           units: "m",
-          value: this.getLatestWaterLevelValue(obs.stationDetail),
+          // value: this.getLatestWaterLevelValue(obs.stationDetail),
+          value: 4,
         });
 
         return results;

@@ -37,6 +37,8 @@ model SourcesData {
   sourceId   Int
   source     Source      @relation(fields: [sourceId], references: [id])
   dataSource DataSource?
+  stationRef String?
+  onChainRef String?
 
   info Json @db.JsonB()
 

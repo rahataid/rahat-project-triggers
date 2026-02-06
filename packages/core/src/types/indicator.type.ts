@@ -1,7 +1,7 @@
 export type IndicatorType =
   | 'water_level_m'
   | 'discharge_m3s'
-  | 'rainfall_mm' // 3
+  | 'rainfall_mm'
   | 'prob_flood';
 
 export type LocationType =
@@ -12,7 +12,7 @@ export type LocationType =
 export interface Indicator<T = any> {
   kind: 'OBSERVATION' | 'FORECAST';
   indicator: IndicatorType;
-  value: number;
+  value: number | string;
   info?: T | T[];
   units: string;
   issuedAt: string;

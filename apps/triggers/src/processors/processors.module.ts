@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { SourcesDataModule } from 'src/sources-data/sources-data.module';
 import { PhasesModule } from '../phases/phases.module';
 import { TriggerProcessor } from './trigger.processor';
@@ -10,6 +10,10 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { CORE_MODULE } from 'src/constant';
 import { NotificationProcessor } from './notification.processor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BlockchainProcessor } from './updateSourceOnchain.processor';
+import { AddTriggerOnchainProcessor } from './addTriggerOnchain.processor';
+import { ActiveTriggerOnchainProcessor } from './activeTriggerOnchain.processor';
+import { TriggerModule } from '../trigger/trigger.module';
 
 @Module({
   imports: [
@@ -32,12 +36,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     SourcesDataModule,
     ActivityModule,
     StatsModule,
+    forwardRef(() => TriggerModule),
   ],
   providers: [
     TriggerProcessor,
     CommunicationProcessor,
     StatsProcessor,
     NotificationProcessor,
+    BlockchainProcessor,
+    AddTriggerOnchainProcessor,
+    ActiveTriggerOnchainProcessor,
   ],
 })
 export class ProcessorsModule {}
