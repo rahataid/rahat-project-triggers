@@ -90,7 +90,7 @@ function parsePointForecast(
   };
 }
 
-export function parseGlofasData(content: string) {
+export async function parseGlofasData(content: string) {
   const $ = cheerio.load(content);
 
   // 2 yr return period table
@@ -112,7 +112,7 @@ export function parseGlofasData(content: string) {
   const pfTable = $('table.tbl_info_point[summary="Point Forecast"]');
 
   const hydrographElement = $('.forecast_images').find(
-    'img[alt="Discharge Hydrograph"]',
+    'img[alt="Discharge Hydrograph (IFS ENS)"]',
   );
 
   if (
