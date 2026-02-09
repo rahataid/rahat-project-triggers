@@ -90,7 +90,7 @@ function parsePointForecast(
   };
 }
 
-export async function parseGlofasData(content: string) {
+export function parseGlofasData(content: string) {
   const $ = cheerio.load(content);
 
   // 2 yr return period table
