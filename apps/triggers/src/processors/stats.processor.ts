@@ -10,7 +10,7 @@ export class StatsProcessor implements OnApplicationBootstrap {
 
   @ProductionOnly()
   async onApplicationBootstrap() {
-    this.statsService.calculateAllStats();
+    await this.statsService.calculateAllStats();
   }
 
   @OnEvent(EVENTS.ACTIVITY_COMPLETED)
