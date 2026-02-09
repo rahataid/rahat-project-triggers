@@ -97,33 +97,6 @@ describe('SourcesDataController', () => {
     });
   });
 
-  describe('getGlofasWaterLevels', () => {
-    const mockPayload: GetSouceDataDto = {
-      source: DataSource.GLOFAS,
-      riverBasin: 'test-basin',
-      from: new Date('2023-01-01'),
-      to: new Date('2023-01-31'),
-      type: 'POINT' as any,
-      appId: 'test-app',
-    };
-
-    const mockWaterLevels = { data: 'glofas-water-levels' };
-
-    beforeEach(() => {
-      mockSourceDataService.getWaterLevels.mockResolvedValue(mockWaterLevels);
-    });
-
-    it('should return Glofas water levels', async () => {
-      const result = await controller.getGlofasWaterLevels(mockPayload);
-
-      expect(mockSourceDataService.getWaterLevels).toHaveBeenCalledWith({
-        ...mockPayload,
-        source: DataSource.GLOFAS,
-      });
-      expect(result).toEqual(mockWaterLevels);
-    });
-  });
-
   describe('getGfhWaterLevels', () => {
     const mockPayload: GetSouceDataDto = {
       source: DataSource.GFH,
@@ -183,7 +156,6 @@ describe('SourcesDataController', () => {
   describe('MessagePattern decorators', () => {
     it('should have correct message patterns', () => {
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM).toBeDefined();
-      expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GLOFAS).toBeDefined();
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GFH).toBeDefined();
       expect(MS_TRIGGERS_JOBS.RAINFALL_LEVELS.GET_DHM).toBeDefined();
     });
