@@ -68,8 +68,4 @@ export class GetActivityDto {
   @IsString()
   @IsOptional()
   isAutomated?: string;
-
-  @IsOptional()
-  @IsString()
-  isTemplate?: string;
 }

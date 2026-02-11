@@ -1,7 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { ApiProperty } from '@nestjs/swagger';
 import { Phases } from '@lib/database';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from 'src/common/dto';
 
 export class GetPhaseDto extends PartialType(PaginationDto) {
@@ -23,19 +23,19 @@ export class GetPhaseDto extends PartialType(PaginationDto) {
   @ApiProperty({
     example: Phases.PREPAREDNESS,
   })
-  @IsEnum(Phases)
   @IsNotEmpty()
+  @IsString()
   @IsOptional()
-  name?: Phases;
+  name?: string;
 }
 
 export class GetPhaseByDetailDto {
   @ApiProperty({
     example: Phases.PREPAREDNESS,
   })
-  @IsEnum(Phases)
+  @IsString()
   @IsOptional()
-  phase?: Phases;
+  phase?: string;
 
   @ApiProperty({
     example: 'Karnali',

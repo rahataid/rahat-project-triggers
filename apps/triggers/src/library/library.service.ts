@@ -50,20 +50,26 @@ export class LibraryService {
       const merged = this.mergeTemplates(dbTemplates, filteredDefaults);
 
       // 4. Paginate merged results
+      const currentPage = Number(page) || 1;
+      const currentPerPage = Number(perPage) || 50;
+
       const total = merged.length;
-      const startIndex = (page - 1) * perPage;
-      const paginatedData = merged.slice(startIndex, startIndex + perPage);
-      const lastPage = Math.ceil(total / perPage);
+      const startIndex = (currentPage - 1) * currentPerPage;
+      const paginatedData = merged.slice(
+        startIndex,
+        startIndex + currentPerPage,
+      );
+      const lastPage = Math.ceil(total / currentPerPage);
 
       return {
         data: paginatedData,
         meta: {
           total,
           lastPage,
-          currentPage: page,
-          perPage,
-          prev: page > 1 ? page - 1 : null,
-          next: page < lastPage ? page + 1 : null,
+          currentPage,
+          perPage: currentPerPage,
+          prev: currentPage > 1 ? currentPage - 1 : null,
+          next: currentPage < lastPage ? currentPage + 1 : null,
         },
       };
     } catch (error: any) {

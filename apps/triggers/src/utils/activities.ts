@@ -69,7 +69,7 @@ export const activities = [
     id: 3333,
     uuid: 'f79e299d-cb57-4d65-91f6-a2fcf4b9c748',
     title:
-      'Daily weather forecast update to the STRONG in DRM team - Flag activation possiblitie',
+      'Daily weather forecast update to the STRONG in DRM team - Flag activation possibilities',
     description:
       'The activities related to daily weather forecast update to the STRONG in DRM team - Flag activation possibilities.',
     leadTime: '5 days',
