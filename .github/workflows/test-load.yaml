@@ -1,17 +1,5 @@
 name: Test Load Triggers CI/CD
 on:
-  push:
-    branches:
-      - "test-load"
-    paths:
-      - "apps/triggers/**"
-      - "packages/**"
-  pull_request:
-    branches:
-      - "test-load"
-    paths:
-      - "apps/triggers/**"
-      - "packages/**"
   workflow_dispatch:
 env:
   CI: false
