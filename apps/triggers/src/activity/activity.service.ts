@@ -81,6 +81,7 @@ export class ActivityService {
         activityCommunication,
         title,
         isAutomated,
+        isTemplate,
         leadTime,
         categoryId,
         description,
@@ -112,6 +113,7 @@ export class ActivityService {
           description,
           leadTime,
           isAutomated,
+          isTemplate,
           ...(manager && {
             manager: {
               connectOrCreate: {
