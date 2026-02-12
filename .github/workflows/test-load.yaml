@@ -1,4 +1,4 @@
-name: Test Load Triggers CI/CD
+name: Test Load Triggers CI/CD (Optimized)
 on:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,6 @@ on:
         required: true
         default: 'apps/triggers/Dockerfile.triggers'
         type: string
-      
       tag_prefix:
         description: 'Tag prefix (e.g., test-load)'
         required: true
@@ -21,11 +20,14 @@ on:
 
 env:
   CI: false
+  PNPM_VERSION: '8.14.1'
+  NODE_VERSION: '20.10.0'
 
 jobs:
   deploy:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,38 +39,28 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "run_id_short=${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
+          echo "image_tag=${{ inputs.tag_prefix }}-$(git rev-parse --short HEAD)-${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3
         with:
-          version: 8.14.1
+          version: ${{ env.PNPM_VERSION }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Setup Node.js with caching
+        uses: actions/setup-node@v4
         with:
-          node-version: "20.10.0"
-          cache: "pnpm"
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
+      - name: Install dependencies
         run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies and build
+      - name: Generate database and build
         run: |
-          pnpm install --frozen-lockfile
           pnpm --filter @lib/database db:generate
           pnpm turbo build --filter=triggers
-
+      
       - name: Import Secrets from Vault
         id: vault
         uses: hashicorp/vault-action@v2.4.0
@@ -87,6 +79,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
       - name: Build and Push Docker Image
         id: build-push
@@ -94,17 +90,24 @@ jobs:
         with:
           context: .
           file: ${{ inputs.dockerfile_path }}
-          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          push: true
           tags: |
             esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-            esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}-${{ steps.vars.outputs.run_id_short }}
-          cache-from: type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-          cache-to: type=inline
+            esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+          cache-from: |
+            type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
+            type=registry,ref=esatya/${{ inputs.image_name }}:buildcache
+          cache-to: type=registry,ref=esatya/${{ inputs.image_name }}:buildcache,mode=max
+          provenance: false
+          sbom: false
 
-      - name: Image digest
-        run: echo ${{ steps.build-push.outputs.digest }}
+      - name: Output build information
+        run: |
+          echo "Image Digest: ${{ steps.build-push.outputs.digest }}"
+          echo "Image Tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}"
 
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
       run_id_short: ${{ steps.vars.outputs.run_id_short }}
-      image_tag: esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}-${{ steps.vars.outputs.run_id_short }}
+      image_tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+      image_digest: ${{ steps.build-push.outputs.digest }}
