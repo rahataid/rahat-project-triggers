@@ -2,13 +2,14 @@ enum Phases {
   PREPAREDNESS
   READINESS
   ACTIVATION
+
   @@schema("public")
 }
 
 model Phase {
   id         Int    @id @default(autoincrement())
   uuid       String @unique @default(uuid())
-  name       Phases
+  name       String
   activeYear String
 
   requiredMandatoryTriggers Int? @default(0)

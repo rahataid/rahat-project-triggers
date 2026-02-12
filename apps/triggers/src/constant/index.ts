@@ -156,6 +156,10 @@ export const MS_TRIGGERS_JOBS = {
   SETTINGS: {
     GET: 'ms.jobs.settings.get',
   },
+  LIBRARY: {
+    GET_ACTIVITY_TEMPLATES: 'ms.jobs.library.getActivityTemplates',
+    GET_ACTIVITY_TEMPLATE_BY_ID: 'ms.jobs.library.getActivityTemplateById',
+  },
 };
 export const EVENTS = {
   PHASE_ACTIVATED: 'events.phase_activated',
