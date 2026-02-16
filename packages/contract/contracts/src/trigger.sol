@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 interface ISourceOracle {
     struct Source {
@@ -25,6 +25,8 @@ contract TriggerContract {
     MANUAL,
     AUTOMATIC
     }
+
+    uint public MAX_PHASE_TRIGGER = 100;
 
     constructor(address oracleAddress) {
         owner = msg.sender;
@@ -136,7 +138,8 @@ contract TriggerContract {
             uuid: triggerUuid
         });
 
-        // Store trigger under its phase
+        // Store trigger under its phase, enforce max 100 triggers
+        require(phases[phaseId].triggerIds.length < MAX_PHASE_TRIGGER, "max triggers per phase reached");
         phases[phaseId].triggerIds.push(id);
         
         // Store trigger UUID mapping
@@ -162,16 +165,19 @@ contract TriggerContract {
         t.triggered = true;
         emit TriggerActivated(triggerId);
     }
-
-    function isPhaseTriggered(string memory phaseUuid) external view returns (bool) {
+    
+    ///@notice function to check whether phase is triggered or not
+    ///@dev is only the view function
+    function isPhaseTriggered(string memory phaseUuid) external  view returns (bool) {
         uint256 phaseId = phaseByUuid[phaseUuid];
         require(phaseId != 0, "phase not found");
         
-        Phase storage p = phases[phaseId];
+        Phase memory p = phases[phaseId];
 
         uint256 triggeredCount = 0;
 
-        for (uint256 i = 0; i < p.triggerIds.length; i++) {
+        uint256 maxCheck = p.triggerIds.length > MAX_PHASE_TRIGGER ? MAX_PHASE_TRIGGER : p.triggerIds.length;
+        for (uint256 i = 0; i < maxCheck; i++) {
             uint256 tId = p.triggerIds[i];
             if (triggers[tId].triggered) {
                 triggeredCount++;

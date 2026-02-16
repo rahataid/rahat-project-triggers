@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 /// @title IFloodDataAggregator
 /// @notice Interface for a simplified multi-source flood data aggregator with Chainlink Functions
