@@ -11,7 +11,7 @@ contract SourceOracle is ISourceOracle {
         owner = msg.sender;
     }
 
-    mapping(uint256 => Source) private sources;
+    mapping(uint256 => Source) internal sources;
 
     struct SourceInput {
         string name;
