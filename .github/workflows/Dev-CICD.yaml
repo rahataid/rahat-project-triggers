@@ -7,14 +7,21 @@ on:
     paths:
       - "apps/triggers/**"
       - "packages/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   pull_request:
     branches:
       - "dev"
     paths:
       - "apps/triggers/**"
       - "packages/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   workflow_dispatch:
 
+concurrency:
+  group: dev-triggers
+  cancel-in-progress: true
 env:
   CI: false
 
@@ -63,8 +70,8 @@ jobs:
       - name: Install dependencies and build
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @lib/database db:generate
-          pnpm turbo build --filter=triggers...
+          pnpm --filter @rahat/database db:generate
+          pnpm turbo build --filter=@rahat/triggers...
 
       - name: Import Secrets from Vault
         uses: hashicorp/vault-action@v2.4.0
