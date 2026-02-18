@@ -1,0 +1,20 @@
+enum SettingDataType {
+  STRING
+  NUMBER
+  BOOLEAN
+  OBJECT
+  @@schema("public")
+}
+
+// ++++++++++++++++++ START: @rumsan/settings +++++++++++++++++++++++++++
+model Setting {
+  name           String          @id @unique
+  value          Json
+  dataType       SettingDataType
+  requiredFields String[]
+  isReadOnly     Boolean         @default(false)
+  isPrivate      Boolean         @default(true)
+
+  @@map("tbl_settings")
+    @@schema("public")
+}

@@ -1,0 +1,80 @@
+enum ActivityStatus {
+    NOT_STARTED
+    WORK_IN_PROGRESS
+    COMPLETED
+    DELAYED
+
+    @@schema("public")
+}
+
+model ActivityCategory {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+    app  String
+
+    name      String
+    isDeleted Boolean @default(false)
+
+    createdAt DateTime   @default(now())
+    updatedAt DateTime?  @updatedAt()
+    Activity  Activity[]
+
+    @@unique([app, name])
+    @@map("tbl_activity_categories")
+    @@schema("public")
+}
+
+model ActivityManager {
+    id    String @unique
+    name  String
+    email String
+    phone String
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    Activity Activity[]
+
+    @@map("tbl_activity_managers")
+    @@schema("public")
+}
+
+model Activity {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+    app  String
+
+    title    String
+    leadTime String
+
+    phase      Phase?            @relation(fields: [phaseId], references: [uuid])
+    phaseId    String
+    category   ActivityCategory? @relation(fields: [categoryId], references: [uuid])
+    categoryId String
+    managerId  String?
+    manager    ActivityManager?  @relation(fields: [managerId], references: [id])
+
+    description String?
+    notes       String?
+
+    status ActivityStatus @default(NOT_STARTED)
+
+    activityDocuments     Json? @db.JsonB()
+    activityCommunication Json? @db.JsonB()
+    activityPayout        Json? @db.JsonB()
+
+    isTemplate  Boolean @default(false)
+    isAutomated Boolean @default(false)
+    isDeleted   Boolean @default(false)
+
+    completedBy String?
+    completedAt DateTime?
+
+    differenceInTriggerAndActivityCompletion String?
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    @@map("tbl_activities")
+    @@schema("public")
+}

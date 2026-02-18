@@ -1,0 +1,35 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
+import { BQUEUE, EVENTS, JOBS } from 'src/constant';
+
+@Injectable()
+export class ListernersService {
+  private readonly logger = new Logger(ListernersService.name);
+
+  constructor(
+    @InjectQueue(BQUEUE.NOTIFICATION_TRIGGER)
+    private readonly notificationQueue: Queue,
+  ) {}
+
+  @OnEvent(EVENTS.NOTIFICATION.CREATE)
+  async handleNotification(event: { payload: any }) {
+    console.log(event);
+    const { payload } = event;
+    try {
+      this.logger.log(`✅ Notification event emitted`);
+
+      this.notificationQueue.add(JOBS.NOTIFICATION.CREATE, payload, {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      });
+      this.logger.log(`✅ Notification job queued`);
+    } catch (error: any) {
+      console.error('❌ Notification emit failed:', error);
+      throw error;
+    }
+  }
+}

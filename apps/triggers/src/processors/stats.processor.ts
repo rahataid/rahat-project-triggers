@@ -1,0 +1,25 @@
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { EVENTS } from 'src/constant';
+import { StatsService } from 'src/stats/stat.service';
+import { ProductionOnly } from 'src/utils/production-only.decorator';
+
+@Injectable()
+export class StatsProcessor implements OnApplicationBootstrap {
+  constructor(private readonly statsService: StatsService) {}
+
+  @ProductionOnly()
+  async onApplicationBootstrap() {
+    await this.statsService.calculateAllStats();
+  }
+
+  @OnEvent(EVENTS.ACTIVITY_COMPLETED)
+  @OnEvent(EVENTS.ACTIVITY_DELETED)
+  @OnEvent(EVENTS.ACTIVITY_ADDED)
+  @OnEvent(EVENTS.PHASE_REVERTED)
+  @OnEvent(EVENTS.PHASE_ACTIVATED)
+  async onActivityCompleted() {
+    // return this.statsService.calculatePhaseActivities();
+    return this.statsService.calculateAllStats();
+  }
+}
