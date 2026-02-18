@@ -70,8 +70,8 @@ jobs:
       - name: Install dependencies and build
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @rahat/database db:generate
-          pnpm turbo build --filter=@rahat/triggers...
+          pnpm --filter @lib/database db:generate
+          pnpm turbo build --filter=@lib/triggers...
 
       - name: Import Secrets from Vault
         uses: hashicorp/vault-action@v2.4.0
