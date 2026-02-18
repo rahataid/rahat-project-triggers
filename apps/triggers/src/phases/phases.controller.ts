@@ -1,4 +1,4 @@
-import { Body, Controller, Logger } from '@nestjs/common';
+import { Body, Controller, Logger, UseGuards } from '@nestjs/common';
 import { MessagePattern, RpcException } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { PhasesService } from './phases.service';
@@ -11,8 +11,11 @@ import {
   RevertPhaseDto,
 } from './dto';
 import { ConfigService } from '@nestjs/config';
+import { MicroserviceAuthGuard } from 'src/guards/microservice-auth.guard';
+import { RequireAbility } from 'src/decorators/require-ability.decorator';
 
 @Controller('phases')
+@UseGuards(MicroserviceAuthGuard)
 export class PhasesController {
   logger = new Logger(PhasesController.name);
   constructor(
@@ -30,6 +33,7 @@ export class PhasesController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ALL,
   })
+  @RequireAbility({ action: 'read', subject: 'Phases' })
   async getAll(payload: GetPhaseDto) {
     return this.phasesService.findAll(payload);
   }
@@ -37,6 +41,7 @@ export class PhasesController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_ONE,
   })
+  @RequireAbility({ action: 'read', subject: 'Phases' })
   async getOne(payload: GetPhaseByDetailDto) {
     return this.phasesService.getOneByDetail(payload);
   }

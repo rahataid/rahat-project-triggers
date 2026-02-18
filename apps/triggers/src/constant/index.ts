@@ -68,6 +68,10 @@ export const JOBS = {
   NOTIFICATION: {
     CREATE: 'rahat.jobs.notification.create',
   },
+  AUTH: {
+    CHECK_ABILITY: 'rahat.jobs.shared_auth.check_ability',
+    GET_USER_ABILITIES: 'rahat.jobs.shared_auth.get_user_abilities',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {
@@ -179,4 +183,5 @@ export const EVENTS = {
 
 export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
+  AUTH_SERVICE: 'AUTH_SERVICE',
 };

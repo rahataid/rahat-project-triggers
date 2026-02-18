@@ -1,4 +1,4 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger, UseGuards } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import {
@@ -12,8 +12,11 @@ import {
   findOneTriggerDto,
 } from './dto';
 import { TriggerService } from './trigger.service';
+import { MicroserviceAuthGuard } from 'src/guards/microservice-auth.guard';
+import { RequireAbility } from 'src/decorators/require-ability.decorator';
 
 @Controller('trigger')
+@UseGuards(MicroserviceAuthGuard)
 export class TriggerController {
   private readonly logger = new Logger(TriggerController.name);
 
@@ -22,6 +25,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ADD,
   })
+  @RequireAbility({ action: 'read', subject: 'Phases' })
   async create(payload: CreateTriggerPayloadDto) {
     return this.triggerService.create(payload);
   }
@@ -29,6 +33,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.GET_ALL,
   })
+  @RequireAbility({ action: 'read', subject: 'Phases' })
   findAll(payload: GetTriggersDto): any {
     return this.triggerService.getAll(payload);
   }
