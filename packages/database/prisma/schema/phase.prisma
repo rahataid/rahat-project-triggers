@@ -1,0 +1,38 @@
+enum Phases {
+  PREPAREDNESS
+  READINESS
+  ACTIVATION
+
+  @@schema("public")
+}
+
+model Phase {
+  id         Int    @id @default(autoincrement())
+  uuid       String @unique @default(uuid())
+  name       String
+  activeYear String
+
+  requiredMandatoryTriggers Int? @default(0)
+  requiredOptionalTriggers  Int? @default(0)
+
+  receivedMandatoryTriggers Int? @default(0)
+  receivedOptionalTriggers  Int? @default(0)
+
+  canRevert        Boolean @default(false)
+  canTriggerPayout Boolean @default(false)
+  isActive         Boolean @default(false)
+  riverBasin       String
+
+  activatedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt()
+
+  source         Source           @relation(fields: [riverBasin], references: [riverBasin])
+  Trigger        Trigger[]
+  TriggerHistory TriggerHistory[]
+  Activity       Activity[]
+
+  @@unique([riverBasin, activeYear, name])
+  @@map("tbl_phases")
+  @@schema("public")
+}

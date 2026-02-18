@@ -1,0 +1,29 @@
+{
+  "name": "@lib/core",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "@nestjs/axios": "^4.0.1",
+    "@lib/database": "workspace:*"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^10.0.0",
+    "ioredis": "^5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2",
+    "jest": "^27.0.6",
+    "@types/jest": "^27.0.2",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  }
+}

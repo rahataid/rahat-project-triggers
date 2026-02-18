@@ -1,31 +1,70 @@
-name: Test Coveralls
-on: ["push", "pull_request"]
+name: Triggers Test Coverage
+
+on:
+  push:
+    paths:
+      - "apps/triggers/**"
+      - "packages/**"
+  pull_request:
+    paths:
+      - "apps/triggers/**"
+      - "packages/**"
+
 jobs:
-
-  test:
-    name: Test Coverage
+  test-coverage:
+    name: Triggers Test Coverage
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          node-version: 20.10.0
+          fetch-depth: 0
 
-      - name: install dependencies and build apps
-        run: |
-          npm install -g pnpm@8.14.1 only-allow
-          pnpm install
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.14.1
 
-      - name: npm install, make test-coverage
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.10.0"
+          cache: "pnpm"
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
         run: |
-          pnpm test:coverage
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @lib/database db:generate
+
+      - name: Build dependencies
+        run: pnpm turbo build --filter=triggers^...
+
+      - name: Run tests with coverage
+        run: pnpm turbo test:coverage --filter=triggers
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
 
-      - name: Coveralls
+      - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
         if: always()
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          coveralls-token: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          path-to-lcov: ./apps/triggers/coverage/lcov.info
+          base-path: apps/triggers
+          flag-name: triggers
