@@ -12,5 +12,5 @@ jobs:
     with:
       image_name: rahat-project-triggers
       dockerfile_path: apps/triggers/Dockerfile.triggers
-      tag_suffix: test-load
+      tag_prefix: test-load
     secrets: inherit
