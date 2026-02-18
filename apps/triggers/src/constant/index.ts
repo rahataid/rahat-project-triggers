@@ -125,6 +125,7 @@ export const MS_TRIGGERS_JOBS = {
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
     LIST_PROJECT_SPECIFIC: 'ms.jobs.activities.listProjectSpecific',
+    GET_BY_STAKEHOLDER_UUID: 'ms.jobs.activities.getByStakeholderUuid',
     COMMUNICATION: {
       TRIGGER: 'ms.jobs.activity.communication.trigger',
       SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
