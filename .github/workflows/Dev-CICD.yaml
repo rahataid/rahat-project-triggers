@@ -71,7 +71,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter @lib/database db:generate
-          pnpm turbo build --filter=@lib/triggers...
+          pnpm turbo build --filter=triggers...
 
       - name: Import Secrets from Vault
         uses: hashicorp/vault-action@v2.4.0
