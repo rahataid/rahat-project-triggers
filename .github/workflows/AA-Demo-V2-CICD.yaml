@@ -2,10 +2,20 @@ name: AA Demo V2 CI/CD
 on:
   push:
     branches:
-      - 'aa-demo-v2'
+      - "aa-demo-v2"
+    paths:
+      - "apps/triggers/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   pull_request:
     branches:
-      - 'aa-demo-v2'
+      - "deaa-demo-v2"
+    paths:
+      - "apps/triggers/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   workflow_dispatch:
 
 env:
