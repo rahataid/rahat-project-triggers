@@ -147,6 +147,14 @@ export class CreateActivityDto {
 
   @ApiProperty({
     example: false,
+    description: 'Indicates if the activity is a template',
+  })
+  @IsBoolean()
+  @IsOptional()
+  isTemplate?: boolean = false;
+
+  @ApiProperty({
+    example: false,
     description: 'Indicates if the activity is deleted',
   })
   @IsBoolean()
