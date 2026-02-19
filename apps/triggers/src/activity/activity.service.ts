@@ -17,6 +17,7 @@ import {
 } from './dto';
 import { paginateResult } from 'src/utils/pagination';
 import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
+import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -1583,6 +1584,37 @@ export class ActivityService {
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
       throw new RpcException(error);
+    }
+  }
+
+  async getByStakeholderUuid(payload: GetActivityByStakeholderUuidDto) {
+    const { stakeholderGroupUuid } = payload;
+    this.logger.log(
+      `Fetching activities for stakeholder ${stakeholderGroupUuid}`,
+    );
+
+    try {
+      // Use raw SQL query to search through JSONB array for matching groupId
+      const activities = await this.prisma.$queryRaw<any[]>`
+        SELECT * FROM "tbl_activities"
+        WHERE 
+          "isDeleted" = false
+          AND "activityCommunication" IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements("activityCommunication"::jsonb) AS elem
+            WHERE elem->>'groupId' = ${stakeholderGroupUuid}
+              AND elem->>'groupType' = 'STAKEHOLDERS'
+          )
+        ORDER BY "updatedAt" DESC
+      `;
+
+      return activities;
+    } catch (error: any) {
+      this.logger.error(
+        `Error while fetching activities for stakeholder ${stakeholderGroupUuid}`,
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
     }
   }
 }
