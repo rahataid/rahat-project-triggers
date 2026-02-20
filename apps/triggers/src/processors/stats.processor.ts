@@ -2,13 +2,15 @@ import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EVENTS } from 'src/constant';
 import { StatsService } from 'src/stats/stat.service';
+import { ProductionOnly } from 'src/utils/production-only.decorator';
 
 @Injectable()
 export class StatsProcessor implements OnApplicationBootstrap {
   constructor(private readonly statsService: StatsService) {}
 
+  @ProductionOnly()
   async onApplicationBootstrap() {
-    this.statsService.calculateAllStats();
+    await this.statsService.calculateAllStats();
   }
 
   @OnEvent(EVENTS.ACTIVITY_COMPLETED)

@@ -51,8 +51,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     this.logger.error(
-      `RPC Exception: ${message}`,
-      exception instanceof Error ? exception.stack : undefined,
+      `RPC Exception: ${message} | ${exception instanceof Error ? exception.stack : undefined}`,
     );
 
     return throwError(() => ({

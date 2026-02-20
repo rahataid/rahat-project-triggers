@@ -105,11 +105,15 @@ export const MS_TRIGGERS_JOBS = {
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
     GET_DHM_SINGLE_SERIES: 'ms.jobs.waterLevels.getDhmSingleSeries',
-    GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
+    // GET_GLOFAS: 'ms.jobs.waterLevels.getGlofas',
     GET_GFH: 'ms.jobs.waterLevels.getGfh',
   },
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
+  },
+  PROB_FLOOD: {
+    GET_ALL_GLOFAS: 'ms.jobs.probFlood.getAllGlofas',
+    GET_ONE_GLOFAS: 'ms.jobs.probFlood.getOneGlofas',
   },
   SOURCE: {
     GET_ALL: 'ms.jobs.sources.getAll',
@@ -129,6 +133,7 @@ export const MS_TRIGGERS_JOBS = {
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
     LIST_PROJECT_SPECIFIC: 'ms.jobs.activities.listProjectSpecific',
+    GET_BY_STAKEHOLDER_UUID: 'ms.jobs.activities.getByStakeholderUuid',
     COMMUNICATION: {
       TRIGGER: 'ms.jobs.activity.communication.trigger',
       SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
@@ -159,6 +164,10 @@ export const MS_TRIGGERS_JOBS = {
   },
   SETTINGS: {
     GET: 'ms.jobs.settings.get',
+  },
+  LIBRARY: {
+    GET_ACTIVITY_TEMPLATES: 'ms.jobs.library.getActivityTemplates',
+    GET_ACTIVITY_TEMPLATE_BY_ID: 'ms.jobs.library.getActivityTemplateById',
   },
 };
 export const EVENTS = {

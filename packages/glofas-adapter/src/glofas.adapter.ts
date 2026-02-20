@@ -243,7 +243,7 @@ export class GlofasAdapter extends ObservationAdapter {
       this.emitDataSourceEvent(indicators);
       return Ok(indicators);
     } catch (error: any) {
-      this.logger.error('Failed to transform DHM data', error);
+      this.logger.error('Failed to transform Glofas data', error);
       return Err('Failed to transform to indicators', error);
     }
   }

@@ -5,6 +5,7 @@ import {
   OnApplicationBootstrap,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AxiosError } from 'axios';
 import { Cron } from '@nestjs/schedule';
 import {
@@ -29,7 +30,7 @@ import {
 import { SourceType, PrismaService, DataSource } from '@lib/database';
 import { SourceDataType } from './dto/get-source-data';
 import { RpcException } from '@nestjs/microservices';
-import type { GlofasStationInfo } from '@lib/database';
+import { ProductionOnly } from '../utils/production-only.decorator';
 
 @Injectable()
 export class ScheduleSourcesDataService
@@ -45,6 +46,7 @@ export class ScheduleSourcesDataService
   constructor(
     @Inject(HealthCacheService)
     private readonly healthCacheService: HealthCacheService,
+    private readonly configService: ConfigService,
     private readonly dhmWaterLevelAdapter: DhmWaterLevelAdapter,
     private readonly dhmRainfallLevelAdapter: DhmRainfallAdapter,
     private readonly glofasAdapter: GlofasAdapter,
@@ -75,6 +77,7 @@ export class ScheduleSourcesDataService
     ].forEach((adapter) => adapter.setHealthService(this.healthService));
   }
 
+  @ProductionOnly()
   onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();

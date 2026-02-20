@@ -189,10 +189,6 @@ describe('PhasesService', () => {
           activeYear: createPhaseDto.activeYear,
           canRevert: createPhaseDto.canRevert,
           canTriggerPayout: createPhaseDto.canTriggerPayout,
-          receivedMandatoryTriggers: createPhaseDto.receivedMandatoryTriggers,
-          receivedOptionalTriggers: createPhaseDto.receivedOptionalTriggers,
-          requiredMandatoryTriggers: createPhaseDto.requiredMandatoryTriggers,
-          requiredOptionalTriggers: createPhaseDto.requiredOptionalTriggers,
         },
       });
     });

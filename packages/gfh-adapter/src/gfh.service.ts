@@ -24,13 +24,13 @@ export class GfhService {
             AND: [
               {
                 info: {
-                  path: ["info", "stationName"],
+                  path: ["stationName"],
                   equals: payload.info.stationName,
                 },
               },
             ],
             info: {
-              path: ["info", "riverGaugeId"],
+              path: ["riverGaugeId"],
               equals: payload.info.riverGaugeId,
             },
           },
@@ -44,7 +44,7 @@ export class GfhService {
             where: { id: existingRecord.id },
             data: {
               info: {
-                ...JSON.parse(JSON.stringify(payload)),
+                ...JSON.parse(JSON.stringify(payload?.info || payload)),
               },
               updatedAt: new Date(),
             },
@@ -57,7 +57,7 @@ export class GfhService {
             data: {
               type,
               dataSource: DataSource.GFH,
-              info: JSON.parse(JSON.stringify(payload)),
+              info: JSON.parse(JSON.stringify(payload?.info || payload)),
               source: {
                 connectOrCreate: {
                   where: {

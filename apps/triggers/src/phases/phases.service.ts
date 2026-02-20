@@ -52,19 +52,39 @@ export class PhasesService {
       activeYear,
       canRevert,
       canTriggerPayout,
-      receivedMandatoryTriggers,
-      receivedOptionalTriggers,
-      requiredMandatoryTriggers,
-      requiredOptionalTriggers,
     } = payload;
 
     this.logger.log(
       `Creating new phase with ${name} source: ${source} river_basin: ${river_basin}`,
     );
 
+    if (!name || !source || !river_basin) {
+      this.logger.error('Missing required fields in payload');
+      throw new RpcException('Name, source and river basin are required');
+    }
+
     if (!activeYear) {
       this.logger.error('Missing active year in payload');
-      throw new BadRequestException('Active year is required');
+      throw new RpcException('Active year is required');
+    }
+
+    const existingPhase = await this.prisma.phase.findFirst({
+      where: {
+        name,
+        activeYear,
+        source: {
+          riverBasin: river_basin,
+        },
+      },
+    });
+
+    if (existingPhase) {
+      this.logger.warn(
+        `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
+      );
+      throw new RpcException(
+        `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
+      );
     }
 
     try {
@@ -86,10 +106,6 @@ export class PhasesService {
           activeYear,
           canRevert,
           canTriggerPayout,
-          receivedMandatoryTriggers,
-          receivedOptionalTriggers,
-          requiredMandatoryTriggers,
-          requiredOptionalTriggers,
         },
       });
     } catch (error: any) {

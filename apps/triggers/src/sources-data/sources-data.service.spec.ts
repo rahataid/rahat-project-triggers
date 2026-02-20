@@ -600,20 +600,13 @@ describe('SourcesDataService', () => {
       expect(result).toEqual({});
     });
 
-    it('should call getGlofasWaterLevels for non-DHM source', async () => {
-      jest.spyOn(service, 'getGlofasWaterLevels').mockResolvedValue({} as any);
-
+    it('should return undefined for non-DHM and non-GFH source', async () => {
       const result = await service.getLevels(
         { ...mockPayload, source: DataSource.GLOFAS },
         SourceType.WATER_LEVEL,
       );
 
-      expect(service.getGlofasWaterLevels).toHaveBeenCalledWith({
-        ...mockPayload,
-        source: DataSource.GLOFAS,
-      });
-
-      expect(result).toEqual({});
+      expect(result).toBeUndefined();
     });
 
     it('should throw RpcException when type is not provided for DHM', async () => {
@@ -695,61 +688,6 @@ describe('SourcesDataService', () => {
     });
   });
 
-  describe('getGlofasWaterLevels', () => {
-    const mockPayload: GetSouceDataDto = {
-      source: DataSource.GLOFAS,
-      riverBasin: 'Dhoda',
-      from: new Date('2023-01-01'),
-      to: new Date('2023-01-31'),
-      type: SourceDataType.Point,
-      appId: 'test-app',
-    };
-
-    beforeEach(() => {
-      jest.spyOn(service, 'findGlofasData').mockResolvedValue({} as any);
-    });
-
-    it('should replace Dhoda with Doda and return Glofas water levels', async () => {
-      const result = await service.getGlofasWaterLevels(mockPayload);
-
-      const yesterdayDate = new Date();
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      yesterdayDate.setHours(0, 0, 0, 0);
-      const year = yesterdayDate.getFullYear();
-      const month = String(yesterdayDate.getMonth() + 1).padStart(2, '0');
-      const day = String(yesterdayDate.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${day}`;
-
-      expect(service.findGlofasData).toHaveBeenCalledWith('Doda', dateString);
-
-      expect(result).toEqual({});
-    });
-
-    it('should not replace riverBasin when it does not contain Dhoda', async () => {
-      const payloadWithoutDhoda = {
-        ...mockPayload,
-        riverBasin: 'test-basin',
-      };
-
-      const result = await service.getGlofasWaterLevels(payloadWithoutDhoda);
-
-      const yesterdayDate = new Date();
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      yesterdayDate.setHours(0, 0, 0, 0);
-      const year = yesterdayDate.getFullYear();
-      const month = String(yesterdayDate.getMonth() + 1).padStart(2, '0');
-      const day = String(yesterdayDate.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${day}`;
-
-      expect(service.findGlofasData).toHaveBeenCalledWith(
-        'test-basin',
-        dateString,
-      );
-
-      expect(result).toEqual({});
-    });
-  });
-
   describe('getGfhWaterLevels', () => {
     const mockPayload: GetSouceDataDto = {
       source: DataSource.GFH,
@@ -782,36 +720,6 @@ describe('SourcesDataService', () => {
     });
   });
 
-  describe('findGlofasData', () => {
-    const mockGlofasData = {
-      id: 1,
-      info: { forecastDate: '2023-01-01' },
-    };
-
-    beforeEach(() => {
-      mockPrismaService.sourcesData.findFirst.mockResolvedValue(mockGlofasData);
-    });
-
-    it('should find Glofas data by riverBasin and forecastDate', async () => {
-      const result = await service.findGlofasData('test-basin', '2023-01-01');
-
-      expect(mockPrismaService.sourcesData.findFirst).toHaveBeenCalledWith({
-        where: {
-          dataSource: DataSource.GLOFAS,
-          source: {
-            riverBasin: 'test-basin',
-          },
-          info: {
-            path: ['forecastDate'],
-            equals: '2023-01-01',
-          },
-        },
-      });
-
-      expect(result).toEqual(mockGlofasData);
-    });
-  });
-
   describe('findGfhData', () => {
     const mockGfhData = [
       {
@@ -835,10 +743,20 @@ describe('SourcesDataService', () => {
           dataSource: DataSource.GFH,
           AND: [
             {
-              info: {
-                path: ['forecastDate'],
-                equals: '2023-01-01',
-              },
+              OR: [
+                {
+                  info: {
+                    path: ['info', 'forecastDate'],
+                    equals: '2023-01-01',
+                  },
+                },
+                {
+                  info: {
+                    path: ['forecastDate'],
+                    equals: '2023-01-01',
+                  },
+                },
+              ],
             },
           ],
         },
@@ -862,10 +780,20 @@ describe('SourcesDataService', () => {
           dataSource: DataSource.GFH,
           AND: [
             {
-              info: {
-                path: ['forecastDate'],
-                equals: '2023-01-01',
-              },
+              OR: [
+                {
+                  info: {
+                    path: ['info', 'forecastDate'],
+                    equals: '2023-01-01',
+                  },
+                },
+                {
+                  info: {
+                    path: ['forecastDate'],
+                    equals: '2023-01-01',
+                  },
+                },
+              ],
             },
             {
               info: {

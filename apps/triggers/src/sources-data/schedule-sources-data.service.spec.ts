@@ -19,6 +19,8 @@ import {
 } from '@lib/core';
 import { SourceType } from '@lib/database';
 import { SourceDataType } from './dto/get-source-data';
+import { ConfigService } from '@nestjs/config';
+import { mock } from 'node:test';
 
 jest.mock('@lib/core', () => {
   const actual = jest.requireActual('@lib/core');
@@ -84,6 +86,9 @@ describe('ScheduleSourcesDataService', () => {
     recordExecution: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn(),
+  };
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -123,6 +128,10 @@ describe('ScheduleSourcesDataService', () => {
         {
           provide: HealthMonitoringService,
           useValue: mockHealthMonitoringService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -178,6 +187,7 @@ describe('ScheduleSourcesDataService', () => {
     });
 
     it('should call all sync methods on bootstrap', async () => {
+      mockConfigService.get.mockReturnValue('production');
       await service.onApplicationBootstrap();
 
       expect(service.syncRiverWaterData).toHaveBeenCalledTimes(1);
