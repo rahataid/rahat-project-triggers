@@ -1,4 +1,5 @@
-name: Test Load Triggers CI/CD (Optimized)
+name: Core CI/CD
+
 on:
   workflow_call:
     inputs:
@@ -11,6 +12,16 @@ on:
       tag_prefix:
         required: true
         type: string
+    outputs:
+      sha_short:
+        description: "Short SHA of the commit"
+        value: ${{ jobs.deploy.outputs.sha_short }}
+      image_tag:
+        description: "Full versioned image tag"
+        value: ${{ jobs.deploy.outputs.image_tag }}
+      image_digest:
+        description: "Image digest"
+        value: ${{ jobs.deploy.outputs.image_digest }}
 
 env:
   CI: false
@@ -21,19 +32,21 @@ jobs:
   deploy:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 30
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Get short SHA and Run ID
+      - name: Get short SHA
         id: vars
         run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "run_id_short=${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
-          echo "image_tag=${{ inputs.tag_prefix }}-$(git rev-parse --short HEAD)-${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          RUN_ID_SHORT=${GITHUB_RUN_ID: -4}
+          echo "sha_short=${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "image_tag=${SHA_SHORT}-${RUN_ID_SHORT}" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -47,17 +60,16 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile --prefer-offline
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Generate database and build
         run: |
           pnpm --filter @lib/database db:generate
           pnpm turbo build --filter=triggers
-      
+
       - name: Import Secrets from Vault
         id: vault
-        uses: hashicorp/vault-action@v2.4.0
+        uses: hashicorp/vault-action@v3
         with:
           url: ${{ secrets.VAULT_URL }}
           token: ${{ secrets.VAULT_TOKEN }}
@@ -87,7 +99,7 @@ jobs:
           push: true
           tags: |
             esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-            esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+            esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.image_tag }}
           cache-from: |
             type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
             type=registry,ref=esatya/${{ inputs.image_name }}:buildcache
@@ -97,11 +109,11 @@ jobs:
 
       - name: Output build information
         run: |
-          echo "Image Digest: ${{ steps.build-push.outputs.digest }}"
-          echo "Image Tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}"
+          echo "✅ Stable Tag : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
+          echo "✅ Versioned Tag: esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.image_tag }}"
+          echo "✅ Digest: ${{ steps.build-push.outputs.digest }}"
 
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
-      run_id_short: ${{ steps.vars.outputs.run_id_short }}
-      image_tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+      image_tag: esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.image_tag }}
       image_digest: ${{ steps.build-push.outputs.digest }}
