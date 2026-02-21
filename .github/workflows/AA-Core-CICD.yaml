@@ -13,9 +13,6 @@ on:
         required: true
         type: string
     outputs:
-      sha_short:
-        description: "Short SHA of the commit"
-        value: ${{ jobs.build.outputs.sha_short }}
       image_digest:
         description: "Image digest"
         value: ${{ jobs.build.outputs.image_digest }}
@@ -32,18 +29,11 @@ jobs:
     timeout-minutes: 30
 
     outputs:
-      sha_short: ${{ steps.vars.outputs.sha_short }}
       image_digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Get short SHA
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -95,7 +85,6 @@ jobs:
 
           tags: |
             esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-            esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
 
           cache-from: |
             type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
@@ -106,6 +95,5 @@ jobs:
 
       - name: Output build info
         run: |
-          echo "Stable Tag : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
-          echo "Version Tag: esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}"
+          echo "Pushed Tag : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
           echo "Digest     : ${{ steps.build.outputs.digest }}"
