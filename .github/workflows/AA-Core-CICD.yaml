@@ -84,10 +84,10 @@ jobs:
           sbom: false
 
           tags: |
-            esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
+            esatya/${{ inputs.image_name }}:test-load
 
           cache-from: |
-            type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
+            type=registry,ref=esatya/${{ inputs.image_name }}:test-load
             type=registry,ref=esatya/${{ inputs.image_name }}:buildcache
 
           cache-to: |
@@ -95,5 +95,5 @@ jobs:
 
       - name: Output build info
         run: |
-          echo "Pushed Tag : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
+          echo "Pushed Tag : esatya/${{ inputs.image_name }}:test-load"
           echo "Digest     : ${{ steps.build.outputs.digest }}"
