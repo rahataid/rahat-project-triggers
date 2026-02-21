@@ -15,10 +15,10 @@ on:
     outputs:
       sha_short:
         description: "Short SHA of the commit"
-        value: ${{ jobs.deploy.outputs.sha_short }}
+        value: ${{ jobs.build.outputs.sha_short }}
       image_digest:
         description: "Image digest"
-        value: ${{ jobs.deploy.outputs.image_digest }}
+        value: ${{ jobs.build.outputs.image_digest }}
 
 env:
   CI: false
@@ -26,10 +26,14 @@ env:
   NODE_VERSION: '20.10.0'
 
 jobs:
-  deploy:
+  build:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    outputs:
+      sha_short: ${{ steps.vars.outputs.sha_short }}
+      image_digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout code
@@ -39,15 +43,14 @@ jobs:
 
       - name: Get short SHA
         id: vars
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Setup Node.js with caching
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -56,12 +59,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Generate database and build
+      - name: Generate database & build
         run: |
           pnpm --filter @lib/database db:generate
           pnpm turbo build --filter=triggers
 
-      - name: Import Secrets from Vault
+      - name: Import Docker credentials from Vault
         id: vault
         uses: hashicorp/vault-action@v3
         with:
@@ -77,40 +80,32 @@ jobs:
           username: ${{ steps.vault.outputs.DOCKERHUB_USERNAME }}
           password: ${{ steps.vault.outputs.DOCKERHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:latest
-            network=host
 
-      - name: Build and Push Docker Image
-        id: build-push
+      - name: Build & Push Image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ inputs.dockerfile_path }}
           push: true
+          provenance: false
+          sbom: false
+
           tags: |
             esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-            esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.sha_short }}
+            esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
+
           cache-from: |
             type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
             type=registry,ref=esatya/${{ inputs.image_name }}:buildcache
-          cache-to: type=registry,ref=esatya/${{ inputs.image_name }}:buildcache,mode=max
-          provenance: false
-          sbom: false
-      - name: Push Stable Tag
-        run: |
-          docker pull esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
-          docker tag esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }} esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-          docker push esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-      - name: Output build information
-        run: |
-          echo "✅ Stable Tag   : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
-          echo "✅ SHA Tag      : esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.sha_short }}"
-          echo "✅ Digest       : ${{ steps.build-push.outputs.digest }}"
 
-    outputs:
-      sha_short: ${{ steps.vars.outputs.sha_short }}
-      image_digest: ${{ steps.build-push.outputs.digest }}
+          cache-to: |
+            type=registry,ref=esatya/${{ inputs.image_name }}:buildcache,mode=max
+
+      - name: Output build info
+        run: |
+          echo "Stable Tag : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
+          echo "Version Tag: esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}"
+          echo "Digest     : ${{ steps.build.outputs.digest }}"
