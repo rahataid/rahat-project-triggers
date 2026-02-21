@@ -100,7 +100,11 @@ jobs:
           cache-to: type=registry,ref=esatya/${{ inputs.image_name }}:buildcache,mode=max
           provenance: false
           sbom: false
-
+      - name: Push Stable Tag
+        run: |
+          docker pull esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
+          docker tag esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}-${{ steps.vars.outputs.sha_short }} esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
+          docker push esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
       - name: Output build information
         run: |
           echo "✅ Stable Tag   : esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}"
