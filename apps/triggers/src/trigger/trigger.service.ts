@@ -171,12 +171,23 @@ export class TriggerService {
         throw new RpcException('Trigger has already been activated.');
       }
 
+      // Validate source only if it's provided
+      if (dto.source && !Object.values(DataSource).includes(dto.source)) {
+        this.logger.warn(
+          `Invalid source value: ${dto.source}. Must be one of: ${Object.values(DataSource).join(', ')}`,
+        );
+        throw new BadRequestException(
+          `Invalid source value. Must be one of: ${Object.values(DataSource).join(', ')}`,
+        );
+      }
+
       const fields = {
         title: dto.title || trigger.title,
         triggerStatement: dto.triggerStatement || trigger.triggerStatement,
         notes: dto.notes ?? trigger.notes,
         description: dto.description ?? trigger.description,
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
+        source: dto.source || trigger.source,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
