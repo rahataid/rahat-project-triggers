@@ -24,7 +24,8 @@ const config: Config = {
     '!**/node_modules/**',
     '!**/dist/**',
     '!**/tools/**',
-    '!**/**/jest.config.ts',
+    '!**/types/**',
+    '!**/*.dto.*',
   ],
   transformIgnorePatterns: [
     'node_modules/(?!(.*/)?(msgpackr|msgpackr-extract|bull|uuid)(/|$))',

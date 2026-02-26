@@ -1,6 +1,6 @@
 import { DataSource, SourceType } from '@lib/database';
 import { GlofasStationInfo } from 'src/sources-data/dto';
-import { GfhStationDetails } from './data-source';
+import { GfhStationDetails } from './data-source.type';
 
 export type RainfallWaterLevelConfig = {
   [SourceType.RAINFALL]: {
