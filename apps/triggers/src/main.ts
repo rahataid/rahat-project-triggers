@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { AllExceptionsFilter } from './utils/all-exceptions.filter';
 import { PrismaClientExceptionFilter } from '@lib/database';
@@ -8,7 +8,7 @@ import { setupProcessHandlers } from './utils/global-filters.filter';
 
 const logger = new Logger('Bootstrap');
 
-async function bootstrap() {
+export async function bootstrap() {
   setupProcessHandlers(logger);
 
   try {
@@ -71,4 +71,7 @@ async function bootstrap() {
   }
 }
 
-bootstrap();
+// Only call bootstrap if not in test environment
+if (process.env.NODE_ENV !== 'test' && !globalThis.jestTestRun) {
+  bootstrap();
+}
