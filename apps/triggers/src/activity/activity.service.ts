@@ -81,6 +81,7 @@ export class ActivityService {
       const {
         activityCommunication,
         title,
+        responsibleStation,
         isAutomated,
         isTemplate,
         leadTime,
@@ -111,6 +112,7 @@ export class ActivityService {
       const newActivity = await this.prisma.activity.create({
         data: {
           title,
+          responsibleStation,
           description,
           leadTime,
           isAutomated,
@@ -1008,6 +1010,7 @@ export class ActivityService {
         activityCommunication,
         isAutomated,
         title,
+        responsibleStation,
         phaseId,
         leadTime,
         description,
@@ -1052,6 +1055,7 @@ export class ActivityService {
         },
         data: {
           title: title || activity.title,
+          responsibleStation: responsibleStation || activity.responsibleStation,
           description: description || activity.description,
           leadTime: leadTime || activity.leadTime,
           isAutomated: isAutomated,
