@@ -23,9 +23,18 @@ RUN pnpm install
 COPY --from=builder /app/out/full/ .
 RUN pnpm turbo build
 
+# Run prisma generate at BUILD TIME (schema is still present here)
+RUN pnpm --filter triggers exec prisma generate
+
 # Clean up unnecessary files to reduce image size
+RUN find apps/triggers -type f \
+    -not -path 'apps/triggers/dist/*' \
+    -not -name 'package.json' \
+    -not -path 'apps/triggers/prisma/*' \
+    -delete \
+    && rm -rf apps/triggers/test apps/triggers/src
+    
 RUN rm -rf node_modules
-RUN find apps/triggers -type f -not -path 'apps/triggers/dist/*' -not -name 'package.json' -delete && rm -rf apps/triggers/test apps/triggers/src
 RUN pnpm install --prod && pnpm store prune
 
 FROM base AS runner
