@@ -1301,6 +1301,52 @@ export class ActivityService {
     }
   }
 
+  async getTransportSessionStats() {
+    this.logger.log('Fetching transport session stats');
+
+    try {
+      // Step 1: Build transport cache (transportId -> transportName)
+      const transportCache = await this.buildTransportCache();
+
+      // Step 2: Get all transportIds with their counts in a single SQL query
+      const rows = await this.prisma.$queryRaw<
+        { transportId: string; total: bigint }[]
+      >`
+      SELECT
+        comm_elem->>'transportId' AS "transportId",
+        COUNT(*)                  AS total
+      FROM
+        public.tbl_activities a
+      CROSS JOIN LATERAL
+        jsonb_array_elements(a."activityCommunication"::jsonb) AS comm_elem
+      WHERE
+        a."isDeleted" = false
+        AND a."activityCommunication" IS NOT NULL
+        AND a."activityCommunication"::jsonb != '[]'::jsonb
+        AND comm_elem->>'transportId' IS NOT NULL
+      GROUP BY
+        comm_elem->>'transportId'
+    `;
+
+      if (!rows?.length) {
+        this.logger.warn('No communication data found');
+        return [];
+      }
+
+      // Step 3: Map transportId to transportName using cache
+      const result = rows.map((row) => ({
+        transportId: row.transportId,
+        transportName: transportCache.get(row.transportId) || 'Unknown',
+        total: Number(row.total), // BigInt -> Number
+      }));
+
+      return result;
+    } catch (error: any) {
+      this.logger.error('Error while fetching transport session stats', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
   async triggerCommunication(payload: {
     communicationId: string;
     activityId: string;
