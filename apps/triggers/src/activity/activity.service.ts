@@ -1310,11 +1310,11 @@ export class ActivityService {
 
       // Step 2: Get all transportIds with their counts in a single SQL query
       const rows = await this.prisma.$queryRaw<
-        { transportId: string; total: bigint }[]
+        { transportId: string; total: number }[]
       >`
       SELECT
         comm_elem->>'transportId' AS "transportId",
-        COUNT(*)                  AS total
+        COUNT(*)::int             AS total
       FROM
         public.tbl_activities a
       CROSS JOIN LATERAL
@@ -1337,7 +1337,7 @@ export class ActivityService {
       const result = rows.map((row) => ({
         transportId: row.transportId,
         transportName: transportCache.get(row.transportId) || 'Unknown',
-        total: Number(row.total), // BigInt -> Number
+        total: row.total,
       }));
 
       return result;
