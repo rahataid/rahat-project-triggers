@@ -22,6 +22,7 @@ describe('ActivityService', () => {
 
   const mockPrismaServiceImplementation = {
     $queryRawUnsafe: jest.fn(),
+    $queryRaw: jest.fn(),
     activity: {
       create: jest.fn(),
       findUnique: jest.fn(),
@@ -937,6 +938,101 @@ describe('ActivityService', () => {
         sessions: ['session-1'],
       });
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('getTransportSessionStats', () => {
+    beforeEach(() => {
+      // Mock transport list for buildTransportCache
+      mockCommsClientImplementation.transport = {
+        get: jest.fn(),
+        list: jest.fn().mockResolvedValue({
+          data: [
+            { cuid: 'transport-sms', name: 'SMS' },
+            { cuid: 'transport-email', name: 'Email' },
+            { cuid: 'transport-voice', name: 'Voice' },
+          ],
+        }),
+      };
+    });
+
+    it('should return grouped transport stats with names and totals', async () => {
+      const mockRows = [
+        { transportId: 'transport-sms', total: 4 },
+        { transportId: 'transport-email', total: 3 },
+        { transportId: 'transport-voice', total: 3 },
+      ];
+
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
+
+      const result = await service.getTransportSessionStats();
+
+      expect(mockCommsClientImplementation.transport.list).toHaveBeenCalled();
+      expect(mockPrismaServiceImplementation.$queryRaw).toHaveBeenCalled();
+      expect(result).toEqual([
+        { transportId: 'transport-sms', transportName: 'SMS', total: 4 },
+        { transportId: 'transport-email', transportName: 'Email', total: 3 },
+        { transportId: 'transport-voice', transportName: 'Voice', total: 3 },
+      ]);
+    });
+
+    it('should return empty array when no communication data found', async () => {
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue([]);
+
+      const result = await service.getTransportSessionStats();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return "Unknown" for transport not in cache', async () => {
+      const mockRows = [
+        { transportId: 'transport-unknown', total: 2 },
+      ];
+
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
+
+      const result = await service.getTransportSessionStats();
+
+      expect(result).toEqual([
+        {
+          transportId: 'transport-unknown',
+          transportName: 'Unknown',
+          total: 2,
+        },
+      ]);
+    });
+
+    it('should return total as number type from SQL ::int cast', async () => {
+      const mockRows = [
+        { transportId: 'transport-sms', total: 99 },
+      ];
+
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
+
+      const result = await service.getTransportSessionStats();
+
+      expect(typeof result[0].total).toBe('number');
+      expect(result[0].total).toBe(99);
+    });
+
+    it('should throw RpcException when query fails', async () => {
+      mockPrismaServiceImplementation.$queryRaw.mockRejectedValue(
+        new Error('DB query failed'),
+      );
+
+      await expect(service.getTransportSessionStats()).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should throw RpcException when transport list fails', async () => {
+      mockCommsClientImplementation.transport.list.mockRejectedValue(
+        new Error('Transport API failed'),
+      );
+
+      await expect(service.getTransportSessionStats()).rejects.toThrow(
+        RpcException,
+      );
     });
   });
 });

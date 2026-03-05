@@ -131,6 +131,13 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_SESSION_STATS,
+  })
+  async getTransportSessionStats() {
+    return this.activityService.getTransportSessionStats();
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
   async getTransportSessionStatsByGroup(payload: { appId: string }) {
