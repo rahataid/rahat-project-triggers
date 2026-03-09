@@ -1301,8 +1301,13 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStats() {
+  async getTransportSessionStats(appId: string) {
     this.logger.log('Fetching transport session stats');
+
+    if (!appId) {
+      this.logger.warn('App ID is missing');
+      throw new RpcException('App ID is missing');
+    }
 
     try {
       // Step 1: Build transport cache (transportId -> transportName)
@@ -1321,6 +1326,7 @@ export class ActivityService {
         jsonb_array_elements(a."activityCommunication"::jsonb) AS comm_elem
       WHERE
         a."isDeleted" = false
+        AND a."app" = ${appId}
         AND a."activityCommunication" IS NOT NULL
         AND a."activityCommunication"::jsonb != '[]'::jsonb
         AND comm_elem->>'transportId' IS NOT NULL

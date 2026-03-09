@@ -133,8 +133,8 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_SESSION_STATS,
   })
-  async getTransportSessionStats() {
-    return this.activityService.getTransportSessionStats();
+  async getTransportSessionStats(payload) {
+    return this.activityService.getTransportSessionStats(payload.appId);
   }
 
   @MessagePattern({

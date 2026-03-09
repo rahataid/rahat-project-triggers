@@ -665,6 +665,8 @@ describe('ActivityController', () => {
   });
 
   describe('getTransportSessionStats', () => {
+    const mockPayload = { appId: 'app-id' };
+
     it('should successfully get transport session stats', async () => {
       const mockResult: any = [
         { transportId: 'transport-sms', transportName: 'SMS', total: 4 },
@@ -676,9 +678,11 @@ describe('ActivityController', () => {
         .spyOn(mockActivityService, 'getTransportSessionStats')
         .mockResolvedValue(mockResult);
 
-      const result = await controller.getTransportSessionStats();
+      const result = await controller.getTransportSessionStats(mockPayload);
 
-      expect(mockActivityService.getTransportSessionStats).toHaveBeenCalled();
+      expect(mockActivityService.getTransportSessionStats).toHaveBeenCalledWith(
+        mockPayload.appId,
+      );
       expect(result).toEqual(mockResult);
     });
 
@@ -687,9 +691,11 @@ describe('ActivityController', () => {
         .spyOn(mockActivityService, 'getTransportSessionStats')
         .mockResolvedValue([]);
 
-      const result = await controller.getTransportSessionStats();
+      const result = await controller.getTransportSessionStats(mockPayload);
 
-      expect(mockActivityService.getTransportSessionStats).toHaveBeenCalled();
+      expect(mockActivityService.getTransportSessionStats).toHaveBeenCalledWith(
+        mockPayload.appId,
+      );
       expect(result).toEqual([]);
     });
 
@@ -699,9 +705,9 @@ describe('ActivityController', () => {
         .spyOn(mockActivityService, 'getTransportSessionStats')
         .mockRejectedValue(error);
 
-      await expect(controller.getTransportSessionStats()).rejects.toThrow(
-        error,
-      );
+      await expect(
+        controller.getTransportSessionStats(mockPayload),
+      ).rejects.toThrow(error);
     });
   });
 });

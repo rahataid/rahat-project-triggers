@@ -942,6 +942,8 @@ describe('ActivityService', () => {
   });
 
   describe('getTransportSessionStats', () => {
+    const mockAppId = 'app-id';
+
     beforeEach(() => {
       // Mock transport list for buildTransportCache
       mockCommsClientImplementation.transport = {
@@ -965,7 +967,7 @@ describe('ActivityService', () => {
 
       mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
 
-      const result = await service.getTransportSessionStats();
+      const result = await service.getTransportSessionStats(mockAppId);
 
       expect(mockCommsClientImplementation.transport.list).toHaveBeenCalled();
       expect(mockPrismaServiceImplementation.$queryRaw).toHaveBeenCalled();
@@ -979,19 +981,17 @@ describe('ActivityService', () => {
     it('should return empty array when no communication data found', async () => {
       mockPrismaServiceImplementation.$queryRaw.mockResolvedValue([]);
 
-      const result = await service.getTransportSessionStats();
+      const result = await service.getTransportSessionStats(mockAppId);
 
       expect(result).toEqual([]);
     });
 
     it('should return "Unknown" for transport not in cache', async () => {
-      const mockRows = [
-        { transportId: 'transport-unknown', total: 2 },
-      ];
+      const mockRows = [{ transportId: 'transport-unknown', total: 2 }];
 
       mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
 
-      const result = await service.getTransportSessionStats();
+      const result = await service.getTransportSessionStats(mockAppId);
 
       expect(result).toEqual([
         {
@@ -1003,16 +1003,20 @@ describe('ActivityService', () => {
     });
 
     it('should return total as number type from SQL ::int cast', async () => {
-      const mockRows = [
-        { transportId: 'transport-sms', total: 99 },
-      ];
+      const mockRows = [{ transportId: 'transport-sms', total: 99 }];
 
       mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
 
-      const result = await service.getTransportSessionStats();
+      const result = await service.getTransportSessionStats(mockAppId);
 
       expect(typeof result[0].total).toBe('number');
       expect(result[0].total).toBe(99);
+    });
+
+    it('should throw RpcException when appId is missing', async () => {
+      await expect(service.getTransportSessionStats('')).rejects.toThrow(
+        RpcException,
+      );
     });
 
     it('should throw RpcException when query fails', async () => {
@@ -1020,7 +1024,7 @@ describe('ActivityService', () => {
         new Error('DB query failed'),
       );
 
-      await expect(service.getTransportSessionStats()).rejects.toThrow(
+      await expect(service.getTransportSessionStats(mockAppId)).rejects.toThrow(
         RpcException,
       );
     });
@@ -1030,7 +1034,7 @@ describe('ActivityService', () => {
         new Error('Transport API failed'),
       );
 
-      await expect(service.getTransportSessionStats()).rejects.toThrow(
+      await expect(service.getTransportSessionStats(mockAppId)).rejects.toThrow(
         RpcException,
       );
     });
