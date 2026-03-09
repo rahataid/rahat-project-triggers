@@ -978,6 +978,36 @@ describe('ActivityService', () => {
       ]);
     });
 
+    it('should exclude NOT_STARTED activities and only count WORK_IN_PROGRESS, COMPLETED, DELAYED', async () => {
+      // Simulates DB returning only rows where status != 'NOT_STARTED'::"ActivityStatus"
+      // NOT_STARTED activities are already filtered out by the SQL query
+      const mockRowsExcludingNotStarted = [
+        { transportId: 'transport-sms', total: 5 }, // only from WORK_IN_PROGRESS + COMPLETED + DELAYED
+      ];
+
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(
+        mockRowsExcludingNotStarted,
+      );
+
+      const result = await service.getTransportSessionStats(mockAppId);
+
+      expect(mockPrismaServiceImplementation.$queryRaw).toHaveBeenCalled();
+      // Result must reflect only non-NOT_STARTED activity counts
+      expect(result).toEqual([
+        { transportId: 'transport-sms', transportName: 'SMS', total: 5 },
+      ]);
+    });
+
+    it('should return empty array when all activities have NOT_STARTED status', async () => {
+      // SQL query filters out NOT_STARTED, so DB returns no rows
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue([]);
+
+      const result = await service.getTransportSessionStats(mockAppId);
+
+      expect(mockPrismaServiceImplementation.$queryRaw).toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
     it('should return empty array when no communication data found', async () => {
       mockPrismaServiceImplementation.$queryRaw.mockResolvedValue([]);
 

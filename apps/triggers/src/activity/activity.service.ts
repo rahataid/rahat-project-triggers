@@ -1327,6 +1327,7 @@ export class ActivityService {
       WHERE
         a."isDeleted" = false
         AND a."app" = ${appId}
+        AND a."status" != 'NOT_STARTED'::"ActivityStatus"
         AND a."activityCommunication" IS NOT NULL
         AND a."activityCommunication"::jsonb != '[]'::jsonb
         AND comm_elem->>'transportId' IS NOT NULL
