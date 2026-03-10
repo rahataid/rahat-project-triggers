@@ -978,28 +978,25 @@ describe('ActivityService', () => {
       ]);
     });
 
-    it('should exclude NOT_STARTED activities and only count WORK_IN_PROGRESS, COMPLETED, DELAYED', async () => {
-      // Simulates DB returning only rows where status != 'NOT_STARTED'::"ActivityStatus"
-      // NOT_STARTED activities are already filtered out by the SQL query
-      const mockRowsExcludingNotStarted = [
-        { transportId: 'transport-sms', total: 5 }, // only from WORK_IN_PROGRESS + COMPLETED + DELAYED
-      ];
+    it('should only count communications where sessionId exists and is not empty', async () => {
+      // SQL filters: comm_elem->>'sessionId' IS NOT NULL AND comm_elem->>'sessionId' != ''
+      // DB returns only rows from comm elements that have a valid sessionId
+      const mockRows = [{ transportId: 'transport-sms', total: 3 }];
 
-      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(
-        mockRowsExcludingNotStarted,
-      );
+      mockPrismaServiceImplementation.$queryRaw.mockResolvedValue(mockRows);
 
       const result = await service.getTransportSessionStats(mockAppId);
 
       expect(mockPrismaServiceImplementation.$queryRaw).toHaveBeenCalled();
-      // Result must reflect only non-NOT_STARTED activity counts
+      // Only communications with a non-null, non-empty sessionId are counted
       expect(result).toEqual([
-        { transportId: 'transport-sms', transportName: 'SMS', total: 5 },
+        { transportId: 'transport-sms', transportName: 'SMS', total: 3 },
       ]);
     });
 
-    it('should return empty array when all activities have NOT_STARTED status', async () => {
-      // SQL query filters out NOT_STARTED, so DB returns no rows
+    it('should return empty array when all communications have no sessionId', async () => {
+      // SQL filters out comm elements where sessionId IS NULL or sessionId = ''
+      // so DB returns no rows
       mockPrismaServiceImplementation.$queryRaw.mockResolvedValue([]);
 
       const result = await service.getTransportSessionStats(mockAppId);
