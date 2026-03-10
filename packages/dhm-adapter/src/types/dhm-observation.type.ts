@@ -1,13 +1,6 @@
 import { Result } from "@lib/core";
 import axios from "axios";
 
-export interface DhmObservation {
-  data: DhmNormalizedItem[];
-  stationDetail: RiverStationItem | RainfallStationItem;
-  seriesId: number;
-  location?: string;
-}
-
 export interface DhmFetchResponse extends Omit<DhmObservation, "data"> {
   data: axios.AxiosResponse<any, any, {}>;
 }
@@ -105,6 +98,16 @@ export type RainfallStationItem = {
   units: string;
 };
 
+export type DhmStationItem =
+  | RiverStationItem
+  | RainfallStationItem
+  | TemperatureStationItem;
+export interface DhmObservation {
+  data: DhmNormalizedItem[];
+  stationDetail: DhmStationItem;
+  seriesId: number;
+  location?: string;
+}
 export interface RiverWaterHistoryItem {
   datetime: string;
   value: number;
@@ -137,4 +140,46 @@ export interface SeriesFetchParams {
   period: DhmSourceDataTypeEnum;
   location: string;
   date?: Date;
+}
+
+// DHM Temperature (AWS) API types
+
+export interface DhmTemperatureDataPoint {
+  datetime: string;
+  value: number;
+}
+
+export interface DhmTemperatureObservationParam {
+  unit: string;
+  series_id: number;
+  parameter_name: string;
+  parameter_code: string;
+  series_name: string;
+  data: DhmTemperatureDataPoint[];
+}
+
+export interface DhmTemperatureStation {
+  station: string;
+  longitude: number;
+  latitude: number;
+  observations: DhmTemperatureObservationParam[];
+  value: number;
+}
+
+export interface DhmTemperatureApiResponse {
+  type: number;
+  data: {
+    data: DhmTemperatureStation[];
+  };
+}
+
+export interface TemperatureStationItem {
+  name: string;
+  longitude: number;
+  latitude: number;
+  value: number;
+  parameter_name?: string;
+  parameter_code?: string;
+  series_name?: string;
+  series_id?: number;
 }
