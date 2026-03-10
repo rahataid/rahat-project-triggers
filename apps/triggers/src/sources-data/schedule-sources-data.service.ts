@@ -5,7 +5,6 @@ import {
   OnApplicationBootstrap,
   OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AxiosError } from 'axios';
 import { Cron } from '@nestjs/schedule';
 import {
@@ -16,6 +15,7 @@ import {
   DhmInputItem,
   RiverStationItem,
   DhmSourceDataTypeEnum,
+  DhmTemperatureAdapter,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -40,15 +40,16 @@ export class ScheduleSourcesDataService
 
   private dhmWaterMonitored: HealthMonitoredAdapter<undefined>;
   private dhmRainfallMonitored: HealthMonitoredAdapter<undefined>;
+  private dhmTemperatureMonitored: HealthMonitoredAdapter<undefined>;
   private glofasMonitored: HealthMonitoredAdapter<null>;
   private gfhMonitored: HealthMonitoredAdapter<undefined>;
 
   constructor(
     @Inject(HealthCacheService)
     private readonly healthCacheService: HealthCacheService,
-    private readonly configService: ConfigService,
     private readonly dhmWaterLevelAdapter: DhmWaterLevelAdapter,
     private readonly dhmRainfallLevelAdapter: DhmRainfallAdapter,
+    private readonly dhmTemperatureAdapter: DhmTemperatureAdapter,
     private readonly glofasAdapter: GlofasAdapter,
     private readonly gfhAdapter: GfhAdapter,
     private readonly dhmService: DhmService,
@@ -62,6 +63,9 @@ export class ScheduleSourcesDataService
     this.dhmRainfallMonitored = this.wrapWithHealthMonitoring(
       this.dhmRainfallLevelAdapter,
     );
+    this.dhmTemperatureMonitored = this.wrapWithHealthMonitoring(
+      this.dhmTemperatureAdapter,
+    );
     this.glofasMonitored = this.wrapWithHealthMonitoring(this.glofasAdapter);
     this.gfhMonitored = this.wrapWithHealthMonitoring(this.gfhAdapter);
   }
@@ -71,6 +75,7 @@ export class ScheduleSourcesDataService
     [
       this.dhmWaterLevelAdapter,
       this.dhmRainfallLevelAdapter,
+      this.dhmTemperatureAdapter,
       this.glofasAdapter,
       this.gfhAdapter,
     ].forEach((adapter) => adapter.setHealthService(this.healthService));
@@ -80,6 +85,7 @@ export class ScheduleSourcesDataService
   onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();
+    this.syncTemperatureData();
     this.synchronizeGlofas();
     this.syncGfhData();
   }
@@ -110,15 +116,7 @@ export class ScheduleSourcesDataService
       return;
     }
 
-    riverData.data.forEach(async (indicator) => {
-      const riverId = (indicator.location as any)?.basinId;
-
-      await this.dhmService.saveDataInDhm(
-        SourceType.WATER_LEVEL,
-        riverId,
-        indicator.info,
-      );
-    });
+    await this.saveDataInDhm(riverData.data, SourceType.WATER_LEVEL);
   }
 
   // run every 15 minutes
@@ -135,15 +133,25 @@ export class ScheduleSourcesDataService
       }
       return;
     }
+    await this.saveDataInDhm(rainfallData.data, SourceType.RAINFALL);
+  }
 
-    rainfallData.data.forEach(async (indicator) => {
-      const riverId = (indicator.location as any)?.basinId;
-      await this.dhmService.saveDataInDhm(
-        SourceType.RAINFALL,
-        riverId,
-        indicator.info,
-      );
-    });
+  // run every 1 hour
+  @Cron('0 * * * *')
+  async syncTemperatureData() {
+    const temperatureData = await this.dhmTemperatureMonitored.execute();
+    if (isErr<Indicator[]>(temperatureData)) {
+      this.logger.warn(temperatureData.details);
+      if (temperatureData.details instanceof AxiosError) {
+        const errorMessage = `HTTP Error: ${temperatureData.details.response?.status} ${temperatureData.details.response?.statusText} - Data: ${JSON.stringify(temperatureData.details.response?.data)} - Config: ${JSON.stringify(temperatureData.details.response?.config)}`;
+        this.logger.warn(errorMessage);
+      } else {
+        this.logger.warn(temperatureData.details);
+      }
+      return;
+    }
+
+    await this.saveDataInDhm(temperatureData.data, SourceType.TEMPERATURE);
   }
 
   // run every hour
@@ -192,6 +200,21 @@ export class ScheduleSourcesDataService
         (indicator.location as any).basinId,
         indicator,
       );
+    });
+  }
+
+  async saveDataInDhm(indicators: Indicator[], type: SourceType) {
+    indicators.forEach(async (indicator) => {
+      if (indicator.location.type === 'BASIN') {
+        try {
+          const { basinId } = indicator.location;
+          await this.dhmService.saveDataInDhm(type, basinId, indicator.info);
+        } catch (error: any) {
+          this.logger.warn(
+            `Failed to save data for basin ${indicator.location.basinId}: ${error.message}`,
+          );
+        }
+      }
     });
   }
 
