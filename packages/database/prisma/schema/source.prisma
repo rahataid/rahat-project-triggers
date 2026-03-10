@@ -2,6 +2,8 @@ enum SourceType {
   RAINFALL
   WATER_LEVEL
   PROB_FLOOD
+  TEMPERATURE
+
   @@schema("public")
 }
 
@@ -11,6 +13,7 @@ enum DataSource {
   MANUAL
   DAILY_MONITORING
   GFH
+
   @@schema("public")
 }
 
