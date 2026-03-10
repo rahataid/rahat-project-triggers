@@ -2,7 +2,8 @@ export type IndicatorType =
   | 'water_level_m'
   | 'discharge_m3s'
   | 'rainfall_mm' // 3
-  | 'prob_flood';
+  | 'prob_flood'
+  | 'temperature_c';
 
 export type LocationType =
   | { type: 'STATION'; seriesId: number }
