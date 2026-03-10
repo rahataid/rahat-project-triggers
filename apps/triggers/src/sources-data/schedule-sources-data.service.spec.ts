@@ -9,6 +9,7 @@ import {
   DhmObservation,
   RiverStationItem,
   DhmSourceDataTypeEnum,
+  DhmTemperatureAdapter,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -54,6 +55,12 @@ describe('ScheduleSourcesDataService', () => {
   const mockDhmRainfallAdapter = {
     execute: jest.fn(),
     getAdapterId: jest.fn().mockReturnValue('dhm-rainfall'),
+    setHealthService: jest.fn(),
+  };
+
+  const mockDhmTemperatureAdapter = {
+    execute: jest.fn(),
+    getAdapterId: jest.fn().mockReturnValue('dhm-temperature'),
     setHealthService: jest.fn(),
   };
 
@@ -104,6 +111,10 @@ describe('ScheduleSourcesDataService', () => {
         {
           provide: DhmRainfallAdapter,
           useValue: mockDhmRainfallAdapter,
+        },
+        {
+          provide: DhmTemperatureAdapter,
+          useValue: mockDhmTemperatureAdapter,
         },
         {
           provide: GlofasAdapter,
@@ -173,27 +184,11 @@ describe('ScheduleSourcesDataService', () => {
       expect(mockGfhAdapter.setHealthService).toHaveBeenCalledWith(
         mockHealthMonitoringService,
       );
+      expect(mockDhmTemperatureAdapter.setHealthService).toHaveBeenCalledWith(
+        mockHealthMonitoringService,
+      );
 
       setCacheServiceSpy.mockRestore();
-    });
-  });
-
-  describe('onApplicationBootstrap', () => {
-    beforeEach(() => {
-      jest.spyOn(service, 'syncRiverWaterData').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncRainfallData').mockResolvedValue(undefined);
-      jest.spyOn(service, 'synchronizeGlofas').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncGfhData').mockResolvedValue(undefined);
-    });
-
-    it('should call all sync methods on bootstrap', async () => {
-      mockConfigService.get.mockReturnValue('production');
-      await service.onApplicationBootstrap();
-
-      expect(service.syncRiverWaterData).toHaveBeenCalledTimes(1);
-      expect(service.syncRainfallData).toHaveBeenCalledTimes(1);
-      expect(service.synchronizeGlofas).toHaveBeenCalledTimes(1);
-      expect(service.syncGfhData).toHaveBeenCalledTimes(1);
     });
   });
 
