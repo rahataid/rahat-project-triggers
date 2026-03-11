@@ -36,6 +36,7 @@
     "prisma:generate:watch": "prisma generate --watch"
   },
   "dependencies": {
+    "@lib/contracts": "workspace:*",
     "@lib/core": "workspace:*",
     "@lib/database": "workspace:*",
     "@lib/dhm-adapter": "workspace:*",

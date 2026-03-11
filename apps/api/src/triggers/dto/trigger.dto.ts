@@ -1,34 +1,86 @@
-import { IsString, IsJSON, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsArray,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class TriggerDto {
+export class CreateTriggerDto {
   @IsString()
-  repeatKey: string;
-
-  @IsString()
-  repeatEvery: string;
-
-  @IsJSON()
-  triggerStatement: any;
+  @IsOptional()
+  uuid?: string;
 
   @IsString()
   @IsOptional()
-  triggerDocuments?: any;
+  repeatKey?: string;
 
   @IsString()
-  notes: string;
+  @IsOptional()
+  title?: string;
 
   @IsString()
-  title: string;
+  @IsOptional()
+  description?: string;
 
   @IsString()
-  description: string;
+  @IsOptional()
+  repeatEvery?: string;
+
+  @IsObject()
+  @IsOptional()
+  triggerStatement?: Record<string, any>;
+
+  @IsObject()
+  @IsOptional()
+  triggerDocuments?: Record<string, any>;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @IsString()
+  @IsOptional()
+  phaseId?: string;
 
   @IsBoolean()
-  isMandatory: boolean;
+  @IsOptional()
+  isMandatory?: boolean;
 
   @IsBoolean()
-  isTriggered: boolean;
+  @IsOptional()
+  isTriggered?: boolean;
 
   @IsBoolean()
-  isDeleted: boolean;
+  @IsOptional()
+  isDeleted?: boolean;
+
+  @IsString()
+  @IsOptional()
+  triggeredBy?: string;
+
+  @IsString()
+  @IsOptional()
+  source?: string;
+
+  @IsString()
+  @IsOptional()
+  riverBasin?: string;
+}
+
+export class TriggerDto {
+  @IsObject()
+  @IsOptional()
+  user?: { name?: string };
+
+  @IsString()
+  appId: string;
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerDto)
+  triggers?: CreateTriggerDto[];
 }

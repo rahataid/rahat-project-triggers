@@ -60,15 +60,6 @@ export class TriggerService {
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
 
-      const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
-        this.buildAddTriggerJobDto(trigger),
-      );
-
-      const res = await this.sendAddTriggerToOnChain(appId, queueData);
-
-      this.logger.log(`
-        Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-        `);
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
@@ -571,8 +562,6 @@ export class TriggerService {
         },
       });
 
-      const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
-
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
           where: {
@@ -599,20 +588,6 @@ export class TriggerService {
         });
       }
 
-      // TODO: EVM Change
-      this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
-        attempts: 3,
-        removeOnComplete: true,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      });
-
-      this.logger.log(`
-        Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
-        `);
-
       const phaseId = updatedTrigger.phaseId;
       const appIds = await this.prisma.activity.findFirst({
         where: {
@@ -627,15 +602,6 @@ export class TriggerService {
 
         return updatedTrigger;
       }
-
-      const res = await this.sendUpdateTriggerToOnChain(
-        appId ? appId : appIds?.app,
-        jobDetails,
-      );
-
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-        `);
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
@@ -780,41 +746,6 @@ export class TriggerService {
       params: JSON.parse(JSON.stringify(trigger.triggerStatement)),
       source: trigger.source,
     };
-  }
-
-  private async sendAddTriggerToOnChain(
-    appId: string,
-    triggers: AddTriggerJobDto[],
-  ): Promise<any> {
-    const timeoutMs =
-      triggers.length > 1
-        ? TRIGGER_CONSTANTS.MICROSERVICE_TIMEOUT_LONG_MS
-        : TRIGGER_CONSTANTS.MICROSERVICE_TIMEOUT_SHORT_MS;
-
-    return lastValueFrom(
-      this.client
-        .send(
-          { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
-          { triggers },
-        )
-        .pipe(
-          timeout(timeoutMs),
-          catchError((error) => {
-            if (error.name === 'TimeoutError') {
-              this.logger.error(
-                `Error while adding trigger onChain, action ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE} for AA ${appId}, timeout in ${timeoutMs}ms`,
-              );
-              return of(null);
-            }
-
-            this.logger.error(
-              `Error while adding trigger onChain. Action ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE} for AA ${appId}, error: ${error.message}`,
-            );
-
-            return of(null);
-          }),
-        ),
-    );
   }
 
   private async sendUpdateTriggerToOnChain(

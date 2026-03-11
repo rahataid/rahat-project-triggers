@@ -6,6 +6,12 @@ enum Phases {
   @@schema("public")
 }
 
+enum Chain {
+  EVM
+  STELLAR
+  @@schema("public")
+}
+
 model Phase {
   id         Int    @id @default(autoincrement())
   uuid       String @unique @default(uuid())
@@ -27,6 +33,8 @@ model Phase {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt()
 
+  PhaseBlockchain PhaseBlockchain?
+
   source         Source           @relation(fields: [riverBasin], references: [riverBasin])
   Trigger        Trigger[]
   TriggerHistory TriggerHistory[]
@@ -34,5 +42,19 @@ model Phase {
 
   @@unique([riverBasin, activeYear, name])
   @@map("tbl_phases")
+  @@schema("public")
+}
+
+model PhaseBlockchain {
+  id             Int      @id @default(autoincrement())
+  phaseId        Int      @unique
+  phase          Phase    @relation(fields: [phaseId], references: [id])
+  transactionHash String
+  blockchainId   String
+  chain          Chain    @default(EVM)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime? @updatedAt()
+
+  @@map("tbl_phase_blockchain")
   @@schema("public")
 }

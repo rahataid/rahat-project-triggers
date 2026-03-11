@@ -71,13 +71,18 @@ export class DataSourceEventsListener {
           ? indicator.location.seriesId
           : undefined;
 
+      const seriesId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId?.toString()
+          : undefined;
+
       const triggers = triggerMap[stationId];
 
       if (!triggers) {
         continue;
       }
 
-      await this.processAndEvaluateTriggers(triggers, indicator.value);
+      await this.processAndEvaluateTriggers(triggers, +indicator.value);
     }
   }
 
@@ -138,11 +143,11 @@ export class DataSourceEventsListener {
         continue;
       }
 
-      await this.processAndEvaluateTriggers(triggers, indicator.value);
+      await this.processAndEvaluateTriggers(triggers, +indicator.value);
     }
   }
 
-  @OnEvent(core.DATA_SOURCE_EVENTS.GLOFAS.WATER_LEVEL)
+  // @OnEvent(core.DATA_SOURCE_EVENTS.GLOFAS.WATER_LEVEL)
   async handleGlofasWaterLevel(event: core.DataSourceEventPayload) {
     const indicators = event.indicators;
 
@@ -238,7 +243,8 @@ export class DataSourceEventsListener {
 
       // 2. Compute MEAN of all indicator values
       const meanValue =
-        indicators.reduce((sum, ind) => sum + ind.value, 0) / indicators.length;
+        indicators.reduce((sum, ind) => sum + +ind.value, 0) /
+        indicators.length;
 
       const meetsThreshold = this.evaluateConditionExpression(
         {

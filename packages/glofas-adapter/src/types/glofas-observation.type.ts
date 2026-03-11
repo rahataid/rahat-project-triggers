@@ -4,10 +4,14 @@ import axios from 'axios';
 export interface GlofasObservation {
   data: any;
   location: string;
+  i?: string;
+  j?: string;
 }
 
 export interface GlofasFetchResponse extends Omit<GlofasObservation, 'data'> {
   data: axios.AxiosResponse<any, any, {}>;
+  i?: string;
+  j?: string;
 }
 
 type PointForecast = {

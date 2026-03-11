@@ -27,7 +27,7 @@ import {
   HealthCacheService,
   ObservationAdapter,
 } from '@lib/core';
-import { SourceType } from '@lib/database';
+import { SourceType, PrismaService, DataSource } from '@lib/database';
 import { SourceDataType } from './dto/get-source-data';
 import { RpcException } from '@nestjs/microservices';
 import { ProductionOnly } from '../utils/production-only.decorator';
@@ -55,6 +55,7 @@ export class ScheduleSourcesDataService
     private readonly glofasServices: GlofasServices,
     private readonly gfhService: GfhService,
     private readonly healthService: HealthMonitoringService,
+    private readonly prisma: PrismaService,
   ) {
     this.dhmWaterMonitored = this.wrapWithHealthMonitoring(
       this.dhmWaterLevelAdapter,
@@ -95,7 +96,7 @@ export class ScheduleSourcesDataService
   }
 
   // run every 15 minutes
-  @Cron('*/15 * * * *')
+  @Cron('*/60 * * * * *')
   async syncRiverWaterData() {
     const riverData = await this.dhmWaterMonitored.execute();
 
@@ -112,11 +113,16 @@ export class ScheduleSourcesDataService
 
     riverData.data.forEach(async (indicator) => {
       const riverId = (indicator.location as any)?.basinId;
+      const seriesId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId?.toString()
+          : undefined;
 
       await this.dhmService.saveDataInDhm(
         SourceType.WATER_LEVEL,
         riverId,
         indicator.info,
+        seriesId,
       );
     });
   }
@@ -138,16 +144,22 @@ export class ScheduleSourcesDataService
 
     rainfallData.data.forEach(async (indicator) => {
       const riverId = (indicator.location as any)?.basinId;
+      const seriesId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId?.toString()
+          : undefined;
+
       await this.dhmService.saveDataInDhm(
         SourceType.RAINFALL,
         riverId,
         indicator.info,
+        seriesId,
       );
     });
   }
 
   // run every hour
-  @Cron('0 * * * *')
+  @Cron('*/15 * * * *')
   async synchronizeGlofas() {
     const glofasResult = await this.glofasMonitored.execute(null);
 
@@ -162,12 +174,50 @@ export class ScheduleSourcesDataService
       return;
     }
 
+    const glofasConfig = await this.getGlofasConfig();
+    const locationToConfigMap = new Map<string, GlofasStationInfo>();
+    if (glofasConfig) {
+      glofasConfig.forEach((config) => {
+        locationToConfigMap.set(config.LOCATION, config);
+      });
+    }
+
     glofasResult.data.forEach(async (indicator) => {
+      const basinId = (indicator.location as any).basinId;
+      const glofasStationConfig = locationToConfigMap.get(basinId);
+      const stationRef =
+        glofasStationConfig?.I && glofasStationConfig?.J
+          ? `${glofasStationConfig.I}-${glofasStationConfig.J}`
+          : undefined;
+
       await this.glofasServices.saveDataInGlofas(
-        (indicator.location as any).basinId,
-        indicator,
+        basinId,
+        indicator as any,
+        stationRef,
       );
     });
+  }
+
+  private async getGlofasConfig(): Promise<GlofasStationInfo[] | null> {
+    try {
+      const dataSourceSetting = await this.prisma.setting.findUnique({
+        where: { name: 'DATASOURCE' },
+      });
+
+      if (!dataSourceSetting?.value) {
+        this.logger.warn('DATASOURCE setting not found');
+        return null;
+      }
+
+      const dataSourceValue = dataSourceSetting.value as {
+        GLOFAS?: GlofasStationInfo[];
+      };
+
+      return dataSourceValue.GLOFAS || null;
+    } catch (error) {
+      this.logger.error('Error fetching GLOFAS config', error);
+      return null;
+    }
   }
 
   //run every 24 hours

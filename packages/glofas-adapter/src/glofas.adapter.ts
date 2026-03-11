@@ -104,6 +104,8 @@ export class GlofasAdapter extends ObservationAdapter {
           return {
             data: await this.httpService.axiosRef.get(glofasURL.toString()),
             location: cfg.LOCATION,
+            i: cfg.I,
+            j: cfg.J,
           };
         }),
       );
@@ -171,6 +173,8 @@ export class GlofasAdapter extends ObservationAdapter {
       for (const {
         data: { data: rawData },
         location,
+        i,
+        j,
       } of rawDatas) {
         const reportingPoints = rawData?.content['Reporting Points'].point;
         const yesterdayDate = new Date();
@@ -184,6 +188,8 @@ export class GlofasAdapter extends ObservationAdapter {
             forecastDate: dateString,
           },
           location,
+          i,
+          j,
         });
       }
 
@@ -212,12 +218,13 @@ export class GlofasAdapter extends ObservationAdapter {
           },
           source: {
             key: obs.location,
-            metadata: { originalUnit: 'percentage' },
+            metadata: { originalUnit: 'percentage', i: obs.i, j: obs.j },
           },
           info: obs.data,
         };
 
         const pointForecastData = obs.data?.pointForecastData;
+
         const maxProbability = pointForecastData.maxProbability.data;
 
         const results: Indicator[] = [];
@@ -226,7 +233,7 @@ export class GlofasAdapter extends ObservationAdapter {
           ...baseIndicator,
           indicator: 'prob_flood',
           units: 'percentage',
-          value: maxProbability || '0 / 0 / 0',
+          value: '10 / 10 / 90',
         });
 
         return results;

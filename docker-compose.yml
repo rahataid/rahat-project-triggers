@@ -1,4 +1,30 @@
+version: "3.9"
+
 services:
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: rahat
+      POSTGRES_PASSWORD: rahat123
+      POSTGRES_DB: rahat-trigger
+    ports:
+      - "5557:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d
+
+  redis:
+    container_name: redis
+    image: redis:7
+    restart: always
+    command: ["redis-server", "--requirepass", "rahat123"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   api:
     container_name: test-triggers
     image: test-triggers:test-1
@@ -8,8 +34,14 @@ services:
     restart: always
     env_file:
       - ./apps/triggers/.env
-
     # command: >
     #   sh -c "npx prisma migrate deploy"
     ports:
-      - 3003:8000
+      - "3003:8000"
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
+  redis_data:

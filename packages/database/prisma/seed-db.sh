@@ -7,6 +7,11 @@ if [ ! -d "$SEEDS_DIR" ]; then
   echo "Seeds directory not found: $SEEDS_DIR"
   exit 1
 fi  
+# check if tsx is installed
+if ! command -v tsx &> /dev/null; then
+  echo "tsx could not be found, installing..."
+  npm install -g tsx
+fi
 
 # Loop through all seed files and execute them
 # Log how many seed files are being run

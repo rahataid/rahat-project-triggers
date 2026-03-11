@@ -6,10 +6,18 @@ export const BQUEUE = {
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
   NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER',
+  BLOCKCHAIN_TRANSFER: 'BLOCKCHAIN_TRANSFER',
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
 export const JOBS = {
+  BLOCKCHAIN: {
+    ADD_TRIGGER_BATCH: 'rahat.jobs.addTriggerBatch',
+    ACTIVATE_TRIGGER: 'rahat.jobs.activateTrigger',
+    UPDATE_SOURCE_VALUE: 'rahat.jobs.updateSourceValue',
+    UPDATE_SOURCE_VALUE_BATCH: 'rahat.jobs.updateSourceValueBatch',
+    CREATE_PHASE: 'rahat.jobs.createPhase',
+  },
   SCHEDULE: {
     ADD: 'rahat.jobs.schedule.add',
   },
