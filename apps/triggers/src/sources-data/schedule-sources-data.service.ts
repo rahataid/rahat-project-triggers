@@ -82,7 +82,7 @@ export class ScheduleSourcesDataService
   }
 
   @ProductionOnly()
-  onApplicationBootstrap() {
+  async onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();
     this.syncTemperatureData();
@@ -100,19 +100,21 @@ export class ScheduleSourcesDataService
     );
   }
 
+  private logErrorDetails(details: unknown): void {
+    this.logger.warn(details);
+    if (details instanceof AxiosError) {
+      const errorMessage = `HTTP Error: ${details.response?.status} ${details.response?.statusText} - Data: ${JSON.stringify(details.response?.data)} - Config: ${JSON.stringify(details.response?.config)}`;
+      this.logger.warn(errorMessage);
+    }
+  }
+
   // run every 15 minutes
   @Cron('*/15 * * * *')
   async syncRiverWaterData() {
     const riverData = await this.dhmWaterMonitored.execute();
 
     if (isErr<Indicator[]>(riverData)) {
-      this.logger.warn(riverData.details);
-      if (riverData.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${riverData.details.response?.status} ${riverData.details.response?.statusText} - Data: ${JSON.stringify(riverData.details.response?.data)} - Config: ${JSON.stringify(riverData.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(riverData.details);
-      }
+      this.logErrorDetails(riverData.details);
       return;
     }
 
@@ -124,13 +126,7 @@ export class ScheduleSourcesDataService
   async syncRainfallData() {
     const rainfallData = await this.dhmRainfallMonitored.execute();
     if (isErr<Indicator[]>(rainfallData)) {
-      this.logger.warn(rainfallData.details);
-      if (rainfallData.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${rainfallData.details.response?.status} ${rainfallData.details.response?.statusText} - Data: ${JSON.stringify(rainfallData.details.response?.data)} - Config: ${JSON.stringify(rainfallData.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(rainfallData.details);
-      }
+      this.logErrorDetails(rainfallData.details);
       return;
     }
     await this.saveDataInDhm(rainfallData.data, SourceType.RAINFALL);
@@ -141,13 +137,7 @@ export class ScheduleSourcesDataService
   async syncTemperatureData() {
     const temperatureData = await this.dhmTemperatureMonitored.execute();
     if (isErr<Indicator[]>(temperatureData)) {
-      this.logger.warn(temperatureData.details);
-      if (temperatureData.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${temperatureData.details.response?.status} ${temperatureData.details.response?.statusText} - Data: ${JSON.stringify(temperatureData.details.response?.data)} - Config: ${JSON.stringify(temperatureData.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(temperatureData.details);
-      }
+      this.logErrorDetails(temperatureData.details);
       return;
     }
 
@@ -160,13 +150,7 @@ export class ScheduleSourcesDataService
     const glofasResult = await this.glofasMonitored.execute(null);
 
     if (isErr<Indicator[]>(glofasResult)) {
-      this.logger.warn(glofasResult.details);
-      if (glofasResult.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${glofasResult.details.response?.status} ${glofasResult.details.response?.statusText} - Data: ${JSON.stringify(glofasResult.details.response?.data)} - Config: ${JSON.stringify(glofasResult.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(glofasResult.details);
-      }
+      this.logErrorDetails(glofasResult.details);
       return;
     }
 
@@ -184,13 +168,7 @@ export class ScheduleSourcesDataService
     const gfhResult = await this.gfhMonitored.execute();
 
     if (isErr<Indicator[]>(gfhResult)) {
-      this.logger.warn(gfhResult.details);
-      if (gfhResult.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${gfhResult.details.response?.status} ${gfhResult.details.response?.statusText} - Data: ${JSON.stringify(gfhResult.details.response?.data)} - Config: ${JSON.stringify(gfhResult.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(gfhResult.details);
-      }
+      this.logErrorDetails(gfhResult.details);
       return;
     }
 
@@ -229,7 +207,7 @@ export class ScheduleSourcesDataService
     date: Date,
     period: SourceDataType,
     seriesId: number,
-  ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | {}> {
+  ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | object> {
     const result: Awaited<
       ReturnType<typeof this.dhmWaterLevelAdapter.executeByPeriod>
     > = await this.dhmWaterLevelAdapter.executeByPeriod(
