@@ -2,7 +2,6 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import {
   DhmObservation,
-  DhmNormalizedItem,
   DhmTemperatureApiResponse,
   DhmTemperatureStation,
   DhmTemperatureObservationParam,
@@ -25,7 +24,6 @@ import {
   DataSource,
   SourceType,
   RainfallWaterLevelConfig,
-  PrismaService,
 } from "@lib/database";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 
@@ -36,7 +34,6 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
   constructor(
     @Inject(HttpService) httpService: HttpService,
     @Inject(SettingsService) settingsService: SettingsService,
-    @Inject(PrismaService) private readonly db: PrismaService,
     @Inject(HealthMonitoringService)
     healthService: HealthMonitoringService,
     @Optional()
@@ -63,7 +60,7 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
       dataSource: DataSource.DHM,
       sourceType: SourceType.TEMPERATURE,
       sourceUrl: this.getUrl() || "",
-      fetchIntervalMinutes: 15,
+      fetchIntervalMinutes: 60,
       staleThresholdMultiplier: 1.5,
     });
   }
@@ -232,21 +229,27 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
     configuredSeriesIds: number[],
   ): DhmObservation[] {
     const observations: DhmObservation[] = [];
+    const seriesLocationMap = new Map<number, string>();
+
+    for (const cfg of config) {
+      for (const id of cfg.SERIESID) {
+        seriesLocationMap.set(id, cfg.LOCATION);
+      }
+    }
 
     for (const station of stations) {
-      const stationSeriesIds = station.observations.map((obs) => obs.series_id);
-      const matchingConfig = config.find((cfg) =>
-        cfg.SERIESID.some((id) => stationSeriesIds.includes(id)),
+      const hasConfiguredSeries = station.observations.some((obs) =>
+        configuredSeriesIds.includes(obs.series_id),
       );
 
-      if (!matchingConfig) continue;
+      if (!hasConfiguredSeries) continue;
 
       const stationDetail = this.buildStationDetail(station);
       const matched = this.matchObservationsForStation(
         station.observations,
         configuredSeriesIds,
         stationDetail,
-        matchingConfig.LOCATION,
+        seriesLocationMap,
       );
       observations.push(...matched);
     }
@@ -269,13 +272,15 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
     stationObservations: DhmTemperatureObservationParam[],
     configuredSeriesIds: number[],
     stationDetail: TemperatureStationItem,
-    location: string,
+    seriesLocationMap: Map<number, string>,
   ): DhmObservation[] {
     const results: DhmObservation[] = [];
 
     for (const obs of stationObservations) {
       if (!configuredSeriesIds.includes(obs.series_id)) continue;
       if (!obs.data) continue;
+
+      const location = seriesLocationMap.get(obs.series_id);
 
       results.push({
         data: obs.data,

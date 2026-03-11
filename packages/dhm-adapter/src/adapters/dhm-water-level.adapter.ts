@@ -8,9 +8,9 @@ import {
   DhmSourceDataTypeEnum,
   DhmFetchResponse,
   DhmStationResponse,
-  RiverStationData,
   SeriesFetchParams,
   DhmStationItem,
+  RiverStationItem,
 } from "../types/dhm-observation.type";
 import {
   Indicator,
@@ -74,9 +74,9 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
 
   async getStationsDetailsBySeriesId(
     seriesId: number,
-  ): Promise<RiverStationData> {
+  ): Promise<RiverStationItem> {
     const baseUrl = `https://dhm.gov.np/home/getAPIData/3`;
-    const defaultStation: RiverStationData = {
+    const defaultStation: RiverStationItem = {
       name: "",
       id: 0,
       stationIndex: "",

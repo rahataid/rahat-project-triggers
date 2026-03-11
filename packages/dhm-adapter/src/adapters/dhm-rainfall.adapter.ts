@@ -278,7 +278,7 @@ export class DhmRainfallAdapter extends ObservationAdapter<DhmFetchParams> {
             value: this.getLatestObservationValue(obs.stationDetail),
             source: {
               key: "DHM",
-              metadata: { originalUnit: "m" },
+              metadata: { originalUnit: "mm" },
             },
             info: { ...obs.stationDetail, history: obs.data },
           },

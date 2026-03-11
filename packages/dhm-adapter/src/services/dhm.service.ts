@@ -6,11 +6,7 @@ import {
   SourceType,
 } from "@lib/database";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import {
-  DhmInfo,
-  RainfallStationData,
-  RiverStationData,
-} from "types/dhm-observation.type";
+import { DhmInfo, DhmStationItem } from "types/dhm-observation.type";
 
 @Injectable()
 export class DhmService {
@@ -19,7 +15,7 @@ export class DhmService {
   async saveDataInDhm(
     type: SourceType,
     riverBasin: string,
-    payload: RiverStationData | RainfallStationData,
+    payload: DhmStationItem,
   ): Promise<any> {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -84,7 +80,10 @@ export class DhmService {
         });
       });
     } catch (error: any) {
-      this.logger.error(`Error saving data for ${riverBasin}:`, error?.message);
+      this.logger.error(
+        `Error saving data for ${riverBasin}:`,
+        error?.stack || error,
+      );
       throw error;
     }
   }

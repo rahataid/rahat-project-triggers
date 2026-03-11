@@ -204,18 +204,25 @@ export class ScheduleSourcesDataService
   }
 
   async saveDataInDhm(indicators: Indicator[], type: SourceType) {
-    indicators.forEach(async (indicator) => {
-      if (indicator.location.type === 'BASIN') {
+    const basinIndicators = indicators.filter(
+      (indicator) => indicator.location.type === 'BASIN',
+    );
+
+    await Promise.all(
+      basinIndicators.map(async (indicator) => {
         try {
-          const { basinId } = indicator.location;
+          const { basinId } = indicator.location as {
+            type: 'BASIN';
+            basinId: string;
+          };
           await this.dhmService.saveDataInDhm(type, basinId, indicator.info);
         } catch (error: any) {
           this.logger.warn(
-            `Failed to save data for basin ${indicator.location.basinId}: ${error.message}`,
+            `Failed to save data for basin ${(indicator.location as any).basinId}: ${error.message}`,
           );
         }
-      }
-    });
+      }),
+    );
   }
 
   async getDhmWaterLevels(

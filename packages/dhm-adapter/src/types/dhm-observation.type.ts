@@ -74,6 +74,7 @@ export interface RiverStationItem {
   indicator: string;
   units: string;
   value: number;
+  history?: RiverWaterHistoryItem[];
 }
 
 export type RainfallStationItem = {
@@ -96,12 +97,14 @@ export type RainfallStationItem = {
   blink: boolean;
   indicator: string;
   units: string;
+  history?: RiverWaterHistoryItem[];
 };
 
 export type DhmStationItem =
   | RiverStationItem
   | RainfallStationItem
   | TemperatureStationItem;
+
 export interface DhmObservation {
   data: DhmNormalizedItem[];
   stationDetail: DhmStationItem;
@@ -114,15 +117,6 @@ export interface RiverWaterHistoryItem {
   max?: number;
   min?: number;
 }
-
-export interface RiverStationData extends RiverStationItem {
-  history?: RiverWaterHistoryItem[];
-}
-
-export interface RainfallStationData extends RainfallStationItem {
-  history?: RiverWaterHistoryItem[];
-}
-
 export interface DhmStationResponse {
   type: number;
   rainfall_watch: RainfallStationItem[];
@@ -182,4 +176,5 @@ export interface TemperatureStationItem {
   parameter_code?: string;
   series_name?: string;
   series_id?: number;
+  history?: DhmTemperatureDataPoint[];
 }
