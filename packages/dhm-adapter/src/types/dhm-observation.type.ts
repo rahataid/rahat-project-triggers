@@ -1,13 +1,6 @@
 import { Result } from "@lib/core";
 import axios from "axios";
 
-export interface DhmObservation {
-  data: DhmNormalizedItem[];
-  stationDetail: RiverStationItem | RainfallStationItem;
-  seriesId: number;
-  location?: string;
-}
-
 export interface DhmFetchResponse extends Omit<DhmObservation, "data"> {
   data: axios.AxiosResponse<any, any, {}>;
 }
@@ -81,6 +74,7 @@ export interface RiverStationItem {
   indicator: string;
   units: string;
   value: number;
+  history?: RiverWaterHistoryItem[];
 }
 
 export type RainfallStationItem = {
@@ -103,23 +97,26 @@ export type RainfallStationItem = {
   blink: boolean;
   indicator: string;
   units: string;
+  history?: RiverWaterHistoryItem[];
 };
 
+export type DhmStationItem =
+  | RiverStationItem
+  | RainfallStationItem
+  | TemperatureStationItem;
+
+export interface DhmObservation {
+  data: DhmNormalizedItem[];
+  stationDetail: DhmStationItem;
+  seriesId: number;
+  location?: string;
+}
 export interface RiverWaterHistoryItem {
   datetime: string;
   value: number;
   max?: number;
   min?: number;
 }
-
-export interface RiverStationData extends RiverStationItem {
-  history?: RiverWaterHistoryItem[];
-}
-
-export interface RainfallStationData extends RainfallStationItem {
-  history?: RiverWaterHistoryItem[];
-}
-
 export interface DhmStationResponse {
   type: number;
   rainfall_watch: RainfallStationItem[];
@@ -137,4 +134,47 @@ export interface SeriesFetchParams {
   period: DhmSourceDataTypeEnum;
   location: string;
   date?: Date;
+}
+
+// DHM Temperature (AWS) API types
+
+export interface DhmTemperatureDataPoint {
+  datetime: string;
+  value: number;
+}
+
+export interface DhmTemperatureObservationParam {
+  unit: string;
+  series_id: number;
+  parameter_name: string;
+  parameter_code: string;
+  series_name: string;
+  data: DhmTemperatureDataPoint[];
+}
+
+export interface DhmTemperatureStation {
+  station: string;
+  longitude: number;
+  latitude: number;
+  observations: DhmTemperatureObservationParam[];
+  value: number;
+}
+
+export interface DhmTemperatureApiResponse {
+  type: number;
+  data: {
+    data: DhmTemperatureStation[];
+  };
+}
+
+export interface TemperatureStationItem {
+  name: string;
+  longitude: number;
+  latitude: number;
+  value: number;
+  parameter_name?: string;
+  parameter_code?: string;
+  series_name?: string;
+  series_id?: number;
+  history?: DhmTemperatureDataPoint[];
 }

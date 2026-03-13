@@ -10,16 +10,16 @@ export type GlofasStationInfo = {
   TIMESTRING: string;
 };
 
-export type RainfallWaterLevelConfig = {
-  [SourceType.RAINFALL]: {
-    LOCATION: string;
-    SERIESID: number[];
-  };
-  [SourceType.WATER_LEVEL]: {
-    LOCATION: string;
-    SERIESID: number[];
-  };
-};
+export type RainfallWaterLevelConfig = Omit<
+  Record<
+    keyof typeof SourceType,
+    {
+      LOCATION: string;
+      SERIESID: number[];
+    }
+  >,
+  'PROB_FLOOD'
+>;
 
 export type DataSourceValue = {
   [DataSource.DHM]: RainfallWaterLevelConfig[];

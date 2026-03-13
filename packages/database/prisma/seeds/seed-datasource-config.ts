@@ -12,6 +12,9 @@ const config: DataSourceConfigType = {
       [SourceType.WATER_LEVEL]: {
         URL: 'https://dhm.gov.np/site/getRiverWatchBySeriesId_Single',
       },
+      [SourceType.TEMPERATURE]: {
+        URL: 'https://dhm.gov.np/home/getAPIData/4',
+      },
     },
     [DataSource.GLOFAS]: {
       URL: 'https://ows.globalfloods.eu/glofas-ows/ows.py',

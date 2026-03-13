@@ -13,4 +13,4 @@ ALTER TABLE "public"."tbl_phases"
 ALTER COLUMN "name" SET NOT NULL;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tbl_phases_riverBasin_activeYear_name_key" ON "public"."tbl_phases"("riverBasin", "activeYear", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "tbl_phases_riverBasin_activeYear_name_key" ON "public"."tbl_phases"("riverBasin", "activeYear", "name");

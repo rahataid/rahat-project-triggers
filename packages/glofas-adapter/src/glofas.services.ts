@@ -29,7 +29,7 @@ export class GlofasServices {
                 {
                   info: {
                     path: ['forecastDate'],
-                    equals: payload.info.forecastDate,
+                    equals: info.forecastDate,
                   },
                 },
                 {

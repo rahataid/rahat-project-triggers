@@ -4,10 +4,10 @@ export type URLConfig = {
   URL: string;
 };
 
-export type DataSourceDHMConfig = {
-  [SourceType.RAINFALL]: URLConfig;
-  [SourceType.WATER_LEVEL]: URLConfig;
-};
+export type DataSourceDHMConfig = Omit<
+  Record<keyof typeof SourceType, URLConfig>,
+  'PROB_FLOOD'
+>;
 
 export type DataSourceConfigValue = {
   [DataSource.DHM]: DataSourceDHMConfig;

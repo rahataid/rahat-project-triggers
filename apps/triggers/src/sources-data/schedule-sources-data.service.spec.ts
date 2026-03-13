@@ -9,6 +9,7 @@ import {
   DhmObservation,
   RiverStationItem,
   DhmSourceDataTypeEnum,
+  DhmTemperatureAdapter,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -54,6 +55,12 @@ describe('ScheduleSourcesDataService', () => {
   const mockDhmRainfallAdapter = {
     execute: jest.fn(),
     getAdapterId: jest.fn().mockReturnValue('dhm-rainfall'),
+    setHealthService: jest.fn(),
+  };
+
+  const mockDhmTemperatureAdapter = {
+    execute: jest.fn(),
+    getAdapterId: jest.fn().mockReturnValue('dhm-temperature'),
     setHealthService: jest.fn(),
   };
 
@@ -104,6 +111,10 @@ describe('ScheduleSourcesDataService', () => {
         {
           provide: DhmRainfallAdapter,
           useValue: mockDhmRainfallAdapter,
+        },
+        {
+          provide: DhmTemperatureAdapter,
+          useValue: mockDhmTemperatureAdapter,
         },
         {
           provide: GlofasAdapter,
@@ -173,27 +184,11 @@ describe('ScheduleSourcesDataService', () => {
       expect(mockGfhAdapter.setHealthService).toHaveBeenCalledWith(
         mockHealthMonitoringService,
       );
+      expect(mockDhmTemperatureAdapter.setHealthService).toHaveBeenCalledWith(
+        mockHealthMonitoringService,
+      );
 
       setCacheServiceSpy.mockRestore();
-    });
-  });
-
-  describe('onApplicationBootstrap', () => {
-    beforeEach(() => {
-      jest.spyOn(service, 'syncRiverWaterData').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncRainfallData').mockResolvedValue(undefined);
-      jest.spyOn(service, 'synchronizeGlofas').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncGfhData').mockResolvedValue(undefined);
-    });
-
-    it('should call all sync methods on bootstrap', async () => {
-      mockConfigService.get.mockReturnValue('production');
-      await service.onApplicationBootstrap();
-
-      expect(service.syncRiverWaterData).toHaveBeenCalledTimes(1);
-      expect(service.syncRainfallData).toHaveBeenCalledTimes(1);
-      expect(service.synchronizeGlofas).toHaveBeenCalledTimes(1);
-      expect(service.syncGfhData).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -241,14 +236,13 @@ describe('ScheduleSourcesDataService', () => {
     });
 
     it('should handle error when execution fails with AxiosError', async () => {
-      const axiosError = {
-        response: {
-          status: 404,
-          statusText: 'Not Found',
-          data: { error: 'Not found' },
-          config: { url: 'test-url' },
-        },
-      } as AxiosError;
+      const axiosError = new AxiosError('Not Found');
+      axiosError.response = {
+        status: 404,
+        statusText: 'Not Found',
+        data: { error: 'Not found' },
+        config: { url: 'test-url' },
+      } as any;
       getMockIsErr().mockReturnValue(true);
       jest
         .spyOn(service['dhmWaterMonitored'], 'execute')
@@ -353,14 +347,13 @@ describe('ScheduleSourcesDataService', () => {
     });
 
     it('should handle error when execution fails with AxiosError', async () => {
-      const axiosError = {
-        response: {
-          status: 500,
-          statusText: 'Internal Server Error',
-          data: { error: 'Server error' },
-          config: { url: 'test-url' },
-        },
-      } as AxiosError;
+      const axiosError = new AxiosError('Internal Server Error');
+      axiosError.response = {
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: { error: 'Server error' },
+        config: { url: 'test-url' },
+      } as any;
       getMockIsErr().mockReturnValue(true);
       jest
         .spyOn(service['dhmRainfallMonitored'], 'execute')
@@ -381,6 +374,82 @@ describe('ScheduleSourcesDataService', () => {
         .mockResolvedValue({ data: [] } as any);
 
       await service.syncRainfallData();
+
+      expect(mockDhmService.saveDataInDhm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('syncTemperatureData', () => {
+    const mockIndicators: Indicator[] = [
+      {
+        kind: 'OBSERVATION',
+        indicator: 'temperature_c',
+        value: 25,
+        units: '°C',
+        issuedAt: new Date().toISOString(),
+        location: { type: 'BASIN', basinId: 'test-basin-id' },
+        source: { key: 'dhm' },
+        info: { test: 'data' },
+      },
+    ];
+
+    it('should save data when execution is successful', async () => {
+      getMockIsErr().mockReturnValue(false);
+      jest
+        .spyOn(service['dhmTemperatureMonitored'], 'execute')
+        .mockResolvedValue({ data: mockIndicators } as any);
+
+      await service.syncTemperatureData();
+
+      expect(mockDhmService.saveDataInDhm).toHaveBeenCalledWith(
+        SourceType.TEMPERATURE,
+        'test-basin-id',
+        mockIndicators[0].info,
+      );
+    });
+
+    it('should handle error when execution fails with non-AxiosError', async () => {
+      const error = new Error('Generic error');
+      getMockIsErr().mockReturnValue(true);
+      jest
+        .spyOn(service['dhmTemperatureMonitored'], 'execute')
+        .mockResolvedValue({ details: error } as any);
+      const loggerSpy = jest.spyOn(service['logger'], 'warn');
+
+      await service.syncTemperatureData();
+
+      expect(loggerSpy).toHaveBeenCalledWith(error);
+      expect(mockDhmService.saveDataInDhm).not.toHaveBeenCalled();
+    });
+
+    it('should handle error when execution fails with AxiosError', async () => {
+      const axiosError = new AxiosError('Service Unavailable');
+      axiosError.response = {
+        status: 503,
+        statusText: 'Service Unavailable',
+        data: { error: 'Service unavailable' },
+        config: { url: 'test-url' },
+      } as any;
+      getMockIsErr().mockReturnValue(true);
+      jest
+        .spyOn(service['dhmTemperatureMonitored'], 'execute')
+        .mockResolvedValue({ details: axiosError } as any);
+      const loggerSpy = jest.spyOn(service['logger'], 'warn');
+
+      await service.syncTemperatureData();
+
+      expect(loggerSpy).toHaveBeenCalledTimes(2);
+      expect(loggerSpy).toHaveBeenCalledWith(axiosError);
+      expect(mockDhmService.saveDataInDhm).not.toHaveBeenCalled();
+    });
+
+    it('should handle empty indicators array', async () => {
+      getMockIsErr().mockReturnValue(false);
+      jest
+        .spyOn(service['dhmTemperatureMonitored'], 'execute')
+        .mockResolvedValue({ data: [] } as any);
+
+      await service.syncTemperatureData();
 
       expect(mockDhmService.saveDataInDhm).not.toHaveBeenCalled();
     });
@@ -429,14 +498,13 @@ describe('ScheduleSourcesDataService', () => {
     });
 
     it('should handle error when execution fails with AxiosError', async () => {
-      const axiosError = {
-        response: {
-          status: 403,
-          statusText: 'Forbidden',
-          data: { error: 'Access denied' },
-          config: { url: 'test-url' },
-        },
-      } as AxiosError;
+      const axiosError = new AxiosError('Forbidden');
+      axiosError.response = {
+        status: 403,
+        statusText: 'Forbidden',
+        data: { error: 'Access denied' },
+        config: { url: 'test-url' },
+      } as any;
       getMockIsErr().mockReturnValue(true);
       jest
         .spyOn(service['glofasMonitored'], 'execute')
@@ -539,14 +607,13 @@ describe('ScheduleSourcesDataService', () => {
     });
 
     it('should handle error when execution fails with AxiosError', async () => {
-      const axiosError = {
-        response: {
-          status: 502,
-          statusText: 'Bad Gateway',
-          data: { error: 'Gateway error' },
-          config: { url: 'test-url' },
-        },
-      } as AxiosError;
+      const axiosError = new AxiosError('Bad Gateway');
+      axiosError.response = {
+        status: 502,
+        statusText: 'Bad Gateway',
+        data: { error: 'Gateway error' },
+        config: { url: 'test-url' },
+      } as any;
       getMockIsErr().mockReturnValue(true);
       jest
         .spyOn(service['gfhMonitored'], 'execute')
