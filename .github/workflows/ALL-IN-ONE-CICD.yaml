@@ -1,4 +1,4 @@
-name: Test Load Triggers CI/CD (Optimized)
+name: ALL-IN-ONE CICD
 on:
   workflow_dispatch:
     inputs:
@@ -13,9 +13,9 @@ on:
         default: 'apps/triggers/Dockerfile.triggers'
         type: string
       tag_prefix:
-        description: 'Tag prefix (e.g., test-load)'
+        description: 'Tag prefix'
         required: true
-        default: 'test-load'
+        default: 'Image tag'
         type: string
 
 env:
