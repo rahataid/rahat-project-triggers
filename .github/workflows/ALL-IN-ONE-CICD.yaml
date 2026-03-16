@@ -1,4 +1,4 @@
-name: Core CI/CD
+name: ALL-IN-ONE CICD
 
 on:
   workflow_call:
