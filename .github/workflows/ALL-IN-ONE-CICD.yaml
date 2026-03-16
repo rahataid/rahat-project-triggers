@@ -1,4 +1,4 @@
-name: Test Load Triggers CI/CD (Optimized)
+name: ALL-IN-ONE CICD
 on:
   workflow_dispatch:
     inputs:
