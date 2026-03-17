@@ -39,3 +39,20 @@ export class GetDhmSingleSeriesDto {
   @IsString()
   riverBasin: string;
 }
+
+export class GetDhmSingleSeriesTemperatureDto {
+  @ApiProperty({
+    example: 1234,
+    description: 'DHM station series ID',
+  })
+  @IsNumber()
+  seriesId: number;
+
+  @ApiProperty({
+    type: String,
+    example: 'Doda',
+    description: 'River basin name',
+  })
+  @IsString()
+  riverBasin: string;
+}

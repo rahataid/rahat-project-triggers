@@ -65,4 +65,19 @@ export class SourcesDataController {
   async getOneDhmSeriesWaterLevels(payload: GetDhmSingleSeriesDto) {
     return this.sourceDataService.getOneDhmSeriesWaterLevels(payload);
   }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TEMPERATURE.GET_DHM,
+  })
+  async getDhmTemperature(payload: GetSouceDataDto): Promise<any> {
+    payload.source = 'DHM';
+    return this.sourceDataService.getTemperatureDhmLevels(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TEMPERATURE.GET_DHM_SINGLE_SERIES,
+  })
+  async getOneDhmSeriesTemperature(payload: GetDhmSingleSeriesDto) {
+    return this.sourceDataService.getOneDhmSeriesTemperature(payload);
+  }
 }

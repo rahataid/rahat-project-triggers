@@ -103,6 +103,10 @@ export const MS_TRIGGERS_JOBS = {
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
   },
+  TEMPERATURE: {
+    GET_DHM: 'ms.jobs.temperature.getDhm',
+    GET_DHM_SINGLE_SERIES: 'ms.jobs.temperature.getDhmBySeries',
+  },
   PROB_FLOOD: {
     GET_ALL_GLOFAS: 'ms.jobs.probFlood.getAllGlofas',
     GET_ONE_GLOFAS: 'ms.jobs.probFlood.getOneGlofas',

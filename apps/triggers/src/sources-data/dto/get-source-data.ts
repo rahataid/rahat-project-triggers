@@ -59,6 +59,48 @@ export class GetSouceDataDto extends PartialType(PaginationDto) {
   appId: string;
 }
 
+export class GetTemperatureSourceDataDto extends PartialType(PaginationDto) {
+  @ApiProperty({
+    type: String,
+  })
+  @IsString()
+  riverBasin: string;
+
+  @ApiProperty({
+    example: DataSource.DHM,
+  })
+  @IsEnum(DataSource)
+  @IsOptional()
+  @IsString()
+  source?: DataSource;
+
+  @ApiProperty({
+    example: '2023-10-01T00:00:00.000Z',
+  })
+  @IsDate()
+  @IsOptional()
+  from: Date;
+
+  @ApiProperty({
+    example: '2023-10-01T00:00:00.000Z',
+  })
+  @IsDate()
+  @IsOptional()
+  to: Date;
+
+  @ApiProperty({
+    example: '2242424',
+  })
+  @IsString()
+  appId: string;
+
+  @ApiProperty({
+    example: 'TN_1D'
+  })
+  @IsString()
+  parameter?: string;
+}
+
 export class GetAllGlofasProbFloodDto {
   @ApiProperty({
     type: String,
