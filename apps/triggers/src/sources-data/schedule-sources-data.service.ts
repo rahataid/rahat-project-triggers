@@ -141,7 +141,27 @@ export class ScheduleSourcesDataService
       return;
     }
 
-    await this.saveDataInDhm(temperatureData.data, SourceType.TEMPERATURE);
+    const groupedIndicators = temperatureData.data.reduce((obj, indicator) => {
+      if (obj[indicator.indicator]) {
+        obj[indicator.indicator].push(indicator);
+      } else {
+        obj[indicator.indicator] = [indicator];
+      }
+      return obj;
+    }, {});
+
+    if (groupedIndicators['temperature_c']) {
+      await this.saveDataInDhm(
+        groupedIndicators['temperature_c'],
+        SourceType.TEMPERATURE,
+      );
+    }
+    if (groupedIndicators['prob_humidity']) {
+      await this.saveDataInDhm(
+        groupedIndicators['prob_humidity'],
+        SourceType.HUMIDITY,
+      );
+    }
   }
 
   // run every hour

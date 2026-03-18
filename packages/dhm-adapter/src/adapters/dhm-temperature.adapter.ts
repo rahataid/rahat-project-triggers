@@ -287,6 +287,7 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
         data: obs.data,
         stationDetail: {
           ...stationDetail,
+          unit: obs.unit,
           parameter_code: obs.parameter_code,
           parameter_name: obs.parameter_name,
           series_name: obs.series_name,
@@ -334,13 +335,13 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
    */
   transform(aggregatedData: DhmObservation[]): Result<Indicator[]> {
     try {
-      const indicators: Indicator[] = aggregatedData.flatMap((obs) => {
-        return [
-          {
+      const indicators: Indicator[] = aggregatedData.map((obs): Indicator => {
+        if ((obs.stationDetail as TemperatureStationItem).unit === "%") {
+          return {
             kind: "OBSERVATION",
-            indicator: "temperature_c",
+            indicator: "prob_humidity",
             value: obs.stationDetail.value ?? 0,
-            units: "°C",
+            units: "%",
             issuedAt: new Date().toISOString(),
             location: {
               type: "BASIN",
@@ -349,11 +350,29 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
             },
             source: {
               key: "DHM",
-              metadata: { originalUnit: "°C" },
+              metadata: { originalUnit: "%" },
             },
             info: { ...obs.stationDetail, history: obs.data },
+          };
+        }
+
+        return {
+          kind: "OBSERVATION",
+          indicator: "temperature_c",
+          value: obs.stationDetail.value ?? 0,
+          units: "°C",
+          issuedAt: new Date().toISOString(),
+          location: {
+            type: "BASIN",
+            seriesId: obs.seriesId,
+            basinId: obs.location!,
           },
-        ];
+          source: {
+            key: "DHM",
+            metadata: { originalUnit: "°C" },
+          },
+          info: { ...obs.stationDetail, history: obs.data },
+        };
       });
 
       this.logger.log(`Transformed to ${indicators.length} indicators`);

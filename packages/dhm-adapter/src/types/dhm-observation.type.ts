@@ -172,6 +172,7 @@ export interface TemperatureStationItem {
   longitude: number;
   latitude: number;
   value: number;
+  unit?: string;
   parameter_name?: string;
   parameter_code?: string;
   series_name?: string;
