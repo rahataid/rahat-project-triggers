@@ -98,6 +98,7 @@ export class GetTemperatureSourceDataDto extends PartialType(PaginationDto) {
     example: 'TN_1D'
   })
   @IsString()
+  @IsOptional()
   parameter?: string;
 }
 

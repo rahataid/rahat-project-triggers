@@ -9,7 +9,7 @@ import {
 } from '@lib/database';
 import { PaginationDto } from 'src/common/dto';
 import { HttpService } from '@nestjs/axios';
-import { RpcException, Payload } from '@nestjs/microservices';
+import { RpcException } from '@nestjs/microservices';
 import {
   GetAllGlofasProbFloodDto,
   GetOneGlofasProbFloodDto,
@@ -28,7 +28,6 @@ import {
   GetDhmSingleSeriesDto,
   GetDhmSingleSeriesTemperatureDto,
 } from './dto/get-dhm-single-series.dto';
-import th from 'zod/v4/locales/th.js';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 @Injectable()
@@ -187,7 +186,6 @@ export class SourcesDataService {
 
   async getTemperatureDhmLevels(payload: GetTemperatureSourceDataDto) {
     this.logger.log('Fetching temperature data');
-    
     try {
       return await this.getTemperatureLevels(payload, SourceType.TEMPERATURE);
     } catch (error: any) {
