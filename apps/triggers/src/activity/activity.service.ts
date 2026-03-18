@@ -1107,7 +1107,7 @@ export class ActivityService {
       const { selectedCommunication } =
         await this.getActivityCommunicationDetails(communicationId, activityId);
 
-      const { groupName } = await this.getGroupDetails(
+      const { group } = await this.getGroupDetails(
         selectedCommunication.groupType,
         selectedCommunication.groupId,
         payload.appId,
@@ -1119,7 +1119,11 @@ export class ActivityService {
 
       if (!data) {
         this.logger.warn('Session not found');
-        throw new RpcException('Session not found.');
+        return {
+          sessionDetails: null,
+          communicationDetail: selectedCommunication,
+          group,
+        };
       }
 
       const { addresses, ...rest } = data;
@@ -1127,7 +1131,7 @@ export class ActivityService {
       return {
         sessionDetails: rest,
         communicationDetail: selectedCommunication,
-        groupName,
+        group,
       };
     } catch (error: any) {
       this.logger.error('Error while fetching session logs', error);
