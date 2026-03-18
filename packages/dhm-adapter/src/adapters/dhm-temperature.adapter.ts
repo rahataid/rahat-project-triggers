@@ -105,19 +105,20 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
       });
     } catch (error: any) {
       this.logger.error("Failed to fetch DHM temperature data", error);
+      const errorItems: ItemError[] = [
+        {
+          itemId: "TEMPERATURE_API",
+          stage: "fetch" as const,
+          code: "FETCH_FAILED",
+          message: error?.message || "Unknown error",
+          timestamp: new Date().toISOString(),
+        },
+      ];
       return Err("Failed to fetch DHM temperature data", error, {
         totalItems: 1,
         successfulItems: 0,
         failedItems: 1,
-        itemErrors: [
-          {
-            itemId: "TEMPERATURE_API",
-            stage: "fetch" as const,
-            code: "FETCH_FAILED",
-            message: error?.message || "Unknown error",
-            timestamp: new Date().toISOString(),
-          },
-        ],
+        itemErrors: errorItems,
       });
     }
   }
