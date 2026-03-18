@@ -163,7 +163,7 @@ describe('SourcesDataController', () => {
       to: new Date('2023-01-31'),
       appId: 'test-app',
     };
-    
+
     const mockTemperatureLevels = { data: 'temperature-levels' };
 
     beforeEach(() => {
@@ -175,7 +175,9 @@ describe('SourcesDataController', () => {
     it('should return DHM temperature levels', async () => {
       const result = await controller.getDhmTemperature(mockPayload as any);
 
-      expect(mockSourceDataService.getTemperatureDhmLevels).toHaveBeenCalledWith({
+      expect(
+        mockSourceDataService.getTemperatureDhmLevels,
+      ).toHaveBeenCalledWith({
         ...mockPayload,
         source: 'DHM',
       });
@@ -188,7 +190,7 @@ describe('SourcesDataController', () => {
       seriesId: 1234,
       riverBasin: 'test-basin',
     };
-    
+
     const mockSeriesTemperature = { data: 'series-temperature' };
 
     beforeEach(() => {
@@ -198,9 +200,13 @@ describe('SourcesDataController', () => {
     });
 
     it('should return DHM single series temperature', async () => {
-      const result = await controller.getOneDhmSeriesTemperature(mockPayload as any);
+      const result = await controller.getOneDhmSeriesTemperature(
+        mockPayload as any,
+      );
 
-      expect(mockSourceDataService.getOneDhmSeriesTemperature).toHaveBeenCalledWith(mockPayload);
+      expect(
+        mockSourceDataService.getOneDhmSeriesTemperature,
+      ).toHaveBeenCalledWith(mockPayload);
       expect(result).toEqual(mockSeriesTemperature);
     });
   });
