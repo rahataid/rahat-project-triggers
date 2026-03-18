@@ -14,6 +14,7 @@ import {
   GetAllGlofasProbFloodDto,
   GetOneGlofasProbFloodDto,
   GetSouceDataDto,
+  GetTemperatureSourceDataDto,
   SourceDataType,
 } from './dto/get-source-data';
 import * as https from 'https';
@@ -23,7 +24,10 @@ import { DhmService as DHM } from '@lib/dhm-adapter';
 import { GlofasServices } from '@lib/glofas-adapter';
 import { GfhService } from '@lib/gfh-adapter';
 import { ScheduleSourcesDataService } from './schedule-sources-data.service';
-import { GetDhmSingleSeriesDto } from './dto/get-dhm-single-series.dto';
+import {
+  GetDhmSingleSeriesDto,
+  GetDhmSingleSeriesTemperatureDto,
+} from './dto/get-dhm-single-series.dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 @Injectable()
@@ -35,7 +39,7 @@ export class SourcesDataService {
     private readonly glofasServices: GlofasServices,
     private readonly gfhServices: GfhService,
     private readonly scheduleSourcesDataService: ScheduleSourcesDataService,
-  ) { }
+  ) {}
 
   async create(dto: CreateSourcesDataDto) {
     const { info, source, riverBasin, type } = dto;
@@ -180,6 +184,18 @@ export class SourcesDataService {
     }
   }
 
+  async getTemperatureDhmLevels(payload: GetTemperatureSourceDataDto) {
+    this.logger.log('Fetching temperature data');
+    try {
+      return await this.getTemperatureLevels(payload, SourceType.TEMPERATURE);
+    } catch (error: any) {
+      this.logger.error(`Error while getting temperature data: ${error}`);
+      throw new RpcException(
+        `Failed to fetch temperature data: '${error.message}'`,
+      );
+    }
+  }
+
   async getRainfallLevels(payload: GetSouceDataDto) {
     this.logger.log('Fetching rainfall data');
     try {
@@ -253,6 +269,61 @@ export class SourcesDataService {
     const infos = sourcesData?.map((item) => item.info);
 
     const dataInfos = { ...sourcesData[0], info: infos };
+
+    return dataInfos;
+  }
+
+  async getTemperatureLevels(
+    payload: GetTemperatureSourceDataDto,
+    type: SourceType,
+  ) {
+    const { riverBasin, source, parameter } = payload;
+
+    if (!riverBasin) {
+      this.logger.warn('River basin is not passed in the payload');
+      throw new RpcException('River basin is required');
+    }
+
+    if (source !== DataSource.DHM) {
+      throw new RpcException(
+        'Temperature data is only available for DHM source',
+      );
+    }
+
+    const temperatureSourcesData = await this.prisma.sourcesData.findMany({
+      where: {
+        type,
+        dataSource: source,
+        source: { riverBasin },
+        ...(parameter && {
+          info: {
+            path: ['parameter_code'],
+            equals: parameter,
+          },
+        }),
+      },
+      include: {
+        source: {
+          select: { riverBasin: true, source: true },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!temperatureSourcesData.length) {
+      this.logger.error(
+        `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+      );
+      throw new RpcException(
+        `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+      );
+    }
+
+    const infos = temperatureSourcesData?.map((item) => item.info);
+
+    const dataInfos = { ...temperatureSourcesData[0], info: infos };
 
     return dataInfos;
   }
@@ -363,19 +434,19 @@ export class SourcesDataService {
                 info: {
                   path: ['forecastDate'],
                   equals: forecastDate,
-                }
+                },
               },
-            ]
+            ],
           },
           ...(stationName
             ? [
-              {
-                info: {
-                  path: ['stationName'],
-                  equals: stationName,
+                {
+                  info: {
+                    path: ['stationName'],
+                    equals: stationName,
+                  },
                 },
-              },
-            ]
+              ]
             : []),
         ],
       },
@@ -424,5 +495,37 @@ export class SourcesDataService {
     );
 
     return { info: result };
+  }
+
+  async getOneDhmSeriesTemperature(payload: GetDhmSingleSeriesTemperatureDto) {
+    const { seriesId, riverBasin } = payload;
+
+    const record = await this.prisma.sourcesData.findFirst({
+      where: {
+        type: SourceType.TEMPERATURE,
+        dataSource: DataSource.DHM,
+        source: { riverBasin },
+        info: {
+          path: ['series_id'],
+          equals: seriesId,
+        },
+      },
+      include: {
+        source: {
+          select: { riverBasin: true, source: true },
+        },
+      },
+    });
+
+    if (!record) {
+      this.logger.error(
+        `No temperature data found for riverBasin: ${riverBasin}, seriesId: ${seriesId}`,
+      );
+      throw new RpcException(
+        `No temperature data found for riverBasin: ${riverBasin}, seriesId: ${seriesId}`,
+      );
+    }
+
+    return record;
   }
 }
