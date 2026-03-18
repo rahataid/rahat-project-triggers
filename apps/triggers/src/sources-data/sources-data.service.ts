@@ -9,7 +9,7 @@ import {
 } from '@lib/database';
 import { PaginationDto } from 'src/common/dto';
 import { HttpService } from '@nestjs/axios';
-import { RpcException } from '@nestjs/microservices';
+import { RpcException, Payload } from '@nestjs/microservices';
 import {
   GetAllGlofasProbFloodDto,
   GetOneGlofasProbFloodDto,
@@ -187,6 +187,7 @@ export class SourcesDataService {
 
   async getTemperatureDhmLevels(payload: GetTemperatureSourceDataDto) {
     this.logger.log('Fetching temperature data');
+    
     try {
       return await this.getTemperatureLevels(payload, SourceType.TEMPERATURE);
     } catch (error: any) {

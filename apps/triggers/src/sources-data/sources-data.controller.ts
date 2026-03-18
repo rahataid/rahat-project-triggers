@@ -5,10 +5,11 @@ import {
   GetAllGlofasProbFloodDto,
   GetOneGlofasProbFloodDto,
   GetSouceDataDto,
+  GetTemperatureSourceDataDto,
 } from './dto/get-source-data';
 import { SourcesDataService } from './sources-data.service';
 import { GetSeriesDto } from './dto/get-series';
-import { GetDhmSingleSeriesDto } from './dto/get-dhm-single-series.dto';
+import { GetDhmSingleSeriesDto, GetDhmSingleSeriesTemperatureDto } from './dto/get-dhm-single-series.dto';
 
 @Controller('sources-data')
 export class SourcesDataController {
@@ -69,7 +70,7 @@ export class SourcesDataController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TEMPERATURE.GET_DHM,
   })
-  async getDhmTemperature(payload: GetSouceDataDto): Promise<any> {
+  async getDhmTemperature(payload: GetTemperatureSourceDataDto): Promise<any> {
     payload.source = 'DHM';
     return this.sourceDataService.getTemperatureDhmLevels(payload);
   }
@@ -77,7 +78,7 @@ export class SourcesDataController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TEMPERATURE.GET_DHM_SINGLE_SERIES,
   })
-  async getOneDhmSeriesTemperature(payload: GetDhmSingleSeriesDto) {
+  async getOneDhmSeriesTemperature(payload: GetDhmSingleSeriesTemperatureDto) {
     return this.sourceDataService.getOneDhmSeriesTemperature(payload);
   }
 }
