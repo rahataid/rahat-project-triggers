@@ -10,6 +10,7 @@ import {
   DATA_SOURCE_EVENTS,
   DataSourceEventPayload,
   HealthMonitoringService,
+  ItemError,
 } from '@lib/core';
 
 import { DataSource, GlofasStationInfo, SourceType } from '@lib/database';
@@ -57,7 +58,7 @@ export class GlofasAdapter extends ObservationAdapter {
    * Fetch raw HTML/data from Glofas website
    */
   async fetch(): Promise<Result<GlofasFetchResponse[]>> {
-    const itemErrors: any[] = [];
+    const itemErrors: ItemError[] = [];
     const successfulResults: GlofasFetchResponse[] = [];
 
     try {
@@ -121,7 +122,7 @@ export class GlofasAdapter extends ObservationAdapter {
           itemErrors.push({
             itemId: location,
             stage: 'fetch' as const,
-            errorCode: 'FETCH_FAILED',
+            code: 'FETCH_FAILED',
             message: result.reason?.message || 'Unknown error',
             timestamp: new Date().toISOString(),
           });

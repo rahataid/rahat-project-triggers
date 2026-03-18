@@ -23,6 +23,7 @@ import {
   DataSourceEventPayload,
   HealthMonitoringService,
   AdapterHealthConfig,
+  ItemError,
 } from "@lib/core";
 import { buildQueryParams, scrapeDataFromHtml } from "../../utils";
 import {
@@ -171,7 +172,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
    * Fetch raw HTML/data from DHM website
    */
   async fetch(): Promise<Result<DhmFetchResponse[]>> {
-    const itemErrors: any[] = [];
+    const itemErrors: ItemError[] = [];
     const successfulResults: DhmFetchResponse[] = [];
 
     try {
@@ -208,7 +209,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
           itemErrors.push({
             itemId: seriesId.toString(),
             stage: "fetch" as const,
-            errorCode: "FETCH_FAILED",
+            code: "FETCH_FAILED",
             message: result.reason?.message || "Unknown error",
             timestamp: new Date().toISOString(),
           });
