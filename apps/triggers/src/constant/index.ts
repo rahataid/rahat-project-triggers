@@ -93,6 +93,8 @@ export const MS_TRIGGERS_JOBS = {
     REVERT_PHASE: 'ms.jobs.phases.revertPhase',
     GET_BY_LOCATION: 'ms.jobs.phases.getByLocation',
     CONFIGURE_THRESHOLD: 'ms.jobs.phase.configureThreshold',
+    UPDATE: 'ms.jobs.phases.update',
+    DELETE: 'ms.jobs.phases.delete',
   },
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
