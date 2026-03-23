@@ -200,10 +200,10 @@ export class PhasesService {
       name: rest.name ?? phase.name,
       canRevert: rest.canRevert ?? phase.canRevert,
       canTriggerPayout: rest.canTriggerPayout ?? phase.canTriggerPayout,
-      receivedMandatoryTriggers:
-        rest.receivedMandatoryTriggers ?? phase.receivedMandatoryTriggers,
-      receivedOptionalTriggers:
-        rest.receivedOptionalTriggers ?? phase.receivedOptionalTriggers,
+      requiredMandatoryTriggers:
+        rest.requiredMandatoryTriggers ?? phase.requiredMandatoryTriggers,
+      requiredOptionalTriggers:
+        rest.requiredOptionalTriggers ?? phase.requiredOptionalTriggers,
     };
 
     try {

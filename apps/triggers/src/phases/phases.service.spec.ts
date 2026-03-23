@@ -431,8 +431,8 @@ describe('PhasesService', () => {
       canRevert: false,
       canTriggerPayout: false,
       isActive: false,
-      receivedMandatoryTriggers: 2,
-      receivedOptionalTriggers: 2,
+      requiredMandatoryTriggers: 2,
+      requiredOptionalTriggers: 2,
     };
 
     beforeEach(() => {
@@ -444,14 +444,14 @@ describe('PhasesService', () => {
       );
     });
 
-    it('should update only allowed fields (name, canRevert, canTriggerPayout, receivedMandatoryTriggers, receivedOptionalTriggers)', async () => {
+    it('should update only allowed fields (name, canRevert, canTriggerPayout, requiredMandatoryTriggers, requiredOptionalTriggers)', async () => {
       const payload: UpdatePhaseDto = {
         uuid: 'test-uuid',
         name: Phases.READINESS,
         canRevert: true,
         canTriggerPayout: false,
-        receivedMandatoryTriggers: 2,
-        receivedOptionalTriggers: 2,
+        requiredMandatoryTriggers: 2,
+        requiredOptionalTriggers: 2,
       };
 
       const result = await service.update(payload);
@@ -462,8 +462,8 @@ describe('PhasesService', () => {
           name: Phases.READINESS,
           canRevert: true,
           canTriggerPayout: false,
-          receivedMandatoryTriggers: 2,
-          receivedOptionalTriggers: 2,
+          requiredMandatoryTriggers: 2,
+          requiredOptionalTriggers: 2,
         },
       });
       expect(result).toEqual(mockExistingPhase);
@@ -483,9 +483,9 @@ describe('PhasesService', () => {
           name: Phases.READINESS,
           canRevert: mockExistingPhase.canRevert,
           canTriggerPayout: mockExistingPhase.canTriggerPayout,
-          receivedMandatoryTriggers:
-            mockExistingPhase.receivedMandatoryTriggers,
-          receivedOptionalTriggers: mockExistingPhase.receivedOptionalTriggers,
+          requiredMandatoryTriggers:
+            mockExistingPhase.requiredMandatoryTriggers,
+          requiredOptionalTriggers: mockExistingPhase.requiredOptionalTriggers,
         },
       });
     });
