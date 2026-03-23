@@ -187,6 +187,10 @@ export class PhasesService {
 
     const phase = await this.findOrThrow(uuid);
 
+    if (phase.isActive) {
+      throw new RpcException('Cannot update an active phase');
+    }
+
     if (rest.canTriggerPayout) {
       await this.validateSinglePayoutPhase(phase.riverBasin, uuid);
     }
@@ -196,6 +200,10 @@ export class PhasesService {
       name: rest.name ?? phase.name,
       canRevert: rest.canRevert ?? phase.canRevert,
       canTriggerPayout: rest.canTriggerPayout ?? phase.canTriggerPayout,
+      requiredMandatoryTriggers:
+        rest.requiredMandatoryTriggers ?? phase.requiredMandatoryTriggers,
+      requiredOptionalTriggers:
+        rest.requiredOptionalTriggers ?? phase.requiredOptionalTriggers,
     };
 
     try {

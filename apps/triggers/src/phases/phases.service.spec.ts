@@ -431,6 +431,8 @@ describe('PhasesService', () => {
       canRevert: false,
       canTriggerPayout: false,
       isActive: false,
+      requiredMandatoryTriggers: 2,
+      requiredOptionalTriggers: 2,
     };
 
     beforeEach(() => {
@@ -442,12 +444,14 @@ describe('PhasesService', () => {
       );
     });
 
-    it('should update only allowed fields (name, canRevert, canTriggerPayout)', async () => {
+    it('should update only allowed fields (name, canRevert, canTriggerPayout, requiredMandatoryTriggers, requiredOptionalTriggers)', async () => {
       const payload: UpdatePhaseDto = {
         uuid: 'test-uuid',
         name: Phases.READINESS,
         canRevert: true,
         canTriggerPayout: false,
+        requiredMandatoryTriggers: 2,
+        requiredOptionalTriggers: 2,
       };
 
       const result = await service.update(payload);
@@ -458,6 +462,8 @@ describe('PhasesService', () => {
           name: Phases.READINESS,
           canRevert: true,
           canTriggerPayout: false,
+          requiredMandatoryTriggers: 2,
+          requiredOptionalTriggers: 2,
         },
       });
       expect(result).toEqual(mockExistingPhase);
@@ -477,6 +483,9 @@ describe('PhasesService', () => {
           name: Phases.READINESS,
           canRevert: mockExistingPhase.canRevert,
           canTriggerPayout: mockExistingPhase.canTriggerPayout,
+          requiredMandatoryTriggers:
+            mockExistingPhase.requiredMandatoryTriggers,
+          requiredOptionalTriggers: mockExistingPhase.requiredOptionalTriggers,
         },
       });
     });
@@ -568,6 +577,25 @@ describe('PhasesService', () => {
       await expect(
         service.update({ uuid: 'test-uuid', name: Phases.READINESS }),
       ).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when trying to update an active phase', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue({
+        uuid: 'test-uuid',
+        name: Phases.ACTIVATION,
+        riverBasin: 'Karnali',
+        activeYear: '2025',
+        canRevert: false,
+        canTriggerPayout: false,
+        isActive: true,
+      });
+
+      await expect(
+        service.update({ uuid: 'test-uuid', name: Phases.READINESS }),
+      ).rejects.toThrow(RpcException);
+      await expect(
+        service.update({ uuid: 'test-uuid', name: Phases.READINESS }),
+      ).rejects.toThrow('Cannot update an active phase');
     });
   });
 
