@@ -3,6 +3,7 @@ enum SourceType {
   WATER_LEVEL
   PROB_FLOOD
   TEMPERATURE
+  HUMIDITY
 
   @@schema("public")
 }

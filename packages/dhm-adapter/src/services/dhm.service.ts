@@ -18,6 +18,12 @@ export class DhmService {
     payload: DhmStationItem,
   ): Promise<any> {
     try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const startOfTomorrow = new Date(startOfToday);
+      startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
       return await this.prisma.$transaction(async (tx) => {
         const existingRecord = await tx.sourcesData.findFirst({
           where: {
@@ -25,6 +31,10 @@ export class DhmService {
             dataSource: DataSource.DHM,
             source: {
               riverBasin,
+            },
+            updatedAt: {
+              gte: startOfToday,
+              lt: startOfTomorrow,
             },
             info: {
               path: ["series_id"],
@@ -91,6 +101,7 @@ export class DhmService {
   async getSourceData(
     type: SourceType,
     riverBasin: string,
+    levelType: "hourly" | "daily" | null = null,
   ): Promise<Array<{ seriesId: string; stationName: string }>> {
     try {
       const sourceData = await this.prisma.sourcesData.findMany({
@@ -99,6 +110,12 @@ export class DhmService {
           source: {
             riverBasin,
           },
+          ...(levelType && {
+            info: {
+              path: ["parameter_code"],
+              equals: this.getLevelType(type, levelType),
+            },
+          }),
           type,
         },
         select: {
@@ -116,6 +133,30 @@ export class DhmService {
     } catch (error: any) {
       this.logger.error("Error while fetching source data", error);
       throw error;
+    }
+  }
+
+  private getLevelType(
+    sourceType: SourceType,
+    levelType: string,
+  ): string | undefined {
+    if (sourceType === SourceType.TEMPERATURE) {
+      switch (levelType) {
+        case "hourly":
+          return "T_1H";
+        case "daily":
+          return "TX_1D";
+        default:
+          throw new Error(`Invalid levelType: ${levelType}`);
+      }
+    }
+    if (sourceType === SourceType.HUMIDITY) {
+      switch (levelType) {
+        case "hourly":
+          return "RH_1H";
+        default:
+          throw new Error(`Invalid levelType: ${levelType}`);
+      }
     }
   }
 }
