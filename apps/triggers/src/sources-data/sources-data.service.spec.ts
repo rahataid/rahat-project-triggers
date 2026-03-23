@@ -629,14 +629,14 @@ describe('SourcesDataService', () => {
       const mockSourcesData = [
         {
           id: 1,
-          info: { value: 10 },
+          info: { value: 10, series_id: 123 },
           type: SourceType.WATER_LEVEL,
           dataSource: DataSource.DHM,
           source: { riverBasin: 'test-basin', source: [DataSource.DHM] },
         },
         {
           id: 2,
-          info: { value: 20 },
+          info: { value: 20, series_id: 234 },
           type: SourceType.WATER_LEVEL,
           dataSource: DataSource.DHM,
           source: { riverBasin: 'test-basin', source: [DataSource.DHM] },
@@ -662,13 +662,16 @@ describe('SourcesDataService', () => {
           },
         },
         orderBy: {
-          createdAt: 'desc',
+          updatedAt: 'desc',
         },
       });
 
       expect(result).toEqual({
         ...mockSourcesData[0],
-        info: [{ value: 10 }, { value: 20 }],
+        info: [
+          { value: 10, series_id: 123 },
+          { value: 20, series_id: 234 },
+        ],
       });
     });
 
