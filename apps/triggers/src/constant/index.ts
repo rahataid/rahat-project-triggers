@@ -105,6 +105,10 @@ export const MS_TRIGGERS_JOBS = {
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
   },
+  HUMIDITY: {
+    GET_DHM: 'ms.jobs.humidity.getDhm',
+    GET_DHM_SINGLE_SERIES: 'ms.jobs.humidity.getDhmSingleSeries',
+  },
   TEMPERATURE: {
     GET_DHM: 'ms.jobs.temperature.getDhm',
     GET_DHM_SINGLE_SERIES: 'ms.jobs.temperature.getDhmSingleSeries',

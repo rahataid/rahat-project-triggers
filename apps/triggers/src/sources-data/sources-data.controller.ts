@@ -9,8 +9,11 @@ import {
 } from './dto/get-source-data';
 import { SourcesDataService } from './sources-data.service';
 import { GetSeriesDto } from './dto/get-series';
-import { GetDhmSingleSeriesDto, GetDhmSingleSeriesTemperatureDto } from './dto/get-dhm-single-series.dto';
-import { DataSource } from '@lib/database';
+import {
+  GetDhmSingleSeriesDto,
+  GetDhmSingleSeriesTemperatureDto,
+} from './dto/get-dhm-single-series.dto';
+import { DataSource, SourceType } from '@lib/database';
 
 @Controller('sources-data')
 export class SourcesDataController {
@@ -73,13 +76,34 @@ export class SourcesDataController {
   })
   async getDhmTemperature(payload: GetTemperatureSourceDataDto): Promise<any> {
     payload.source = DataSource.DHM;
-    return this.sourceDataService.getTemperatureDhmLevels(payload);
+    return this.sourceDataService.getHeatwaveDhmLevels(payload);
   }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TEMPERATURE.GET_DHM_SINGLE_SERIES,
   })
   async getOneDhmSeriesTemperature(payload: GetDhmSingleSeriesTemperatureDto) {
-    return this.sourceDataService.getOneDhmSeriesTemperature(payload);
+    return this.sourceDataService.getOneDhmSeriesHeatwave(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.HUMIDITY.GET_DHM,
+  })
+  async getDhmHumidity(payload: GetTemperatureSourceDataDto): Promise<any> {
+    payload.source = DataSource.DHM;
+    return this.sourceDataService.getHeatwaveDhmLevels(
+      payload,
+      SourceType.HUMIDITY,
+    );
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.HUMIDITY.GET_DHM_SINGLE_SERIES,
+  })
+  async getOneDhmSeriesHumidity(payload: GetDhmSingleSeriesTemperatureDto) {
+    return this.sourceDataService.getOneDhmSeriesHeatwave(
+      payload,
+      SourceType.HUMIDITY,
+    );
   }
 }

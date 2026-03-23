@@ -98,11 +98,17 @@ export class SourcesDataService {
 
   async findSeriesByDataSource(payload: GetSeriesDto) {
     try {
-      const { dataSource, type, riverBasin, stationName } = payload;
+      const {
+        dataSource,
+        type,
+        riverBasin,
+        stationName,
+        levelType = null,
+      } = payload;
 
       switch (dataSource) {
         case DataSource.DHM: {
-          const dhm = await this.dhm.getSourceData(type, riverBasin);
+          const dhm = await this.dhm.getSourceData(type, riverBasin, levelType);
           return dhm;
         }
         case DataSource.GLOFAS: {
@@ -184,10 +190,13 @@ export class SourcesDataService {
     }
   }
 
-  async getTemperatureDhmLevels(payload: GetTemperatureSourceDataDto) {
+  async getHeatwaveDhmLevels(
+    payload: GetTemperatureSourceDataDto,
+    sourceType: SourceType = SourceType.TEMPERATURE,
+  ) {
     this.logger.log('Fetching temperature data');
     try {
-      return await this.getTemperatureLevels(payload, SourceType.TEMPERATURE);
+      return await this.getHeatwaveLevels(payload, sourceType);
     } catch (error: any) {
       this.logger.error(`Error while getting temperature data: ${error}`);
       throw new RpcException(
@@ -195,7 +204,6 @@ export class SourcesDataService {
       );
     }
   }
-
   async getRainfallLevels(payload: GetSouceDataDto) {
     this.logger.log('Fetching rainfall data');
     try {
@@ -253,7 +261,7 @@ export class SourcesDataService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        updatedAt: 'desc',
       },
     });
 
@@ -268,12 +276,14 @@ export class SourcesDataService {
 
     const infos = sourcesData?.map((item) => item.info);
 
-    const dataInfos = { ...sourcesData[0], info: infos };
+    const uniqueInfos = this.getUniqueSeriesData(infos);
+
+    const dataInfos = { ...sourcesData[0], info: uniqueInfos };
 
     return dataInfos;
   }
 
-  async getTemperatureLevels(
+  async getHeatwaveLevels(
     payload: GetTemperatureSourceDataDto,
     type: SourceType,
   ) {
@@ -308,7 +318,7 @@ export class SourcesDataService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        updatedAt: 'desc',
       },
     });
 
@@ -322,8 +332,9 @@ export class SourcesDataService {
     }
 
     const infos = temperatureSourcesData?.map((item) => item.info);
+    const uniqueInfos = this.getUniqueSeriesData(infos);
 
-    const dataInfos = { ...temperatureSourcesData[0], info: infos };
+    const dataInfos = { ...temperatureSourcesData[0], info: uniqueInfos };
 
     return dataInfos;
   }
@@ -497,35 +508,62 @@ export class SourcesDataService {
     return { info: result };
   }
 
-  async getOneDhmSeriesTemperature(payload: GetDhmSingleSeriesTemperatureDto) {
-    const { seriesId, riverBasin } = payload;
+  async getOneDhmSeriesHeatwave(
+    payload: GetDhmSingleSeriesTemperatureDto,
+    sourceType: SourceType = SourceType.TEMPERATURE,
+  ) {
+    const { seriesId, riverBasin, parameter } = payload;
 
     const record = await this.prisma.sourcesData.findFirst({
       where: {
-        type: SourceType.TEMPERATURE,
+        type: sourceType,
         dataSource: DataSource.DHM,
         source: { riverBasin },
-        info: {
-          path: ['series_id'],
-          equals: seriesId,
-        },
+        ...(parameter && {
+          info: {
+            path: ['parameter_code'],
+            equals: parameter,
+          },
+        }),
+        ...(seriesId && {
+          info: {
+            path: ['series_id'],
+            equals: seriesId,
+          },
+        }),
       },
       include: {
         source: {
           select: { riverBasin: true, source: true },
         },
       },
+      orderBy: {
+        updatedAt: 'desc',
+      },
     });
 
     if (!record) {
       this.logger.error(
-        `No temperature data found for riverBasin: ${riverBasin}, seriesId: ${seriesId}`,
+        `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
       );
       throw new RpcException(
-        `No temperature data found for riverBasin: ${riverBasin}, seriesId: ${seriesId}`,
+        `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
       );
     }
 
     return record;
+  }
+
+  private getUniqueSeriesData(infos: unknown[]) {
+    const uniqueSeriesMap = new Map();
+
+    infos.forEach((info: unknown) => {
+      const seriesId = (info as { series_id: string }).series_id;
+      if (seriesId && !uniqueSeriesMap.has(seriesId)) {
+        uniqueSeriesMap.set(seriesId, info);
+      }
+    });
+
+    return Array.from(uniqueSeriesMap.values());
   }
 }

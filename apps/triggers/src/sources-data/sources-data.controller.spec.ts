@@ -28,10 +28,11 @@ describe('SourcesDataController', () => {
   };
 
   const mockSourceDataService = {
+    getHeatwaveDhmLevels: jest.fn(),
     getWaterLevels: jest.fn(),
     getRainfallLevels: jest.fn(),
     getTemperatureDhmLevels: jest.fn(),
-    getOneDhmSeriesTemperature: jest.fn(),
+    getOneDhmSeriesHeatwave: jest.fn(),
   };
 
   const mockHttpService = {
@@ -167,7 +168,7 @@ describe('SourcesDataController', () => {
     const mockTemperatureLevels = { data: 'temperature-levels' };
 
     beforeEach(() => {
-      mockSourceDataService.getTemperatureDhmLevels.mockResolvedValue(
+      mockSourceDataService.getHeatwaveDhmLevels.mockResolvedValue(
         mockTemperatureLevels,
       );
     });
@@ -175,9 +176,7 @@ describe('SourcesDataController', () => {
     it('should return DHM temperature levels', async () => {
       const result = await controller.getDhmTemperature(mockPayload as any);
 
-      expect(
-        mockSourceDataService.getTemperatureDhmLevels,
-      ).toHaveBeenCalledWith({
+      expect(mockSourceDataService.getHeatwaveDhmLevels).toHaveBeenCalledWith({
         ...mockPayload,
         source: 'DHM',
       });
@@ -194,7 +193,7 @@ describe('SourcesDataController', () => {
     const mockSeriesTemperature = { data: 'series-temperature' };
 
     beforeEach(() => {
-      mockSourceDataService.getOneDhmSeriesTemperature.mockResolvedValue(
+      mockSourceDataService.getOneDhmSeriesHeatwave.mockResolvedValue(
         mockSeriesTemperature,
       );
     });
@@ -205,7 +204,7 @@ describe('SourcesDataController', () => {
       );
 
       expect(
-        mockSourceDataService.getOneDhmSeriesTemperature,
+        mockSourceDataService.getOneDhmSeriesHeatwave,
       ).toHaveBeenCalledWith(mockPayload);
       expect(result).toEqual(mockSeriesTemperature);
     });
