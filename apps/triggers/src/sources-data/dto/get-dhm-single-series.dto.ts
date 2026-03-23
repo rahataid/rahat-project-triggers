@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsEnum, IsNumber, IsString } from 'class-validator';
+import {
+  IsDate,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { SourceDataType } from './get-source-data';
 
 export class GetDhmSingleSeriesDto {
@@ -55,4 +61,11 @@ export class GetDhmSingleSeriesTemperatureDto {
   })
   @IsString()
   riverBasin: string;
+
+  @ApiProperty({
+    example: 'TN_1D',
+  })
+  @IsString()
+  @IsOptional()
+  parameter?: string;
 }

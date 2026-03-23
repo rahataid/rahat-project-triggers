@@ -233,7 +233,9 @@ export class DhmRainfallAdapter extends ObservationAdapter<DhmFetchParams> {
         const data = scrapeDataFromHtml(rawData.data.table);
 
         if (!data || data.length === 0) {
-          this.logger.warn(`No data found`);
+          this.logger.warn(
+            `No data found for seriesId ${seriesId} ${location}`,
+          );
           continue;
         }
 
