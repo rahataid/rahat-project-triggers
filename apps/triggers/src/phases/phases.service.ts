@@ -87,6 +87,10 @@ export class PhasesService {
       );
     }
 
+    if (canTriggerPayout) {
+      await this.validateSinglePayoutPhase(river_basin);
+    }
+
     try {
       return await this.prisma.phase.create({
         data: {
@@ -178,19 +182,27 @@ export class PhasesService {
     };
   }
 
-  async update(uuid: string, dto: UpdatePhaseDto) {
-    const { sourceId, ...rest } = dto;
+  async update(payload: UpdatePhaseDto) {
+    const { uuid, ...rest } = payload;
+
+    const phase = await this.findOrThrow(uuid);
+
+    if (rest.canTriggerPayout) {
+      await this.validateSinglePayoutPhase(phase.riverBasin, uuid);
+    }
+
+    // Only these three fields are allowed to be updated
+    const fields = {
+      name: rest.name ?? phase.name,
+      canRevert: rest.canRevert ?? phase.canRevert,
+      canTriggerPayout: rest.canTriggerPayout ?? phase.canTriggerPayout,
+    };
+
     try {
       return await this.prisma.phase.update({
         where: { uuid },
         data: {
-          ...rest,
-          name: dto.name,
-          source: {
-            connect: {
-              uuid: sourceId,
-            },
-          },
+          ...fields,
         },
       });
     } catch (error: any) {
@@ -704,5 +716,102 @@ export class PhasesService {
         requiredMandatoryTriggers,
       },
     });
+  }
+
+  async findOrThrow(uuid: string) {
+    const phase = await this.prisma.phase.findUnique({
+      where: {
+        uuid,
+      },
+    });
+
+    if (!phase) {
+      this.logger.warn(`Phase with uuid ${uuid} not found`);
+      throw new RpcException(`Phase with uuid ${uuid} not found`);
+    }
+
+    return phase;
+  }
+
+  private async validateSinglePayoutPhase(
+    riverBasin: string,
+    excludeUuid?: string,
+  ) {
+    if (!riverBasin) {
+      this.logger.warn(`River basin is required to validate payout phase`);
+      throw new RpcException(
+        `River basin is required to validate payout phase`,
+      );
+    }
+
+    const phaseWithPayoutEnabled = await this.prisma.phase.findFirst({
+      where: {
+        riverBasin,
+        canTriggerPayout: true,
+        ...(excludeUuid && { uuid: { not: excludeUuid } }),
+      },
+    });
+
+    if (phaseWithPayoutEnabled) {
+      this.logger.warn(
+        `Phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has canTriggerPayout enabled for riverBasin ${riverBasin}`,
+      );
+      throw new RpcException(
+        `Another phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has payout enabled for riverBasin ${riverBasin}. Only one phase per project can have canTriggerPayout set to true.`,
+      );
+    }
+  }
+
+  async delete(uuid: string) {
+    this.logger.log(`Deleting phase with uuid: ${uuid}`);
+
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      this.logger.warn(`Cannot delete an active phase: ${uuid}`);
+      throw new RpcException('Cannot delete an active phase');
+    }
+
+    const [triggerCount, activityCount] = await Promise.all([
+      this.prisma.trigger.count({
+        where: {
+          phaseId: uuid,
+          isDeleted: false,
+        },
+      }),
+      this.prisma.activity.count({
+        where: {
+          phaseId: uuid,
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    if (triggerCount > 0) {
+      this.logger.warn(
+        `Cannot delete phase ${uuid}: ${triggerCount} trigger(s) are associated with this phase`,
+      );
+      throw new RpcException(
+        `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${triggerCount} trigger(s) are associated with it. Please remove them first.`,
+      );
+    }
+
+    if (activityCount > 0) {
+      this.logger.warn(
+        `Cannot delete phase ${uuid}: ${activityCount} activity(s) are associated with this phase`,
+      );
+      throw new RpcException(
+        `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${activityCount} activity(s) are associated with it. Please remove them first.`,
+      );
+    }
+
+    try {
+      return await this.prisma.phase.delete({
+        where: { uuid },
+      });
+    } catch (error: any) {
+      this.logger.error('Error while deleting phase', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 }
