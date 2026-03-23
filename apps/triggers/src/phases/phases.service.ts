@@ -52,6 +52,8 @@ export class PhasesService {
       activeYear,
       canRevert,
       canTriggerPayout,
+      requiredMandatoryTriggers,
+      requiredOptionalTriggers,
     } = payload;
 
     this.logger.log(
@@ -110,6 +112,8 @@ export class PhasesService {
           activeYear,
           canRevert,
           canTriggerPayout,
+          requiredMandatoryTriggers: requiredMandatoryTriggers || 0,
+          requiredOptionalTriggers: requiredOptionalTriggers || 0,
         },
       });
     } catch (error: any) {
