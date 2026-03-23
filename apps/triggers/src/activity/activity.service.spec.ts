@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { ActivityStatus } from '@lib/database';
 import { PrismaService } from '@lib/database';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ActivityService } from './activity.service';
 import { MS_TRIGGER_CLIENTS } from 'src/constant';
 import {
@@ -554,37 +554,170 @@ describe('ActivityService', () => {
       appId: 'app-id',
     };
 
-    it('should successfully retrieve session logs', async () => {
-      const mockActivity = {
-        id: 1,
-        uuid: 'activity-uuid',
-        activityCommunication: [
-          {
-            communicationId: 'comm-uuid',
-            groupType: 'BENEFICIARY',
-            groupId: 'group-id',
-            sessionId: 'session-id',
-          },
-        ],
-      };
+    const mockActivity = {
+      id: 1,
+      uuid: 'activity-uuid',
+      activityCommunication: [
+        {
+          communicationId: 'comm-uuid',
+          groupType: 'BENEFICIARY',
+          groupId: 'group-id',
+          sessionId: 'session-id',
+          transportId: 'transport-id',
+          message: 'Test message',
+        },
+      ],
+    };
 
+    const mockGroup = { uuid: 'group-id', name: 'Test Group' };
+
+    beforeEach(() => {
+      mockPrismaService.activity.findUnique.mockResolvedValue(mockActivity);
+      mockClientProxy.send.mockReturnValue(of(mockGroup));
+    });
+
+    it('should return sessionDetails without addresses, communicationDetail, and group on success', async () => {
       const mockSessionDetails = {
         data: {
           status: 'COMPLETED',
-          addresses: ['test@example.com'],
+          updatedAt: new Date('2024-01-01'),
+          addresses: ['09000000000', '09111111111'],
+          someOtherField: 'value',
         },
       };
 
-      mockPrismaService.activity.findUnique.mockResolvedValue(mockActivity);
       mockCommsClient.session.get.mockResolvedValue(mockSessionDetails);
-      mockClientProxy.send.mockReturnValue(of({ name: 'Test Group' }));
 
       const result = await service.getSessionLogs(mockPayload);
 
       expect(mockPrismaService.activity.findUnique).toHaveBeenCalledWith({
         where: { uuid: mockPayload.activityId },
       });
-      expect(result).toBeDefined();
+      expect(mockCommsClient.session.get).toHaveBeenCalledWith('session-id');
+      expect(result).toEqual({
+        sessionDetails: {
+          status: 'COMPLETED',
+          updatedAt: mockSessionDetails.data.updatedAt,
+          someOtherField: 'value',
+        },
+        communicationDetail: expect.objectContaining({
+          communicationId: 'comm-uuid',
+          groupType: 'BENEFICIARY',
+          groupId: 'group-id',
+          sessionId: 'session-id',
+        }),
+        group: mockGroup,
+      });
+    });
+
+    it('should not include addresses in sessionDetails', async () => {
+      mockCommsClient.session.get.mockResolvedValue({
+        data: {
+          status: 'COMPLETED',
+          addresses: ['09000000000'],
+          someField: 'value',
+        },
+      });
+
+      const result = await service.getSessionLogs(mockPayload);
+
+      expect(result.sessionDetails).not.toHaveProperty('addresses');
+      expect(result.sessionDetails).toHaveProperty('status', 'COMPLETED');
+      expect(result.sessionDetails).toHaveProperty('someField', 'value');
+    });
+
+    it('should return sessionDetails: null when session data is null', async () => {
+      mockCommsClient.session.get.mockResolvedValue({ data: null });
+
+      const result = await service.getSessionLogs(mockPayload);
+
+      expect(result).toEqual({
+        sessionDetails: null,
+        communicationDetail: expect.objectContaining({
+          communicationId: 'comm-uuid',
+        }),
+        group: mockGroup,
+      });
+    });
+
+    it('should return sessionDetails: null when session data is undefined', async () => {
+      mockCommsClient.session.get.mockResolvedValue({ data: undefined });
+
+      const result = await service.getSessionLogs(mockPayload);
+
+      expect(result.sessionDetails).toBeNull();
+      expect(result.group).toEqual(mockGroup);
+    });
+
+    it('should throw RpcException when activity is not found', async () => {
+      mockPrismaService.activity.findUnique.mockResolvedValue(null);
+
+      await expect(service.getSessionLogs(mockPayload)).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should throw RpcException when communicationId does not match any communication', async () => {
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        activityCommunication: [
+          {
+            communicationId: 'different-comm-uuid',
+            groupType: 'BENEFICIARY',
+            groupId: 'group-id',
+            sessionId: 'session-id',
+          },
+        ],
+      });
+
+      await expect(service.getSessionLogs(mockPayload)).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should throw RpcException when session fetch fails', async () => {
+      mockCommsClient.session.get.mockRejectedValue(
+        new Error('Session service unavailable'),
+      );
+
+      await expect(service.getSessionLogs(mockPayload)).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should throw RpcException when group details fetch fails', async () => {
+      mockClientProxy.send.mockReturnValue(
+        throwError(() => new Error('Group service down')),
+      );
+
+      await expect(service.getSessionLogs(mockPayload)).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should pass appId to getGroupDetails via getGroupDetails call', async () => {
+      mockCommsClient.session.get.mockResolvedValue({
+        data: { status: 'COMPLETED', addresses: [] },
+      });
+
+      await service.getSessionLogs(mockPayload);
+
+      expect(mockClientProxy.send).toHaveBeenCalledWith(
+        expect.objectContaining({ uuid: mockPayload.appId }),
+        expect.objectContaining({ uuid: 'group-id' }),
+      );
+    });
+
+    it('should call getActivityCommunicationDetails with correct communicationId and activityId', async () => {
+      mockCommsClient.session.get.mockResolvedValue({
+        data: { status: 'NEW', addresses: [] },
+      });
+
+      await service.getSessionLogs(mockPayload);
+
+      expect(mockPrismaService.activity.findUnique).toHaveBeenCalledWith({
+        where: { uuid: mockPayload.activityId },
+      });
     });
   });
 
