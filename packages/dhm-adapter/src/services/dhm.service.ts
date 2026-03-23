@@ -123,13 +123,19 @@ export class DhmService {
         },
       });
 
-      return sourceData.map((value) => {
+      const result = sourceData.map((value) => {
         const info = value.info as DhmInfo;
         return {
           seriesId: info["series_id"],
           stationName: info["name"],
         };
       });
+      // only return unique seriesId and stationName pairs
+      const uniqueResult = Array.from(
+        new Map(result.map((item) => [item.seriesId, item])).values(),
+      );
+
+      return uniqueResult;
     } catch (error: any) {
       this.logger.error("Error while fetching source data", error);
       throw error;

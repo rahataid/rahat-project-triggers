@@ -331,6 +331,7 @@ describe('SourcesDataService', () => {
       expect(mockDhmService.getSourceData).toHaveBeenCalledWith(
         mockGetSeriesDto.type,
         mockGetSeriesDto.riverBasin,
+        null,
       );
 
       expect(result).toEqual(mockDhmData);
