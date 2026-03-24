@@ -14,7 +14,10 @@ on:
       manifest_file:
         description: 'Path to Kubernetes manifest file'
         required: true
-        default: 'K8s-Manifest/Rahat/AA-Stage/Argo-Rollout/project-trigger.yaml'
+        type: choice
+        options:
+          - 'K8s-Manifest/Rahat/AA-Stage/Argo-Rollout/project-trigger.yaml'
+          - 'K8s-Manifest/Rahat/AA-EVM-Unicef-Stage/Argo-Rollout/project-trigger.yaml'
 
 env:
   CI: false
