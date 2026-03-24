@@ -1,4 +1,4 @@
-name: ALL-IN-ONE CICD
+name: ALL DEV CI/CD
 on:
   workflow_dispatch:
     inputs:
