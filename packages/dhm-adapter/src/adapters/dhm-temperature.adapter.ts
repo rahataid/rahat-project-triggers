@@ -144,9 +144,12 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
 
       const config: RainfallWaterLevelConfig["TEMPERATURE"][] =
         this.getConfig() ?? [];
-      const configuredSeriesIds = config.flatMap((cfg) => cfg.SERIESID);
+      const totalConfiguredPairs = config.reduce(
+        (sum, cfg) => sum + cfg.SERIESID.length,
+        0,
+      );
 
-      if (configuredSeriesIds.length === 0) {
+      if (totalConfiguredPairs === 0) {
         return Err("No configuration found for DHM Temperature.", null, {
           totalItems: 0,
           successfulItems: 0,
@@ -156,19 +159,18 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
 
       const availableSeriesIds = this.collectAvailableSeriesIds(stations);
       const itemErrors = this.findMissingSeriesErrors(
-        configuredSeriesIds,
+        config,
         availableSeriesIds,
       );
       const observations = this.extractObservationsFromStations(
         stations,
         config,
-        configuredSeriesIds,
       );
 
       return this.buildAggregateResult(
         observations,
         itemErrors,
-        configuredSeriesIds.length,
+        totalConfiguredPairs,
         stations.length,
       );
     } catch (error: any) {
@@ -189,147 +191,6 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
       });
     }
   }
-
-  private collectAvailableSeriesIds(
-    stations: DhmTemperatureStation[],
-  ): Set<number> {
-    const ids = new Set<number>();
-    for (const station of stations) {
-      for (const obs of station.observations) {
-        ids.add(obs.series_id);
-      }
-    }
-    return ids;
-  }
-
-  private findMissingSeriesErrors(
-    configuredSeriesIds: number[],
-    availableSeriesIds: Set<number>,
-  ): ItemError[] {
-    const errors: ItemError[] = [];
-    for (const seriesId of configuredSeriesIds) {
-      if (!availableSeriesIds.has(seriesId)) {
-        errors.push({
-          itemId: seriesId.toString(),
-          stage: "aggregate" as const,
-          code: "SERIES_NOT_FOUND",
-          message: `Series ID ${seriesId} not found in API response`,
-          timestamp: new Date().toISOString(),
-        });
-        this.logger.warn(
-          `Configured series ID ${seriesId} not found in temperature API response`,
-        );
-      }
-    }
-    return errors;
-  }
-
-  private extractObservationsFromStations(
-    stations: DhmTemperatureStation[],
-    config: RainfallWaterLevelConfig["TEMPERATURE"][],
-    configuredSeriesIds: number[],
-  ): DhmObservation[] {
-    const observations: DhmObservation[] = [];
-    const seriesLocationMap = new Map<number, string>();
-
-    for (const cfg of config) {
-      for (const id of cfg.SERIESID) {
-        seriesLocationMap.set(id, cfg.LOCATION);
-      }
-    }
-
-    for (const station of stations) {
-      const hasConfiguredSeries = station.observations.some((obs) =>
-        configuredSeriesIds.includes(obs.series_id),
-      );
-
-      if (!hasConfiguredSeries) continue;
-
-      const stationDetail = this.buildStationDetail(station);
-      const matched = this.matchObservationsForStation(
-        station.observations,
-        configuredSeriesIds,
-        stationDetail,
-        seriesLocationMap,
-      );
-      observations.push(...matched);
-    }
-
-    return observations;
-  }
-
-  private buildStationDetail(
-    station: DhmTemperatureStation,
-  ): TemperatureStationItem {
-    return {
-      name: station.station,
-      longitude: station.longitude,
-      latitude: station.latitude,
-      value: station.value,
-    };
-  }
-
-  private matchObservationsForStation(
-    stationObservations: DhmTemperatureObservationParam[],
-    configuredSeriesIds: number[],
-    stationDetail: TemperatureStationItem,
-    seriesLocationMap: Map<number, string>,
-  ): DhmObservation[] {
-    const results: DhmObservation[] = [];
-
-    for (const obs of stationObservations) {
-      if (!configuredSeriesIds.includes(obs.series_id)) continue;
-      if (!obs.data) continue;
-
-      const location = seriesLocationMap.get(obs.series_id);
-
-      results.push({
-        data: obs.data,
-        stationDetail: {
-          ...stationDetail,
-          unit: obs.unit,
-          parameter_code: obs.parameter_code,
-          parameter_name: obs.parameter_name,
-          series_name: obs.series_name,
-          series_id: obs.series_id,
-        },
-        seriesId: obs.series_id,
-        location,
-      });
-    }
-
-    return results;
-  }
-
-  private buildAggregateResult(
-    observations: DhmObservation[],
-    itemErrors: ItemError[],
-    totalConfigured: number,
-    stationCount: number,
-  ): Result<DhmObservation[]> {
-    const totalItems = totalConfigured || observations.length;
-
-    this.logger.log(
-      `Aggregated ${observations.length} temperature observations from ${stationCount} stations`,
-    );
-
-    if (observations.length === 0 && totalConfigured > 0) {
-      return Err("No matching series found in temperature API response", null, {
-        totalItems,
-        successfulItems: 0,
-        failedItems: totalItems,
-        itemErrors,
-      });
-    }
-
-    return Ok(observations, {
-      totalItems,
-      successfulItems: observations.length,
-      failedItems: itemErrors.length,
-      itemErrors: itemErrors.length > 0 ? itemErrors : undefined,
-    });
-  }
-
   /**
    * Transform DHM temperature observations to standard Indicators
    */
@@ -382,6 +243,141 @@ export class DhmTemperatureAdapter extends ObservationAdapter<undefined> {
       this.logger.error("Failed to transform DHM temperature data", error);
       return Err("Failed to transform to indicators", error);
     }
+  }
+
+  private collectAvailableSeriesIds(
+    stations: DhmTemperatureStation[],
+  ): Set<number> {
+    const ids = new Set<number>();
+    for (const station of stations) {
+      for (const obs of station.observations) {
+        ids.add(obs.series_id);
+      }
+    }
+    return ids;
+  }
+
+  private findMissingSeriesErrors(
+    config: RainfallWaterLevelConfig["TEMPERATURE"][],
+    availableSeriesIds: Set<number>,
+  ): ItemError[] {
+    const errors: ItemError[] = [];
+    for (const cfg of config) {
+      for (const seriesId of cfg.SERIESID) {
+        if (!availableSeriesIds.has(seriesId)) {
+          errors.push({
+            itemId: `${seriesId}:${cfg.LOCATION}`,
+            stage: "aggregate" as const,
+            code: "SERIES_NOT_FOUND",
+            message: `Series ID ${seriesId} (${cfg.LOCATION}) not found in API response`,
+            timestamp: new Date().toISOString(),
+          });
+          this.logger.warn(
+            `Configured series ID ${seriesId} (${cfg.LOCATION}) not found in temperature API response`,
+          );
+        }
+      }
+    }
+    return errors;
+  }
+
+  private extractObservationsFromStations(
+    stations: DhmTemperatureStation[],
+    config: RainfallWaterLevelConfig["TEMPERATURE"][],
+  ): DhmObservation[] {
+    const observations: DhmObservation[] = [];
+
+    for (const cfg of config) {
+      const seriesIdSet = new Set(cfg.SERIESID);
+
+      for (const station of stations) {
+        const hasMatchingSeries = station.observations.some((obs) =>
+          seriesIdSet.has(obs.series_id),
+        );
+        if (!hasMatchingSeries) continue;
+
+        const stationDetail = this.buildStationDetail(station);
+        const matched = this.matchObservationsForStation(
+          station.observations,
+          seriesIdSet,
+          stationDetail,
+          cfg.LOCATION,
+        );
+        observations.push(...matched);
+      }
+    }
+
+    return observations;
+  }
+
+  private buildStationDetail(
+    station: DhmTemperatureStation,
+  ): TemperatureStationItem {
+    return {
+      name: station.station,
+      longitude: station.longitude,
+      latitude: station.latitude,
+      value: station.value,
+    };
+  }
+
+  private matchObservationsForStation(
+    stationObservations: DhmTemperatureObservationParam[],
+    seriesIdSet: Set<number>,
+    stationDetail: TemperatureStationItem,
+    location: string,
+  ): DhmObservation[] {
+    const results: DhmObservation[] = [];
+
+    for (const obs of stationObservations) {
+      if (!seriesIdSet.has(obs.series_id)) continue;
+      if (!obs.data) continue;
+
+      results.push({
+        data: obs.data,
+        stationDetail: {
+          ...stationDetail,
+          unit: obs.unit,
+          parameter_code: obs.parameter_code,
+          parameter_name: obs.parameter_name,
+          series_name: obs.series_name,
+          series_id: obs.series_id,
+        },
+        seriesId: obs.series_id,
+        location,
+      });
+    }
+
+    return results;
+  }
+
+  private buildAggregateResult(
+    observations: DhmObservation[],
+    itemErrors: ItemError[],
+    totalConfigured: number,
+    stationCount: number,
+  ): Result<DhmObservation[]> {
+    const totalItems = totalConfigured || observations.length;
+
+    this.logger.log(
+      `Aggregated ${observations.length} temperature observations from ${stationCount} stations`,
+    );
+
+    if (observations.length === 0 && totalConfigured > 0) {
+      return Err("No matching series found in temperature API response", null, {
+        totalItems,
+        successfulItems: 0,
+        failedItems: totalItems,
+        itemErrors,
+      });
+    }
+
+    return Ok(observations, {
+      totalItems,
+      successfulItems: observations.length,
+      failedItems: itemErrors.length,
+      itemErrors: itemErrors.length > 0 ? itemErrors : undefined,
+    });
   }
 
   /**
