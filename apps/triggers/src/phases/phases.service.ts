@@ -26,6 +26,7 @@ import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import { GetPhaseByDetailDto, GetPhaseDto, RevertPhaseDto } from './dto';
+import { activities } from '../utils/activities';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -280,6 +281,9 @@ export class PhasesService {
         },
         include: {
           source: true,
+          _count: {
+            select: { Activity: true }
+          }
         },
       });
     } else {
@@ -289,6 +293,9 @@ export class PhasesService {
         },
         include: {
           source: true,
+          _count: {
+            select: { Activity: true },
+          },
         },
       });
     }
