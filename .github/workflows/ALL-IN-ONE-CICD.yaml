@@ -3,31 +3,31 @@ on:
   workflow_dispatch:
     inputs:
       image_name:
-        description: 'Docker image name (e.g., rahat-project-triggers)'
+        description: "Docker image name (e.g., rahat-project-triggers)"
         required: true
-        default: 'rahat-project-triggers'
+        default: "rahat-project-triggers"
         type: string
       dockerfile_path:
-        description: 'Path to Dockerfile'
+        description: "Path to Dockerfile"
         required: true
-        default: 'apps/triggers/Dockerfile.triggers'
+        default: "apps/triggers/Dockerfile.triggers"
         type: string
       tag_prefix:
-        description: 'Tag prefix'
+        description: "Tag prefix"
         required: true
-        default: 'Image tag'
+        default: "dev"
         type: string
 
 env:
   CI: false
-  PNPM_VERSION: '8.14.1'
-  NODE_VERSION: '20.10.0'
+  PNPM_VERSION: "8.14.1"
+  NODE_VERSION: "20.10.0"
 
 jobs:
   deploy:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,7 +50,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: |
@@ -60,7 +60,7 @@ jobs:
         run: |
           pnpm --filter @lib/database db:generate
           pnpm turbo build --filter=triggers
-      
+
       - name: Import Secrets from Vault
         id: vault
         uses: hashicorp/vault-action@v2.4.0
