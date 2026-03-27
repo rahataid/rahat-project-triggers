@@ -23,6 +23,7 @@ import { StatsModule } from './stats/stat.module';
 import { HttpModule } from '@nestjs/axios';
 import { SettingsModule } from '@lib/core';
 import { LibraryModule } from './library/library.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { LibraryModule } from './library/library.module';
       }),
       inject: [ConfigService],
     }),
+
     ClientsModule.registerAsync([
       {
         name: MS_TRIGGER_CLIENTS.RAHAT,
@@ -63,6 +65,7 @@ import { LibraryModule } from './library/library.module';
       global: true,
     }),
     SettingsModule,
+    AuthModule,
     ProcessorsModule,
     CategoryModule,
     PhasesModule,
