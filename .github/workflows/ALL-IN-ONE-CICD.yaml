@@ -1,4 +1,4 @@
-name: ALL-IN-ONE CICD
+name: ALL DEV CI/CD
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +15,7 @@ on:
       tag_prefix:
         description: 'Tag prefix'
         required: true
-        default: 'Image Tag'
+        default: 'Image tag'
         type: string
 
 env:

@@ -1,66 +1,58 @@
-# Rahat Triggers - NestJS Monorepo
+[![Coverage Status](https://coveralls.io/repos/github/rahataid/rahat-project-triggers/badge.svg?branch=main)](https://coveralls.io/github/rahataid/rahat-project-triggers?branch=main)
 
-A monorepo containing the Rahat Triggers system built with NestJS and Turborepo. This project provides a scalable architecture for monitoring external data sources (DHM, GLOFAS, GFH), standardizing observations, and triggering alerts based on configurable conditions.
+# Rahat Triggers - Anticipatory Action Platform
+A decentralized platform for managing anticipatory action projects to enhance community resilience against climate shocks.
 
-## Project Structure
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Services](#services)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the App](#running-the-app)
+- [Testing](#testing)
+- [Development Guide](#development-guide)
 
-This monorepo contains the following applications and packages:
+## Project Overview
+Rahat ("Relief" in Nepali) is a blockchain-based financial inclusion platform designed to empower vulnerable communities through anticipatory action (AA) projects. This trigger management system enables:
 
-### Applications
+- 📆 Activity Management: Plan, organize, and track AA project activities
+- 🚨 Trigger Modules: Configure hazard indicators and automated responses
+- 🌍 Multi-source Forecasting: Integrate data from DHM, NCWRM, GLOFAS, etc.
+- 💸 Cash/Voucher Assistance: Manage beneficiary support programs
 
-- **Rahat triggers** - Main triggers microservice application that monitors data sources, processes observations, and manages trigger conditions
+## Key Features
+- Microservices architecture with Redis-based communication
+- Real-time trigger monitoring and response system
+- Multi-agency forecasting data aggregation
+- Blockchain-backed transaction transparency
+- Automated workflow management
+- Role-based access control
 
-### Core Packages
+## Architecture
+**Core Components:**
+- **Redis Server**: Central message broker for inter-service communication
+- **NestJS Microservices**: Independently deployable services
+- **BullMQ**: Queue management for background jobs
+- **Config Module**: Centralized environment configuration
+- **Event Emitter**: Cross-service event management
 
-- **@lib/core** - Shared core package containing:
-  - `ObservationAdapter` base interface for data source adapters
-  - `HealthMonitoringService` for tracking adapter health metrics
-  - `HealthCacheService` for persisting health data in Redis
-  - Result types for functional error handling
-  - Shared types and interfaces
+## Services
+| Service | Description |
+|---------|-------------|
+| Activity Management | Manages project timelines, tasks, and resource allocation |
+| Trigger Engine | Processes hazard indicators and initiates predefined responses |
+| Forecasting Integrator | Aggregates data from multiple meteorological sources |
+| Communication Hub | Handles notifications and alerts distribution |
+| Beneficiary Management | Maintains vulnerable community member records |
 
-- **@lib/database** - Shared database package with:
-  - Prisma ORM integration and schema definitions
-  - NestJS modules for database access
-  - Database utilities and helpers
-  - Seed scripts for initial data
+## Installation
 
-### Adapter Packages
-
-- **@lib/dhm-adapter** - Department of Hydrology and Meteorology (DHM) data adapter
-  - DHM Rainfall observations
-  - DHM Water Level observations
-- **@lib/glofas-adapter** - Global Flood Awareness System (GLOFAS) data adapter
-  - River discharge forecasts
-  - Flood prediction data
-
-- **@lib/gfh-adapter** - Google Flood Hub (GFH) data adapter
-  - Google flood forecast data
-
-### Configuration Packages
-
-- **@workspace/eslint-config** - Shared ESLint configurations
-- **@workspace/typescript-config** - Shared TypeScript configurations
-
-## Prerequisites
-
-Before running this project, make sure you have the following installed:
-
-- Node.js (version 20 or higher)
-- pnpm (version 8.14.1 or higher)
-- PostgreSQL database (version 13 or higher)
-- Redis (version 5.0 or higher)
-
-## Getting Started
-
-1. **Clone the repository**
-
-   ```bash
-   git clone git@github.com:dipesh-rumsan/trigger-datasource-packages-example.git
-   cd trigger-datasource-packages-example
-   ```
-
-2. **Install dependencies**
+### Prerequisites
+- Node.js v20+
+- Redis Server 6+
+- pnpm 8+
 
    ```bash
    pnpm install
