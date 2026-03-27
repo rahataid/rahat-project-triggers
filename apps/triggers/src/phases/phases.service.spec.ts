@@ -642,7 +642,7 @@ describe('PhasesService', () => {
 
       expect(prismaService.phase.findUnique).toHaveBeenCalledWith({
         where: { uuid: 'test-uuid' },
-        include: { source: true },
+        include: { source: true, _count: { select: { Activity: true } } },
       });
       expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
         'test-uuid',
@@ -695,11 +695,76 @@ describe('PhasesService', () => {
             },
           },
         },
-        include: { source: true },
+        include: { source: true, _count: { select: { Activity: true } } },
       });
       expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
         'test-uuid',
       );
+    });
+
+    it('should include _count.Activity in the response when fetched by uuid', async () => {
+      const mockPhaseWithCount = {
+        uuid: 'test-uuid',
+        name: Phases.PREPAREDNESS,
+        source: { riverBasin: 'Karnali' },
+        _count: { Activity: 3 },
+      };
+
+      const mockTriggerStats = {
+        triggers: [],
+        totalTriggers: 0,
+        totalMandatoryTriggers: 0,
+        totalMandatoryTriggersTriggered: 0,
+        totalOptionalTriggers: 0,
+        totalOptionalTriggersTriggered: 0,
+      };
+
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
+        mockPhaseWithCount,
+      );
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
+
+      const result = await service.getOneByDetail(getPhaseByName);
+
+      expect(result._count).toEqual({ Activity: 3 });
+    });
+
+    it('should include _count.Activity in the response when fetched by detail', async () => {
+      const getPhaseByNameWithoutUuid = {
+        appId: 'test-app',
+        phase: Phases.PREPAREDNESS,
+        activeYear: '2025',
+        riverBasin: 'Karnali',
+      };
+
+      const mockPhaseWithCount = {
+        uuid: 'test-uuid',
+        name: Phases.PREPAREDNESS,
+        source: { riverBasin: 'Karnali' },
+        _count: { Activity: 5 },
+      };
+
+      const mockTriggerStats = {
+        triggers: [],
+        totalTriggers: 0,
+        totalMandatoryTriggers: 0,
+        totalMandatoryTriggersTriggered: 0,
+        totalOptionalTriggers: 0,
+        totalOptionalTriggersTriggered: 0,
+      };
+
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(
+        mockPhaseWithCount,
+      );
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
+
+      const result = await service.getOneByDetail(getPhaseByNameWithoutUuid);
+
+      expect(result._count).toEqual({ Activity: 5 });
     });
 
     it('should throw RpcException when activeYear and riverBasin are missing', async () => {
