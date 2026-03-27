@@ -15,7 +15,7 @@ on:
       tag_prefix:
         description: 'Tag prefix'
         required: true
-        default: 'Image tag'
+        default: 'dev'
         type: string
 
 env:
