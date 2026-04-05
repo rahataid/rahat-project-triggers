@@ -843,15 +843,21 @@ export class PhasesService {
 
   async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
     const { uuid, ...extendedTriggerLogic } = payload;
-    console.log('Setting extended trigger logic for phase', uuid, extendedTriggerLogic);
+    this.logger.log(
+      `Setting extended trigger logic for phase ${uuid} with groupCount=${extendedTriggerLogic.groups?.length ?? 0}`,
+    );
     const phase = await this.findOrThrow(uuid);
 
     if (phase.isActive) {
+      this.logger.warn(
+        `Cannot set extended trigger logic for active phase ${uuid}`,
+      );
       throw new RpcException(
         'Cannot update extended trigger logic on an active phase',
       );
     }
 
+    this.logger.debug(`Persisting extended trigger logic for phase ${uuid}`);
     return this.prisma.phase.update({
       where: { uuid },
       data: {
@@ -861,6 +867,7 @@ export class PhasesService {
   }
 
   async getExtendedTriggerLogic(uuid: string) {
+    this.logger.log(`Fetching extended trigger logic for phase ${uuid}`);
     const phase = await this.findOrThrow(uuid);
     return {
       uuid: phase.uuid,
@@ -869,9 +876,13 @@ export class PhasesService {
   }
 
   async removeExtendedTriggerLogic(uuid: string) {
+    this.logger.log(`Removing extended trigger logic for phase ${uuid}`);
     const phase = await this.findOrThrow(uuid);
 
     if (phase.isActive) {
+      this.logger.warn(
+        `Cannot remove extended trigger logic for active phase ${uuid}`,
+      );
       throw new RpcException(
         'Cannot remove extended trigger logic from an active phase',
       );

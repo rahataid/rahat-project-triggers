@@ -57,6 +57,10 @@ export class TriggerProcessor {
       where: { phaseId: phaseData.uuid, isDeleted: false },
     });
 
+    this.logger.log(
+      `Running extended trigger logic evaluation for phase ${phaseData.uuid} with ${triggers.length} trigger records`,
+    );
+
     const triggersMap: TriggersMap = {};
     const mandatoryTriggerKeys: string[] = [];
 
@@ -71,6 +75,10 @@ export class TriggerProcessor {
       }
     }
 
+    this.logger.debug(
+      `Prepared evaluation input for phase ${phaseData.uuid}: triggerKeys=${Object.keys(triggersMap).length}, mandatoryKeys=${mandatoryTriggerKeys.length}, groupCount=${extendedLogic.groups?.length ?? 0}`,
+    );
+
     const result = evaluatePhase({
       phaseId: phaseData.uuid,
       mandatoryTriggerKeys,
@@ -83,7 +91,14 @@ export class TriggerProcessor {
     );
 
     if (result.finalResult) {
+      this.logger.log(
+        `Extended trigger logic conditions met for phase ${phaseData.uuid}; activating phase`,
+      );
       this.phaseService.activatePhase(phaseData.uuid);
+    } else {
+      this.logger.log(
+        `Extended trigger logic conditions not met for phase ${phaseData.uuid}; activation skipped`,
+      );
     }
   }
 

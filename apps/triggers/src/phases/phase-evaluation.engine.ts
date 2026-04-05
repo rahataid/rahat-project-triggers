@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type {
   ExtendedTriggerLogic,
   TriggersMap,
@@ -9,6 +10,8 @@ import type {
   PhaseEvaluationInput,
   PhaseEvaluationResult,
 } from './phase-evaluation.types';
+
+const logger = new Logger('PhaseEvaluationEngine');
 
 /**
  * Resolve a single trigger's boolean value from the map.
@@ -22,6 +25,7 @@ export function evaluateTrigger(
 ): boolean {
   // Reuse cached result for shared triggers across groups
   if (cache?.has(logicKey)) {
+    logger.debug(`Using cached evaluation for trigger ${logicKey}`);
     return cache.get(logicKey)!;
   }
 
@@ -29,6 +33,7 @@ export function evaluateTrigger(
 
   // Missing data → FALSE
   if (!state) {
+    logger.warn(`Trigger ${logicKey} is missing from trigger map; treating as false`);
     cache?.set(logicKey, false);
     return false;
   }
@@ -44,10 +49,14 @@ export function evaluateTrigger(
   ) {
     const age = Date.now() - new Date(state.dataTimestamp).getTime();
     if (age > state.freshnessWindowMs) {
+      logger.warn(
+        `Trigger ${logicKey} is stale (age: ${age}ms, freshnessWindowMs: ${state.freshnessWindowMs}); treating as false`,
+      );
       result = false;
     }
   }
 
+  logger.debug(`Trigger ${logicKey} evaluated to ${result}`);
   cache?.set(logicKey, result);
   return result;
 }
@@ -61,6 +70,9 @@ export function evaluateMandatoryTriggers(
   triggersMap: TriggersMap,
   cache?: Map<string, boolean>,
 ): MandatoryEvaluationResult {
+  logger.debug(
+    `Evaluating mandatory triggers: count=${mandatoryTriggerKeys.length}`,
+  );
   const triggerResults: Record<string, boolean> = {};
 
   if (mandatoryTriggerKeys.length === 0) {
@@ -74,6 +86,8 @@ export function evaluateMandatoryTriggers(
     if (!val) allTrue = false;
   }
 
+  logger.debug(`Mandatory evaluation result=${allTrue}`);
+
   return { triggerResults, result: allTrue };
 }
 
@@ -85,6 +99,9 @@ export function evaluateGroup(
   triggersMap: TriggersMap,
   cache?: Map<string, boolean>,
 ): GroupEvaluationResult {
+  logger.debug(
+    `Evaluating trigger group with operator=${group.operator}, triggerCount=${group.triggers.length}`,
+  );
   const triggers: Record<string, boolean> = {};
 
   for (const key of group.triggers) {
@@ -101,6 +118,10 @@ export function evaluateGroup(
     result = Object.values(triggers).some(Boolean);
   }
 
+  logger.debug(
+    `Group evaluation completed with operator=${group.operator}, result=${result}`,
+  );
+
   return { operator: group.operator, triggers, result };
 }
 
@@ -112,6 +133,9 @@ export function evaluateExtendedLogic(
   triggersMap: TriggersMap,
   cache?: Map<string, boolean>,
 ): ExtendedLogicEvaluationResult {
+  logger.debug(
+    `Evaluating extended logic: joinOperator=${config.joinOperator}, groupCount=${config.groups.length}`,
+  );
   const groups: GroupEvaluationResult[] = config.groups.map((g) =>
     evaluateGroup(g, triggersMap, cache),
   );
@@ -125,6 +149,8 @@ export function evaluateExtendedLogic(
   } else {
     result = groups.some((g) => g.result);
   }
+
+  logger.debug(`Extended logic evaluation result=${result}`);
 
   return { joinOperator: config.joinOperator, groups, result };
 }
@@ -140,6 +166,9 @@ export function evaluateExtendedLogic(
 export function evaluatePhase(
   input: PhaseEvaluationInput,
 ): PhaseEvaluationResult {
+  logger.log(
+    `Evaluating phase ${input.phaseId}: mandatoryCount=${input.mandatoryTriggerKeys.length}, triggerCount=${Object.keys(input.triggersMap).length}`,
+  );
   const cache = new Map<string, boolean>();
 
   const mandatory = evaluateMandatoryTriggers(
@@ -154,8 +183,15 @@ export function evaluatePhase(
 
   const hasMandatory = input.mandatoryTriggerKeys.length > 0;
 
+  logger.debug(
+    `Phase ${input.phaseId} configuration: hasMandatory=${hasMandatory}, hasExtendedLogic=${hasExtendedLogic}`,
+  );
+
   // Nothing configured → false (prevent accidental activation)
   if (!hasMandatory && !hasExtendedLogic) {
+    logger.warn(
+      `Phase ${input.phaseId} has no mandatory or extended logic configuration; final result=false`,
+    );
     return {
       phaseId: input.phaseId,
       mandatory,
@@ -166,6 +202,9 @@ export function evaluatePhase(
 
   // Short-circuit: if mandatory fails, skip extended logic
   if (hasMandatory && !mandatory.result) {
+    logger.log(
+      `Phase ${input.phaseId} mandatory evaluation failed; skipping extended logic`,
+    );
     return {
       phaseId: input.phaseId,
       mandatory,
@@ -186,10 +225,15 @@ export function evaluatePhase(
     extendedResult = extendedLogic.result;
   }
 
+  const finalResult = mandatory.result && extendedResult;
+  logger.log(
+    `Phase ${input.phaseId} evaluation completed: mandatory=${mandatory.result}, extended=${extendedResult}, final=${finalResult}`,
+  );
+
   return {
     phaseId: input.phaseId,
     mandatory,
     extendedLogic,
-    finalResult: mandatory.result && extendedResult,
+    finalResult,
   };
 }
