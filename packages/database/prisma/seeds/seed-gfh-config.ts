@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 const config: GfhApiKeyType = {
   name: 'GFHAPIKEY',
   value: {
-    API_KEY: 'AIzaSyC_5LUv3k3A',
+    API_KEY: 'AIzaSyC_5LUv3k3Ah6nYJu9zPFIXsS06dqE9LqM',
   },
   isPrivate: false,
 };

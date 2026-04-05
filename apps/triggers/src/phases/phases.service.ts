@@ -8,8 +8,9 @@ import {
 import { CreatePhaseDto } from './dto/create-phase.dto';
 import {
   ConfigureThresholdPhaseDto,
+  SetExtendedTriggerLogicDto,
   UpdatePhaseDto,
-} from './dto/update-phase.dto';
+} from './dto';
 import {
   paginator,
   PaginatorTypes,
@@ -55,6 +56,7 @@ export class PhasesService {
       canTriggerPayout,
       requiredMandatoryTriggers,
       requiredOptionalTriggers,
+      extendedTriggerLogic,
     } = payload;
 
     this.logger.log(
@@ -115,6 +117,7 @@ export class PhasesService {
           canTriggerPayout,
           requiredMandatoryTriggers: requiredMandatoryTriggers || 0,
           requiredOptionalTriggers: requiredOptionalTriggers || 0,
+          ...(extendedTriggerLogic && { extendedTriggerLogic }),
         },
       });
     } catch (error: any) {
@@ -209,6 +212,9 @@ export class PhasesService {
         rest.requiredMandatoryTriggers ?? phase.requiredMandatoryTriggers,
       requiredOptionalTriggers:
         rest.requiredOptionalTriggers ?? phase.requiredOptionalTriggers,
+      ...(rest.extendedTriggerLogic !== undefined && {
+        extendedTriggerLogic: rest.extendedTriggerLogic,
+      }),
     };
 
     try {
@@ -541,7 +547,7 @@ export class PhasesService {
 
   async addTriggersToPhases(payload) {
     try {
-      const { uuid, triggers, triggerRequirements } = payload;
+      const { uuid, triggers, triggerRequirements, extendedTriggerLogic } = payload;
 
       const phase = await this.prisma.phase.findUnique({
         where: {
@@ -581,6 +587,7 @@ export class PhasesService {
             triggerRequirements.mandatoryTriggers.requiredTriggers,
           requiredOptionalTriggers:
             triggerRequirements.optionalTriggers.requiredTriggers,
+          ...(extendedTriggerLogic !== undefined && { extendedTriggerLogic }),
         },
       });
 
@@ -832,5 +839,49 @@ export class PhasesService {
       this.logger.error('Error while deleting phase', error);
       throw new RpcException(error?.message || 'Something went wrong');
     }
+  }
+
+  async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
+    const { uuid, ...extendedTriggerLogic } = payload;
+    console.log('Setting extended trigger logic for phase', uuid, extendedTriggerLogic);
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      throw new RpcException(
+        'Cannot update extended trigger logic on an active phase',
+      );
+    }
+
+    return this.prisma.phase.update({
+      where: { uuid },
+      data: {
+        extendedTriggerLogic: extendedTriggerLogic as unknown as object,
+      },
+    });
+  }
+
+  async getExtendedTriggerLogic(uuid: string) {
+    const phase = await this.findOrThrow(uuid);
+    return {
+      uuid: phase.uuid,
+      extendedTriggerLogic: phase.extendedTriggerLogic ?? null,
+    };
+  }
+
+  async removeExtendedTriggerLogic(uuid: string) {
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      throw new RpcException(
+        'Cannot remove extended trigger logic from an active phase',
+      );
+    }
+
+    return this.prisma.phase.update({
+      where: { uuid },
+      data: {
+        extendedTriggerLogic: null,
+      },
+    });
   }
 }

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import type { Job } from 'bull';
 import { TriggerProcessor } from './trigger.processor';
 import { PhasesService } from '../phases/phases.service';
-import { DataSource } from '@lib/database';
+import { DataSource, PrismaService } from '@lib/database';
 
 describe('TriggerProcessor', () => {
   let processor: TriggerProcessor;
@@ -19,6 +19,10 @@ describe('TriggerProcessor', () => {
         {
           provide: PhasesService,
           useValue: mockPhasesService,
+        },
+        {
+          provide: PrismaService,
+          useValue: {},
         },
       ],
     }).compile();
