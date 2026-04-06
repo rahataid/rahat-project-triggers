@@ -1,7 +1,7 @@
 import { PrismaClient } from '../../generated/prisma';
 
 const prisma = new PrismaClient();
-const appUuid = '93259f57-4acb-47ac-970b-165b4db881f5'; // Replace with actual app UUID for HEATWAVE project
+const appUuid = null; // Replace with actual app UUID for HEATWAVE project
 const heatwaveCategories: string[] = [
   'Forecast and Early Warning Messages',
   'Distribution of multipurpose cash to the most vulnerable population',
