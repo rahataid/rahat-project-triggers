@@ -18,7 +18,7 @@ export type RainfallWaterLevelConfig = Omit<
       SERIESID: number[];
     }
   >,
-  'PROB_FLOOD'
+  'PROB_FLOOD' | 'HUMIDITY'
 >;
 
 export type DataSourceValue = {
