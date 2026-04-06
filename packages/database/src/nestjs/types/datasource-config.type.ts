@@ -6,7 +6,7 @@ export type URLConfig = {
 
 export type DataSourceDHMConfig = Omit<
   Record<keyof typeof SourceType, URLConfig>,
-  'PROB_FLOOD'
+  'PROB_FLOOD' | 'HUMIDITY'
 >;
 
 export type DataSourceConfigValue = {
