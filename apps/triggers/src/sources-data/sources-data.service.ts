@@ -269,9 +269,7 @@ export class SourcesDataService {
       this.logger.error(
         `No sourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
       );
-      throw new RpcException(
-        `No sourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
-      );
+      return {};
     }
 
     const infos = sourcesData?.map((item) => item.info);
