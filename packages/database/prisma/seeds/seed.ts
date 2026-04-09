@@ -17,6 +17,10 @@ const config: DataSourceType = {
           LOCATION: 'Doda river at East-West Highway',
           SERIESID: [29785, 29608, 5726, 29689],
         },
+        [SourceType.TEMPERATURE]: {
+          LOCATION: 'Doda river at East-West Highway',
+          SERIESID: [30119, 30126, 30112],
+        },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'Doda river at East-West Highway',
           SERIESID: [29089],
@@ -26,6 +30,10 @@ const config: DataSourceType = {
         [SourceType.RAINFALL]: {
           LOCATION: 'Doda river at East-West Highway',
           SERIESID: [29785, 29608, 5726, 29689],
+        },
+        [SourceType.TEMPERATURE]: {
+          LOCATION: 'Doda river at East-West Highway',
+          SERIESID: [30119, 30126, 30112],
         },
         [SourceType.WATER_LEVEL]: {
           LOCATION: 'Doda river at East-West Highway',
