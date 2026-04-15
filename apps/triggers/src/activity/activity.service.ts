@@ -17,6 +17,7 @@ import {
 } from './dto';
 import { paginateResult } from 'src/utils/pagination';
 import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
+import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -80,7 +81,9 @@ export class ActivityService {
       const {
         activityCommunication,
         title,
+        responsibleStation,
         isAutomated,
+        isTemplate,
         leadTime,
         categoryId,
         description,
@@ -109,9 +112,11 @@ export class ActivityService {
       const newActivity = await this.prisma.activity.create({
         data: {
           title,
+          responsibleStation,
           description,
           leadTime,
           isAutomated,
+          isTemplate,
           ...(manager && {
             manager: {
               connectOrCreate: {
@@ -1005,6 +1010,7 @@ export class ActivityService {
         activityCommunication,
         isAutomated,
         title,
+        responsibleStation,
         phaseId,
         leadTime,
         description,
@@ -1049,6 +1055,7 @@ export class ActivityService {
         },
         data: {
           title: title || activity.title,
+          responsibleStation: responsibleStation || activity.responsibleStation,
           description: description || activity.description,
           leadTime: leadTime || activity.leadTime,
           isAutomated: isAutomated,
@@ -1100,7 +1107,7 @@ export class ActivityService {
       const { selectedCommunication } =
         await this.getActivityCommunicationDetails(communicationId, activityId);
 
-      const { groupName } = await this.getGroupDetails(
+      const { group } = await this.getGroupDetails(
         selectedCommunication.groupType,
         selectedCommunication.groupId,
         payload.appId,
@@ -1112,7 +1119,11 @@ export class ActivityService {
 
       if (!data) {
         this.logger.warn('Session not found');
-        throw new RpcException('Session not found.');
+        return {
+          sessionDetails: null,
+          communicationDetail: selectedCommunication,
+          group,
+        };
       }
 
       const { addresses, ...rest } = data;
@@ -1120,7 +1131,7 @@ export class ActivityService {
       return {
         sessionDetails: rest,
         communicationDetail: selectedCommunication,
-        groupName,
+        group,
       };
     } catch (error: any) {
       this.logger.error('Error while fetching session logs', error);
@@ -1290,6 +1301,60 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Error while fetching communication stats', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
+  async getTransportSessionStats(appId: string) {
+    this.logger.log('Fetching transport session stats');
+
+    if (!appId) {
+      this.logger.warn('App ID is missing');
+      throw new RpcException('App ID is missing');
+    }
+
+    try {
+      // Step 1: Build transport cache (transportId -> transportName)
+      const transportCache = await this.buildTransportCache();
+
+      // Step 2: Get all transportIds with their counts in a single SQL query
+      const rows = await this.prisma.$queryRaw<
+        { transportId: string; total: number }[]
+      >`
+      SELECT
+        comm_elem->>'transportId' AS "transportId",
+        COUNT(*)::int             AS total
+      FROM
+        public.tbl_activities a
+      CROSS JOIN LATERAL
+        jsonb_array_elements(a."activityCommunication"::jsonb) AS comm_elem
+      WHERE
+        a."isDeleted" = false
+        AND a."app" = ${appId}
+        AND a."activityCommunication" IS NOT NULL
+        AND a."activityCommunication"::jsonb != '[]'::jsonb
+        AND comm_elem->>'transportId' IS NOT NULL
+        AND comm_elem->>'sessionId' IS NOT NULL
+        AND comm_elem->>'sessionId' != ''
+      GROUP BY
+        comm_elem->>'transportId'
+    `;
+
+      if (!rows?.length) {
+        this.logger.warn('No communication data found');
+        return [];
+      }
+
+      // Step 3: Map transportId to transportName using cache
+      const result = rows.map((row) => ({
+        transportId: row.transportId,
+        transportName: transportCache.get(row.transportId) || 'Unknown',
+        total: row.total,
+      }));
+
+      return result;
+    } catch (error: any) {
+      this.logger.error('Error while fetching transport session stats', error);
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1581,6 +1646,37 @@ export class ActivityService {
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
       throw new RpcException(error);
+    }
+  }
+
+  async getByStakeholderUuid(payload: GetActivityByStakeholderUuidDto) {
+    const { stakeholderGroupUuid } = payload;
+    this.logger.log(
+      `Fetching activities for stakeholder ${stakeholderGroupUuid}`,
+    );
+
+    try {
+      // Use raw SQL query to search through JSONB array for matching groupId
+      const activities = await this.prisma.$queryRaw<any[]>`
+        SELECT * FROM "tbl_activities"
+        WHERE 
+          "isDeleted" = false
+          AND "activityCommunication" IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements("activityCommunication"::jsonb) AS elem
+            WHERE elem->>'groupId' = ${stakeholderGroupUuid}
+              AND elem->>'groupType' = 'STAKEHOLDERS'
+          )
+        ORDER BY "updatedAt" DESC
+      `;
+
+      return activities;
+    } catch (error: any) {
+      this.logger.error(
+        `Error while fetching activities for stakeholder ${stakeholderGroupUuid}`,
+        error,
+      );
+      throw new RpcException(error?.message || 'Something went wrong');
     }
   }
 }

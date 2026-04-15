@@ -9,6 +9,7 @@ import {
   GetPhaseByLocationDto,
   GetPhaseDto,
   RevertPhaseDto,
+  UpdatePhaseDto,
 } from './dto';
 import { ConfigService } from '@nestjs/config';
 
@@ -81,5 +82,19 @@ export class PhasesController {
   })
   async configurePhaseThreshold(payload: ConfigureThresholdPhaseDto) {
     return this.phasesService.configurePhaseThreshold(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.UPDATE,
+  })
+  async update(payload: UpdatePhaseDto) {
+    return this.phasesService.update(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.DELETE,
+  })
+  async delete(payload: { uuid: string }) {
+    return this.phasesService.delete(payload.uuid);
   }
 }

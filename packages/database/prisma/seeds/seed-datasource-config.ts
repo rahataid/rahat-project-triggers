@@ -7,10 +7,13 @@ const config: DataSourceConfigType = {
   value: {
     [DataSource.DHM]: {
       [SourceType.RAINFALL]: {
-        URL: 'http://www.dhm.gov.np/frontend_dhm/hydrology/getRainfallWatchMapBySeriesId',
+        URL: 'https://dhm.gov.np/hydrology/getRainfallWatchMapBySeriesId',
       },
       [SourceType.WATER_LEVEL]: {
         URL: 'https://dhm.gov.np/site/getRiverWatchBySeriesId_Single',
+      },
+      [SourceType.TEMPERATURE]: {
+        URL: 'https://dhm.gov.np/home/getAPIData/4',
       },
     },
     [DataSource.GLOFAS]: {

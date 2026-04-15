@@ -15,6 +15,7 @@ import {
   DhmInputItem,
   RiverStationItem,
   DhmSourceDataTypeEnum,
+  DhmTemperatureAdapter,
 } from '@lib/dhm-adapter';
 import { GlofasAdapter, GlofasServices } from '@lib/glofas-adapter';
 import { GfhAdapter, GfhService } from '@lib/gfh-adapter';
@@ -29,6 +30,7 @@ import {
 import { SourceType } from '@lib/database';
 import { SourceDataType } from './dto/get-source-data';
 import { RpcException } from '@nestjs/microservices';
+import { ProductionOnly } from '../utils/production-only.decorator';
 
 @Injectable()
 export class ScheduleSourcesDataService
@@ -38,6 +40,7 @@ export class ScheduleSourcesDataService
 
   private dhmWaterMonitored: HealthMonitoredAdapter<undefined>;
   private dhmRainfallMonitored: HealthMonitoredAdapter<undefined>;
+  private dhmTemperatureMonitored: HealthMonitoredAdapter<undefined>;
   private glofasMonitored: HealthMonitoredAdapter<null>;
   private gfhMonitored: HealthMonitoredAdapter<undefined>;
 
@@ -46,6 +49,7 @@ export class ScheduleSourcesDataService
     private readonly healthCacheService: HealthCacheService,
     private readonly dhmWaterLevelAdapter: DhmWaterLevelAdapter,
     private readonly dhmRainfallLevelAdapter: DhmRainfallAdapter,
+    private readonly dhmTemperatureAdapter: DhmTemperatureAdapter,
     private readonly glofasAdapter: GlofasAdapter,
     private readonly gfhAdapter: GfhAdapter,
     private readonly dhmService: DhmService,
@@ -59,6 +63,9 @@ export class ScheduleSourcesDataService
     this.dhmRainfallMonitored = this.wrapWithHealthMonitoring(
       this.dhmRainfallLevelAdapter,
     );
+    this.dhmTemperatureMonitored = this.wrapWithHealthMonitoring(
+      this.dhmTemperatureAdapter,
+    );
     this.glofasMonitored = this.wrapWithHealthMonitoring(this.glofasAdapter);
     this.gfhMonitored = this.wrapWithHealthMonitoring(this.gfhAdapter);
   }
@@ -68,14 +75,17 @@ export class ScheduleSourcesDataService
     [
       this.dhmWaterLevelAdapter,
       this.dhmRainfallLevelAdapter,
+      this.dhmTemperatureAdapter,
       this.glofasAdapter,
       this.gfhAdapter,
     ].forEach((adapter) => adapter.setHealthService(this.healthService));
   }
 
-  onApplicationBootstrap() {
+  @ProductionOnly()
+  async onApplicationBootstrap() {
     this.syncRiverWaterData();
     this.syncRainfallData();
+    this.syncTemperatureData();
     this.synchronizeGlofas();
     this.syncGfhData();
   }
@@ -90,31 +100,25 @@ export class ScheduleSourcesDataService
     );
   }
 
+  private logErrorDetails(details: unknown): void {
+    this.logger.warn(details);
+    if (details instanceof AxiosError) {
+      const errorMessage = `HTTP Error: ${details.response?.status} ${details.response?.statusText} - Data: ${JSON.stringify(details.response?.data)} - Config: ${JSON.stringify(details.response?.config)}`;
+      this.logger.warn(errorMessage);
+    }
+  }
+
   // run every 15 minutes
   @Cron('*/15 * * * *')
   async syncRiverWaterData() {
     const riverData = await this.dhmWaterMonitored.execute();
 
     if (isErr<Indicator[]>(riverData)) {
-      this.logger.warn(riverData.details);
-      if (riverData.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${riverData.details.response?.status} ${riverData.details.response?.statusText} - Data: ${JSON.stringify(riverData.details.response?.data)} - Config: ${JSON.stringify(riverData.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(riverData.details);
-      }
+      this.logErrorDetails(riverData.details);
       return;
     }
 
-    riverData.data.forEach(async (indicator) => {
-      const riverId = (indicator.location as any)?.basinId;
-
-      await this.dhmService.saveDataInDhm(
-        SourceType.WATER_LEVEL,
-        riverId,
-        indicator.info,
-      );
-    });
+    await this.saveDataInDhm(riverData.data, SourceType.WATER_LEVEL);
   }
 
   // run every 15 minutes
@@ -122,24 +126,42 @@ export class ScheduleSourcesDataService
   async syncRainfallData() {
     const rainfallData = await this.dhmRainfallMonitored.execute();
     if (isErr<Indicator[]>(rainfallData)) {
-      this.logger.warn(rainfallData.details);
-      if (rainfallData.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${rainfallData.details.response?.status} ${rainfallData.details.response?.statusText} - Data: ${JSON.stringify(rainfallData.details.response?.data)} - Config: ${JSON.stringify(rainfallData.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(rainfallData.details);
-      }
+      this.logErrorDetails(rainfallData.details);
+      return;
+    }
+    await this.saveDataInDhm(rainfallData.data, SourceType.RAINFALL);
+  }
+
+  // run every 1 hour
+  @Cron('0 * * * *')
+  async syncTemperatureData() {
+    const temperatureData = await this.dhmTemperatureMonitored.execute();
+    if (isErr<Indicator[]>(temperatureData)) {
+      this.logErrorDetails(temperatureData.details);
       return;
     }
 
-    rainfallData.data.forEach(async (indicator) => {
-      const riverId = (indicator.location as any)?.basinId;
-      await this.dhmService.saveDataInDhm(
-        SourceType.RAINFALL,
-        riverId,
-        indicator.info,
+    const groupedIndicators = temperatureData.data.reduce((obj, indicator) => {
+      if (obj[indicator.indicator]) {
+        obj[indicator.indicator].push(indicator);
+      } else {
+        obj[indicator.indicator] = [indicator];
+      }
+      return obj;
+    }, {});
+
+    if (groupedIndicators['temperature_c']) {
+      await this.saveDataInDhm(
+        groupedIndicators['temperature_c'],
+        SourceType.TEMPERATURE,
       );
-    });
+    }
+    if (groupedIndicators['prob_humidity']) {
+      await this.saveDataInDhm(
+        groupedIndicators['prob_humidity'],
+        SourceType.HUMIDITY,
+      );
+    }
   }
 
   // run every hour
@@ -148,13 +170,7 @@ export class ScheduleSourcesDataService
     const glofasResult = await this.glofasMonitored.execute(null);
 
     if (isErr<Indicator[]>(glofasResult)) {
-      this.logger.warn(glofasResult.details);
-      if (glofasResult.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${glofasResult.details.response?.status} ${glofasResult.details.response?.statusText} - Data: ${JSON.stringify(glofasResult.details.response?.data)} - Config: ${JSON.stringify(glofasResult.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(glofasResult.details);
-      }
+      this.logErrorDetails(glofasResult.details);
       return;
     }
 
@@ -172,13 +188,7 @@ export class ScheduleSourcesDataService
     const gfhResult = await this.gfhMonitored.execute();
 
     if (isErr<Indicator[]>(gfhResult)) {
-      this.logger.warn(gfhResult.details);
-      if (gfhResult.details instanceof AxiosError) {
-        const errorMessage = `HTTP Error: ${gfhResult.details.response?.status} ${gfhResult.details.response?.statusText} - Data: ${JSON.stringify(gfhResult.details.response?.data)} - Config: ${JSON.stringify(gfhResult.details.response?.config)}`;
-        this.logger.warn(errorMessage);
-      } else {
-        this.logger.warn(gfhResult.details);
-      }
+      this.logErrorDetails(gfhResult.details);
       return;
     }
 
@@ -191,11 +201,33 @@ export class ScheduleSourcesDataService
     });
   }
 
+  async saveDataInDhm(indicators: Indicator[], type: SourceType) {
+    const basinIndicators = indicators.filter(
+      (indicator) => indicator.location.type === 'BASIN',
+    );
+
+    await Promise.all(
+      basinIndicators.map(async (indicator) => {
+        try {
+          const { basinId } = indicator.location as {
+            type: 'BASIN';
+            basinId: string;
+          };
+          await this.dhmService.saveDataInDhm(type, basinId, indicator.info);
+        } catch (error: any) {
+          this.logger.warn(
+            `Failed to save data for basin ${(indicator.location as any).basinId}: ${error.message}`,
+          );
+        }
+      }),
+    );
+  }
+
   async getDhmWaterLevels(
     date: Date,
     period: SourceDataType,
     seriesId: number,
-  ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | {}> {
+  ): Promise<(RiverStationItem & { history: DhmInputItem[] }) | object> {
     const result: Awaited<
       ReturnType<typeof this.dhmWaterLevelAdapter.executeByPeriod>
     > = await this.dhmWaterLevelAdapter.executeByPeriod(

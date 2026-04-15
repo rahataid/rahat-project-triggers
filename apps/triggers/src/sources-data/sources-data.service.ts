@@ -10,7 +10,13 @@ import {
 import { PaginationDto } from 'src/common/dto';
 import { HttpService } from '@nestjs/axios';
 import { RpcException } from '@nestjs/microservices';
-import { GetSouceDataDto, SourceDataType } from './dto/get-source-data';
+import {
+  GetAllGlofasProbFloodDto,
+  GetOneGlofasProbFloodDto,
+  GetSouceDataDto,
+  GetTemperatureSourceDataDto,
+  SourceDataType,
+} from './dto/get-source-data';
 import * as https from 'https';
 import { getFormattedDate } from 'src/common';
 import { GetSeriesDto } from './dto/get-series';
@@ -18,7 +24,10 @@ import { DhmService as DHM } from '@lib/dhm-adapter';
 import { GlofasServices } from '@lib/glofas-adapter';
 import { GfhService } from '@lib/gfh-adapter';
 import { ScheduleSourcesDataService } from './schedule-sources-data.service';
-import { GetDhmSingleSeriesDto } from './dto/get-dhm-single-series.dto';
+import {
+  GetDhmSingleSeriesDto,
+  GetDhmSingleSeriesTemperatureDto,
+} from './dto/get-dhm-single-series.dto';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 @Injectable()
@@ -30,7 +39,7 @@ export class SourcesDataService {
     private readonly glofasServices: GlofasServices,
     private readonly gfhServices: GfhService,
     private readonly scheduleSourcesDataService: ScheduleSourcesDataService,
-  ) { }
+  ) {}
 
   async create(dto: CreateSourcesDataDto) {
     const { info, source, riverBasin, type } = dto;
@@ -89,11 +98,17 @@ export class SourcesDataService {
 
   async findSeriesByDataSource(payload: GetSeriesDto) {
     try {
-      const { dataSource, type, riverBasin, stationName } = payload;
+      const {
+        dataSource,
+        type,
+        riverBasin,
+        stationName,
+        levelType = null,
+      } = payload;
 
       switch (dataSource) {
         case DataSource.DHM: {
-          const dhm = await this.dhm.getSourceData(type, riverBasin);
+          const dhm = await this.dhm.getSourceData(type, riverBasin, levelType);
           return dhm;
         }
         case DataSource.GLOFAS: {
@@ -175,6 +190,20 @@ export class SourcesDataService {
     }
   }
 
+  async getHeatwaveDhmLevels(
+    payload: GetTemperatureSourceDataDto,
+    sourceType: SourceType = SourceType.TEMPERATURE,
+  ) {
+    this.logger.log('Fetching temperature data');
+    try {
+      return await this.getHeatwaveLevels(payload, sourceType);
+    } catch (error: any) {
+      this.logger.error(`Error while getting temperature data: ${error}`);
+      throw new RpcException(
+        `Failed to fetch temperature data: '${error.message}'`,
+      );
+    }
+  }
   async getRainfallLevels(payload: GetSouceDataDto) {
     this.logger.log('Fetching rainfall data');
     try {
@@ -212,7 +241,7 @@ export class SourcesDataService {
     }
 
     if (source !== DataSource.DHM) {
-      return this.getGlofasWaterLevels(payload);
+      return;
     }
 
     if (!type) {
@@ -232,7 +261,7 @@ export class SourcesDataService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        updatedAt: 'desc',
       },
     });
 
@@ -240,42 +269,91 @@ export class SourcesDataService {
       this.logger.error(
         `No sourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
       );
-      throw new RpcException(
-        `No sourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
-      );
+      return {};
     }
 
     const infos = sourcesData?.map((item) => item.info);
 
-    const dataInfos = { ...sourcesData[0], info: infos };
+    const uniqueInfos = this.getUniqueSeriesData(infos);
+
+    const dataInfos = { ...sourcesData[0], info: uniqueInfos };
 
     return dataInfos;
   }
 
-  async getGlofasWaterLevels(payload: GetSouceDataDto) {
-    let { riverBasin } = payload;
+  async getHeatwaveLevels(
+    payload: GetTemperatureSourceDataDto,
+    type: SourceType,
+  ) {
+    const { riverBasin, source, parameter } = payload;
 
-    // DHM uses Doda for Dhoda where as Glofas uses Dhoda
-    riverBasin = riverBasin.replace('Dhoda', 'Doda');
+    if (!riverBasin) {
+      this.logger.warn('River basin is not passed in the payload');
+      throw new RpcException('River basin is required');
+    }
+
+    if (source !== DataSource.DHM) {
+      throw new RpcException(
+        'Temperature data is only available for DHM source',
+      );
+    }
+
+    const temperatureSourcesData = await this.prisma.sourcesData.findMany({
+      where: {
+        type,
+        dataSource: source,
+        source: { riverBasin },
+        ...(parameter && {
+          info: {
+            path: ['parameter_code'],
+            equals: parameter,
+          },
+        }),
+      },
+      include: {
+        source: {
+          select: { riverBasin: true, source: true },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    if (!temperatureSourcesData.length) {
+      this.logger.error(
+        `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+      );
+      throw new RpcException(
+        `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+      );
+    }
+
+    const infos = temperatureSourcesData?.map((item) => item.info);
+    const uniqueInfos = this.getUniqueSeriesData(infos);
+
+    const dataInfos = { ...temperatureSourcesData[0], info: uniqueInfos };
+
+    return dataInfos;
+  }
+
+  private getGlofasForecastDate() {
     const yesterdayDate = new Date();
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const date = getFormattedDate(yesterdayDate);
-
-    const data = await this.findGlofasData(riverBasin, date.dateString);
-
-    return data;
+    return date.dateString;
   }
 
-  async getGfhWaterLevels(payload: GetSouceDataDto) {
+  async getAllGlofasProbFlood(payload: GetAllGlofasProbFloodDto) {
+    this.logger.log('Fetching all Glofas Prob Flood data');
+
     const { riverBasin } = payload;
 
-    const date = getFormattedDate();
-    return await this.findGfhData(riverBasin, date.dateString);
-  }
+    const forecastDate = this.getGlofasForecastDate();
 
-  async findGlofasData(riverBasin: string, forecastDate: string) {
-    const recordExists = await this.prisma.sourcesData.findFirst({
+    const records = await this.prisma.sourcesData.findMany({
       where: {
+        type: SourceType.PROB_FLOOD,
         dataSource: DataSource.GLOFAS,
         source: {
           riverBasin,
@@ -288,8 +366,57 @@ export class SourcesDataService {
       include: {
         source: { select: { riverBasin: true } },
       },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
-    return recordExists;
+    return records;
+  }
+
+  async getOneGlofasProbFlood(payload: GetOneGlofasProbFloodDto) {
+    const { riverBasin, returnPeriod } = payload;
+
+    this.logger.log(
+      `Fetching Glofas Prob Flood data; return period ${returnPeriod}`,
+    );
+
+    const forecastDate = this.getGlofasForecastDate();
+
+    const record = await this.prisma.sourcesData.findFirst({
+      where: {
+        type: SourceType.PROB_FLOOD,
+        dataSource: DataSource.GLOFAS,
+        source: {
+          riverBasin,
+        },
+        AND: [
+          {
+            info: {
+              path: ['forecastDate'],
+              equals: forecastDate,
+            },
+          },
+          {
+            info: {
+              path: ['returnPeriod'],
+              equals: returnPeriod,
+            },
+          },
+        ],
+      },
+      include: {
+        source: { select: { riverBasin: true } },
+      },
+    });
+
+    return record;
+  }
+
+  async getGfhWaterLevels(payload: GetSouceDataDto) {
+    const { riverBasin } = payload;
+
+    const date = getFormattedDate();
+    return await this.findGfhData(riverBasin, date.dateString);
   }
 
   async findGfhData(
@@ -316,19 +443,19 @@ export class SourcesDataService {
                 info: {
                   path: ['forecastDate'],
                   equals: forecastDate,
-                }
+                },
               },
-            ]
+            ],
           },
           ...(stationName
             ? [
-              {
-                info: {
-                  path: ['stationName'],
-                  equals: stationName,
+                {
+                  info: {
+                    path: ['stationName'],
+                    equals: stationName,
+                  },
                 },
-              },
-            ]
+              ]
             : []),
         ],
       },
@@ -377,5 +504,64 @@ export class SourcesDataService {
     );
 
     return { info: result };
+  }
+
+  async getOneDhmSeriesHeatwave(
+    payload: GetDhmSingleSeriesTemperatureDto,
+    sourceType: SourceType = SourceType.TEMPERATURE,
+  ) {
+    const { seriesId, riverBasin, parameter } = payload;
+
+    const record = await this.prisma.sourcesData.findFirst({
+      where: {
+        type: sourceType,
+        dataSource: DataSource.DHM,
+        source: { riverBasin },
+        ...(parameter && {
+          info: {
+            path: ['parameter_code'],
+            equals: parameter,
+          },
+        }),
+        ...(seriesId && {
+          info: {
+            path: ['series_id'],
+            equals: seriesId,
+          },
+        }),
+      },
+      include: {
+        source: {
+          select: { riverBasin: true, source: true },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    if (!record) {
+      this.logger.error(
+        `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
+      );
+      throw new RpcException(
+        `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
+      );
+    }
+
+    return record;
+  }
+
+  private getUniqueSeriesData(infos: unknown[]) {
+    const uniqueSeriesMap = new Map();
+
+    infos.forEach((info: unknown) => {
+      const seriesId = (info as { series_id: string }).series_id;
+      if (seriesId && !uniqueSeriesMap.has(seriesId)) {
+        uniqueSeriesMap.set(seriesId, info);
+      }
+    });
+
+    return Array.from(uniqueSeriesMap.values());
   }
 }

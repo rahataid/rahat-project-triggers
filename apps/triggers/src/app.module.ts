@@ -22,6 +22,7 @@ import { TriggerHistoryModule } from './trigger-history/trigger-history.module';
 import { StatsModule } from './stats/stat.module';
 import { HttpModule } from '@nestjs/axios';
 import { SettingsModule } from '@lib/core';
+import { LibraryModule } from './library/library.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { SettingsModule } from '@lib/core';
     SourceModule,
     TriggerHistoryModule,
     StatsModule,
+    LibraryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

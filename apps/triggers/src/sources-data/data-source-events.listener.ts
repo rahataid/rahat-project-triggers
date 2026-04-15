@@ -142,6 +142,76 @@ export class DataSourceEventsListener {
     }
   }
 
+  @OnEvent(core.DATA_SOURCE_EVENTS.DHM.TEMPERATURE)
+  async handleDhmTemperature(event: core.DataSourceEventPayload) {
+    const indicators: core.Indicator[] = event.indicators;
+    this.logger.log(
+      `DHM TEMPERATURE EVENT RECEIVED ${indicators.length} indicators`,
+    );
+
+    if (indicators.length === 0) {
+      this.logger.warn(`indicators not found `);
+      return;
+    }
+
+    const uniqueIndicators = Array.from(
+      new Set(indicators.map((ind) => ind.indicator)),
+    );
+
+    const triggers: TriggerType[] = [];
+
+    for (const indicator of uniqueIndicators) {
+      const indicatorTriggers =
+        await this.triggerService.findTriggersBySourceAndIndicator(
+          DataSource.DHM,
+          indicator,
+        );
+
+      triggers.push(...indicatorTriggers);
+    }
+
+    if (!triggers.length) {
+      this.logger.warn('No triggers found for DHM Temperature event');
+      return;
+    }
+
+    const triggerMap: Record<string, TriggerType[]> = triggers.reduce(
+      (acc, trigger) => {
+        const statement = trigger.triggerStatement as TriggerStatement;
+        const stationId = statement.stationId;
+
+        if (!stationId) {
+          this.logger.warn(
+            `Station ID not found for trigger ${trigger.uuid} for TEMPERATURE TRIGGER`,
+          );
+          return acc;
+        }
+
+        if (!acc[stationId]) {
+          acc[stationId] = [];
+        }
+        acc[stationId].push(trigger);
+        return acc;
+      },
+      {},
+    );
+
+    for await (const indicator of indicators) {
+      const stationId =
+        indicator.location.type === 'BASIN'
+          ? indicator.location.seriesId
+          : undefined;
+
+      const triggers = triggerMap[stationId];
+
+      if (!triggers) {
+        continue;
+      }
+
+      await this.processAndEvaluateTriggers(triggers, indicator.value);
+    }
+  }
+
   @OnEvent(core.DATA_SOURCE_EVENTS.GLOFAS.WATER_LEVEL)
   async handleGlofasWaterLevel(event: core.DataSourceEventPayload) {
     const indicators = event.indicators;
@@ -163,7 +233,7 @@ export class DataSourceEventsListener {
     );
 
     if (!triggers.length) {
-      this.logger.log('No triggers found for DHM Rainfall event');
+      this.logger.warn('No triggers found for DHM Rainfall event');
       return;
     }
 

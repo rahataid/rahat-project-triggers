@@ -663,4 +663,51 @@ describe('ActivityController', () => {
       ).rejects.toThrow(error);
     });
   });
+
+  describe('getTransportSessionStats', () => {
+    const mockPayload = { appId: 'app-id' };
+
+    it('should successfully get transport session stats', async () => {
+      const mockResult: any = [
+        { transportId: 'transport-sms', transportName: 'SMS', total: 4 },
+        { transportId: 'transport-email', transportName: 'Email', total: 3 },
+        { transportId: 'transport-voice', transportName: 'Voice', total: 3 },
+      ];
+
+      jest
+        .spyOn(mockActivityService, 'getTransportSessionStats')
+        .mockResolvedValue(mockResult);
+
+      const result = await controller.getTransportSessionStats(mockPayload);
+
+      expect(mockActivityService.getTransportSessionStats).toHaveBeenCalledWith(
+        mockPayload.appId,
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should return empty array when no communication data exists', async () => {
+      jest
+        .spyOn(mockActivityService, 'getTransportSessionStats')
+        .mockResolvedValue([]);
+
+      const result = await controller.getTransportSessionStats(mockPayload);
+
+      expect(mockActivityService.getTransportSessionStats).toHaveBeenCalledWith(
+        mockPayload.appId,
+      );
+      expect(result).toEqual([]);
+    });
+
+    it('should handle service errors', async () => {
+      const error = new Error('Service error');
+      jest
+        .spyOn(mockActivityService, 'getTransportSessionStats')
+        .mockRejectedValue(error);
+
+      await expect(
+        controller.getTransportSessionStats(mockPayload),
+      ).rejects.toThrow(error);
+    });
+  });
 });

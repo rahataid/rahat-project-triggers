@@ -65,6 +65,7 @@ describe('PhasesService', () => {
     activity: {
       findMany: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
   };
 
@@ -189,8 +190,6 @@ describe('PhasesService', () => {
           activeYear: createPhaseDto.activeYear,
           canRevert: createPhaseDto.canRevert,
           canTriggerPayout: createPhaseDto.canTriggerPayout,
-          receivedMandatoryTriggers: createPhaseDto.receivedMandatoryTriggers,
-          receivedOptionalTriggers: createPhaseDto.receivedOptionalTriggers,
           requiredMandatoryTriggers: createPhaseDto.requiredMandatoryTriggers,
           requiredOptionalTriggers: createPhaseDto.requiredOptionalTriggers,
         },
@@ -202,11 +201,89 @@ describe('PhasesService', () => {
       delete dtoWithoutActiveYear.activeYear;
 
       await expect(service.create(dtoWithoutActiveYear)).rejects.toThrow(
-        new BadRequestException('Active year is required'),
+        RpcException,
       );
     });
 
+    it('should throw RpcException when name is missing', async () => {
+      await expect(
+        service.create({ ...createPhaseDto, name: undefined }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when river_basin is missing', async () => {
+      await expect(
+        service.create({ ...createPhaseDto, river_basin: undefined }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when duplicate phase exists', async () => {
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue({
+        uuid: 'existing-uuid',
+        name: createPhaseDto.name,
+        activeYear: createPhaseDto.activeYear,
+        riverBasin: createPhaseDto.river_basin,
+      });
+
+      await expect(service.create(createPhaseDto)).rejects.toThrow(
+        RpcException,
+      );
+      await expect(service.create(createPhaseDto)).rejects.toThrow(
+        `Phase with name ${createPhaseDto.name}, activeYear ${createPhaseDto.activeYear} and riverBasin ${createPhaseDto.river_basin} already exists`,
+      );
+    });
+
+    it('should throw RpcException when another phase with canTriggerPayout=true exists for same riverBasin', async () => {
+      const payloadWithPayout: CreatePhaseDto = {
+        ...createPhaseDto,
+        canTriggerPayout: true,
+      };
+
+      (prismaService.phase.findFirst as jest.Mock)
+        .mockResolvedValueOnce(null) // no duplicate phase
+        .mockResolvedValueOnce({
+          // payout conflict found
+          uuid: 'other-uuid',
+          name: Phases.READINESS,
+          activeYear: '2025',
+          canTriggerPayout: true,
+          riverBasin: 'Karnali',
+        });
+
+      await expect(service.create(payloadWithPayout)).rejects.toThrow(
+        /already has payout enabled/,
+      );
+    });
+
+    it('should NOT call validateSinglePayoutPhase when canTriggerPayout is false', async () => {
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(null);
+      (prismaService.phase.create as jest.Mock).mockResolvedValue({});
+
+      const validateSpy = jest.spyOn(
+        service as any,
+        'validateSinglePayoutPhase',
+      );
+
+      await service.create({ ...createPhaseDto, canTriggerPayout: false });
+
+      expect(validateSpy).not.toHaveBeenCalled();
+    });
+
+    it('should call validateSinglePayoutPhase with riverBasin when canTriggerPayout is true', async () => {
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(null);
+      (prismaService.phase.create as jest.Mock).mockResolvedValue({});
+
+      const validateSpy = jest
+        .spyOn(service as any, 'validateSinglePayoutPhase')
+        .mockResolvedValue(undefined);
+
+      await service.create({ ...createPhaseDto, canTriggerPayout: true });
+
+      expect(validateSpy).toHaveBeenCalledWith(createPhaseDto.river_basin);
+    });
+
     it('should throw RpcException when database error occurs', async () => {
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(null);
       const dbError = new Error('Database connection failed');
       (prismaService.phase.create as jest.Mock).mockRejectedValue(dbError);
 
@@ -348,46 +425,179 @@ describe('PhasesService', () => {
   });
 
   describe('update', () => {
-    const uuid = 'test-uuid';
-    const updatePhaseDto: UpdatePhaseDto = {
+    const mockExistingPhase = {
+      uuid: 'test-uuid',
       name: Phases.ACTIVATION,
-      sourceId: 'source-uuid',
+      riverBasin: 'Karnali',
+      activeYear: '2025',
+      canRevert: false,
+      canTriggerPayout: false,
+      isActive: false,
+      requiredMandatoryTriggers: 2,
+      requiredOptionalTriggers: 2,
     };
 
-    it('should update a phase successfully', async () => {
-      const mockUpdatedPhase = {
-        uuid,
-        name: Phases.ACTIVATION,
-        source: { uuid: 'source-uuid' },
+    beforeEach(() => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
+        mockExistingPhase,
+      );
+      (prismaService.phase.update as jest.Mock).mockResolvedValue(
+        mockExistingPhase,
+      );
+    });
+
+    it('should update only allowed fields (name, canRevert, canTriggerPayout, requiredMandatoryTriggers, requiredOptionalTriggers)', async () => {
+      const payload: UpdatePhaseDto = {
+        uuid: 'test-uuid',
+        name: Phases.READINESS,
+        canRevert: true,
+        canTriggerPayout: false,
+        requiredMandatoryTriggers: 2,
+        requiredOptionalTriggers: 2,
       };
 
-      (prismaService.phase.update as jest.Mock).mockResolvedValue(
-        mockUpdatedPhase,
-      );
+      const result = await service.update(payload);
 
-      const result = await service.update(uuid, updatePhaseDto);
-
-      expect(result).toEqual(mockUpdatedPhase);
       expect(prismaService.phase.update).toHaveBeenCalledWith({
-        where: { uuid },
+        where: { uuid: 'test-uuid' },
         data: {
-          name: updatePhaseDto.name,
-          source: {
-            connect: {
-              uuid: updatePhaseDto.sourceId,
-            },
-          },
+          name: Phases.READINESS,
+          canRevert: true,
+          canTriggerPayout: false,
+          requiredMandatoryTriggers: 2,
+          requiredOptionalTriggers: 2,
+        },
+      });
+      expect(result).toEqual(mockExistingPhase);
+    });
+
+    it('should fallback to existing phase values for fields not in payload', async () => {
+      const payload: UpdatePhaseDto = {
+        uuid: 'test-uuid',
+        name: Phases.READINESS,
+      };
+
+      await service.update(payload);
+
+      expect(prismaService.phase.update).toHaveBeenCalledWith({
+        where: { uuid: 'test-uuid' },
+        data: {
+          name: Phases.READINESS,
+          canRevert: mockExistingPhase.canRevert,
+          canTriggerPayout: mockExistingPhase.canTriggerPayout,
+          requiredMandatoryTriggers:
+            mockExistingPhase.requiredMandatoryTriggers,
+          requiredOptionalTriggers: mockExistingPhase.requiredOptionalTriggers,
         },
       });
     });
 
-    it('should throw RpcException when database error occurs', async () => {
-      const dbError = new Error('Database error');
-      (prismaService.phase.update as jest.Mock).mockRejectedValue(dbError);
+    it('should allow explicitly setting canRevert to false', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue({
+        ...mockExistingPhase,
+        canRevert: true,
+      });
 
-      await expect(service.update(uuid, updatePhaseDto)).rejects.toThrow(
-        RpcException,
+      const payload: UpdatePhaseDto = { uuid: 'test-uuid', canRevert: false };
+
+      await service.update(payload);
+
+      expect(prismaService.phase.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ canRevert: false }),
+        }),
       );
+    });
+
+    it('should allow explicitly setting canTriggerPayout to false', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue({
+        ...mockExistingPhase,
+        canTriggerPayout: true,
+      });
+
+      const payload: UpdatePhaseDto = {
+        uuid: 'test-uuid',
+        canTriggerPayout: false,
+      };
+
+      await service.update(payload);
+
+      expect(prismaService.phase.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ canTriggerPayout: false }),
+        }),
+      );
+    });
+
+    it('should call validateSinglePayoutPhase with riverBasin and excludeUuid when canTriggerPayout is true', async () => {
+      const validateSpy = jest
+        .spyOn(service as any, 'validateSinglePayoutPhase')
+        .mockResolvedValue(undefined);
+
+      const payload: UpdatePhaseDto = {
+        uuid: 'test-uuid',
+        canTriggerPayout: true,
+      };
+
+      await service.update(payload);
+
+      expect(validateSpy).toHaveBeenCalledWith(
+        mockExistingPhase.riverBasin,
+        'test-uuid',
+      );
+    });
+
+    it('should NOT call validateSinglePayoutPhase when canTriggerPayout is false', async () => {
+      const validateSpy = jest.spyOn(
+        service as any,
+        'validateSinglePayoutPhase',
+      );
+
+      const payload: UpdatePhaseDto = {
+        uuid: 'test-uuid',
+        canTriggerPayout: false,
+      };
+
+      await service.update(payload);
+
+      expect(validateSpy).not.toHaveBeenCalled();
+    });
+
+    it('should throw RpcException when phase is not found', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.update({ uuid: 'non-existent', name: Phases.READINESS }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when prisma.phase.update fails', async () => {
+      (prismaService.phase.update as jest.Mock).mockRejectedValue(
+        new Error('DB error'),
+      );
+
+      await expect(
+        service.update({ uuid: 'test-uuid', name: Phases.READINESS }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when trying to update an active phase', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue({
+        uuid: 'test-uuid',
+        name: Phases.ACTIVATION,
+        riverBasin: 'Karnali',
+        activeYear: '2025',
+        canRevert: false,
+        canTriggerPayout: false,
+        isActive: true,
+      });
+
+      await expect(
+        service.update({ uuid: 'test-uuid', name: Phases.READINESS }),
+      ).rejects.toThrow(RpcException);
+      await expect(
+        service.update({ uuid: 'test-uuid', name: Phases.READINESS }),
+      ).rejects.toThrow('Cannot update an active phase');
     });
   });
 
@@ -432,7 +642,7 @@ describe('PhasesService', () => {
 
       expect(prismaService.phase.findUnique).toHaveBeenCalledWith({
         where: { uuid: 'test-uuid' },
-        include: { source: true },
+        include: { source: true, _count: { select: { Activity: true } } },
       });
       expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
         'test-uuid',
@@ -485,11 +695,76 @@ describe('PhasesService', () => {
             },
           },
         },
-        include: { source: true },
+        include: { source: true, _count: { select: { Activity: true } } },
       });
       expect(triggerService.generateTriggersStatsForPhase).toHaveBeenCalledWith(
         'test-uuid',
       );
+    });
+
+    it('should include _count.Activity in the response when fetched by uuid', async () => {
+      const mockPhaseWithCount = {
+        uuid: 'test-uuid',
+        name: Phases.PREPAREDNESS,
+        source: { riverBasin: 'Karnali' },
+        _count: { Activity: 3 },
+      };
+
+      const mockTriggerStats = {
+        triggers: [],
+        totalTriggers: 0,
+        totalMandatoryTriggers: 0,
+        totalMandatoryTriggersTriggered: 0,
+        totalOptionalTriggers: 0,
+        totalOptionalTriggersTriggered: 0,
+      };
+
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
+        mockPhaseWithCount,
+      );
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
+
+      const result = await service.getOneByDetail(getPhaseByName);
+
+      expect(result._count).toEqual({ Activity: 3 });
+    });
+
+    it('should include _count.Activity in the response when fetched by detail', async () => {
+      const getPhaseByNameWithoutUuid = {
+        appId: 'test-app',
+        phase: Phases.PREPAREDNESS,
+        activeYear: '2025',
+        riverBasin: 'Karnali',
+      };
+
+      const mockPhaseWithCount = {
+        uuid: 'test-uuid',
+        name: Phases.PREPAREDNESS,
+        source: { riverBasin: 'Karnali' },
+        _count: { Activity: 5 },
+      };
+
+      const mockTriggerStats = {
+        triggers: [],
+        totalTriggers: 0,
+        totalMandatoryTriggers: 0,
+        totalMandatoryTriggersTriggered: 0,
+        totalOptionalTriggers: 0,
+        totalOptionalTriggersTriggered: 0,
+      };
+
+      (prismaService.phase.findFirst as jest.Mock).mockResolvedValue(
+        mockPhaseWithCount,
+      );
+      (
+        triggerService.generateTriggersStatsForPhase as jest.Mock
+      ).mockResolvedValue(mockTriggerStats);
+
+      const result = await service.getOneByDetail(getPhaseByNameWithoutUuid);
+
+      expect(result._count).toEqual({ Activity: 5 });
     });
 
     it('should throw RpcException when activeYear and riverBasin are missing', async () => {
@@ -1083,6 +1358,135 @@ describe('PhasesService', () => {
             configureThresholdDto.requiredMandatoryTriggers,
         },
       });
+    });
+  });
+
+  describe('delete', () => {
+    const mockPhase = {
+      uuid: 'test-uuid',
+      name: Phases.ACTIVATION,
+      activeYear: '2025',
+      riverBasin: 'Karnali',
+      isActive: false,
+      canTriggerPayout: false,
+    };
+
+    beforeEach(() => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
+        mockPhase,
+      );
+      (prismaService.trigger.count as jest.Mock).mockResolvedValue(0);
+      (prismaService.activity.count as jest.Mock).mockResolvedValue(0);
+      (prismaService.phase.delete as jest.Mock).mockResolvedValue(mockPhase);
+    });
+
+    it('should delete phase successfully when no triggers or activities exist', async () => {
+      const result = await service.delete('test-uuid');
+
+      expect(prismaService.phase.delete).toHaveBeenCalledWith({
+        where: { uuid: 'test-uuid' },
+      });
+      expect(result).toEqual(mockPhase);
+    });
+
+    it('should check trigger count with isDeleted: false', async () => {
+      await service.delete('test-uuid');
+
+      expect(prismaService.trigger.count).toHaveBeenCalledWith({
+        where: { phaseId: 'test-uuid', isDeleted: false },
+      });
+    });
+
+    it('should check activity count with isDeleted: false', async () => {
+      await service.delete('test-uuid');
+
+      expect(prismaService.activity.count).toHaveBeenCalledWith({
+        where: { phaseId: 'test-uuid', isDeleted: false },
+      });
+    });
+
+    it('should run trigger and activity count checks in parallel', async () => {
+      const triggerCountSpy = jest.spyOn(prismaService.trigger, 'count');
+      const activityCountSpy = jest.spyOn(prismaService.activity, 'count');
+
+      await service.delete('test-uuid');
+
+      expect(triggerCountSpy).toHaveBeenCalledTimes(1);
+      expect(activityCountSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw RpcException when phase is not found', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.delete('non-existent-uuid')).rejects.toThrow(
+        RpcException,
+      );
+      await expect(service.delete('non-existent-uuid')).rejects.toThrow(
+        'Phase with uuid non-existent-uuid not found',
+      );
+    });
+
+    it('should throw RpcException when phase is active', async () => {
+      (prismaService.phase.findUnique as jest.Mock).mockResolvedValue({
+        ...mockPhase,
+        isActive: true,
+      });
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(RpcException);
+      await expect(service.delete('test-uuid')).rejects.toThrow(
+        'Cannot delete an active phase',
+      );
+    });
+
+    it('should throw RpcException with trigger count when triggers exist', async () => {
+      (prismaService.trigger.count as jest.Mock).mockResolvedValue(3);
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(RpcException);
+      await expect(service.delete('test-uuid')).rejects.toThrow(
+        /3 trigger\(s\) are associated with it/,
+      );
+    });
+
+    it('should throw RpcException with activity count when activities exist', async () => {
+      (prismaService.activity.count as jest.Mock).mockResolvedValue(2);
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(RpcException);
+      await expect(service.delete('test-uuid')).rejects.toThrow(
+        /2 activity\(s\) are associated with it/,
+      );
+    });
+
+    it('should include phase name and activeYear in trigger error message', async () => {
+      (prismaService.trigger.count as jest.Mock).mockResolvedValue(1);
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(
+        `Cannot delete phase "${mockPhase.name}" (${mockPhase.activeYear})`,
+      );
+    });
+
+    it('should include phase name and activeYear in activity error message', async () => {
+      (prismaService.activity.count as jest.Mock).mockResolvedValue(1);
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(
+        `Cannot delete phase "${mockPhase.name}" (${mockPhase.activeYear})`,
+      );
+    });
+
+    it('should prioritize trigger error over activity error when both exist', async () => {
+      (prismaService.trigger.count as jest.Mock).mockResolvedValue(2);
+      (prismaService.activity.count as jest.Mock).mockResolvedValue(3);
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(
+        /trigger\(s\) are associated with it/,
+      );
+    });
+
+    it('should throw RpcException when prisma.phase.delete fails', async () => {
+      (prismaService.phase.delete as jest.Mock).mockRejectedValue(
+        new Error('DB constraint violation'),
+      );
+
+      await expect(service.delete('test-uuid')).rejects.toThrow(RpcException);
     });
   });
 });

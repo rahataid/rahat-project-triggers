@@ -7,6 +7,7 @@ export const DATA_SOURCE_EVENTS = {
   DHM: {
     WATER_LEVEL: 'events.data-source.dhm.water-level',
     RAINFALL: 'events.data-source.dhm.rainfall',
+    TEMPERATURE: 'events.data-source.dhm.temperature',
   },
   GLOFAS: {
     WATER_LEVEL: 'events.data-source.glofas.water-level',

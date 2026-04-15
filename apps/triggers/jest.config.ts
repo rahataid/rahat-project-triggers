@@ -19,10 +19,13 @@ const config: Config = {
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   collectCoverageFrom: [
-    '**/*.(t|j)s',
+    '**/*.ts',
     '!**/*.spec.ts',
     '!**/node_modules/**',
     '!**/dist/**',
+    '!**/tools/**',
+    '!**/types/**',
+    '!**/*.dto.*',
   ],
   transformIgnorePatterns: [
     'node_modules/(?!(.*/)?(msgpackr|msgpackr-extract|bull|uuid)(/|$))',

@@ -10,16 +10,16 @@ export type GlofasStationInfo = {
   TIMESTRING: string;
 };
 
-export type RainfallWaterLevelConfig = {
-  [SourceType.RAINFALL]: {
-    LOCATION: string;
-    SERIESID: number[];
-  };
-  [SourceType.WATER_LEVEL]: {
-    LOCATION: string;
-    SERIESID: number[];
-  };
-};
+export type RainfallWaterLevelConfig = Omit<
+  Record<
+    keyof typeof SourceType,
+    {
+      LOCATION: string;
+      SERIESID: number[];
+    }
+  >,
+  'PROB_FLOOD' | 'HUMIDITY'
+>;
 
 export type DataSourceValue = {
   [DataSource.DHM]: RainfallWaterLevelConfig[];
@@ -33,7 +33,12 @@ export type DataSourceType = {
   isPrivate: boolean;
 };
 
-export type DataSourceKey = 'GLOFAS' | 'DHM:RAINFALL' | 'DHM:WATERLEVEL';
+export type DataSourceKey =
+  | 'GLOFAS'
+  | 'DHM:RAINFALL'
+  | 'DHM:WATERLEVEL'
+  | 'DHM:HUMIDITY'
+  | 'DHM:TEMPERATURE';
 
 export type DataSourceTypesValue = {
   type: string;

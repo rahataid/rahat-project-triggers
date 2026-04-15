@@ -2,6 +2,9 @@ import { ReadableStream } from 'stream/web';
 import { Blob } from 'buffer';
 import { MessageChannel } from 'worker_threads';
 
+// Set NODE_ENV to test to prevent bootstrap from running
+process.env.NODE_ENV = 'test';
+
 if (typeof globalThis.ReadableStream === 'undefined') {
   globalThis.ReadableStream = ReadableStream as any;
 }

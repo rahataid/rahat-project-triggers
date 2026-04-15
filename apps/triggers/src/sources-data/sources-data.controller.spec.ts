@@ -28,8 +28,11 @@ describe('SourcesDataController', () => {
   };
 
   const mockSourceDataService = {
+    getHeatwaveDhmLevels: jest.fn(),
     getWaterLevels: jest.fn(),
     getRainfallLevels: jest.fn(),
+    getTemperatureDhmLevels: jest.fn(),
+    getOneDhmSeriesHeatwave: jest.fn(),
   };
 
   const mockHttpService = {
@@ -97,33 +100,6 @@ describe('SourcesDataController', () => {
     });
   });
 
-  describe('getGlofasWaterLevels', () => {
-    const mockPayload: GetSouceDataDto = {
-      source: DataSource.GLOFAS,
-      riverBasin: 'test-basin',
-      from: new Date('2023-01-01'),
-      to: new Date('2023-01-31'),
-      type: 'POINT' as any,
-      appId: 'test-app',
-    };
-
-    const mockWaterLevels = { data: 'glofas-water-levels' };
-
-    beforeEach(() => {
-      mockSourceDataService.getWaterLevels.mockResolvedValue(mockWaterLevels);
-    });
-
-    it('should return Glofas water levels', async () => {
-      const result = await controller.getGlofasWaterLevels(mockPayload);
-
-      expect(mockSourceDataService.getWaterLevels).toHaveBeenCalledWith({
-        ...mockPayload,
-        source: DataSource.GLOFAS,
-      });
-      expect(result).toEqual(mockWaterLevels);
-    });
-  });
-
   describe('getGfhWaterLevels', () => {
     const mockPayload: GetSouceDataDto = {
       source: DataSource.GFH,
@@ -180,10 +156,63 @@ describe('SourcesDataController', () => {
     });
   });
 
+  describe('getDhmTemperature', () => {
+    const mockPayload = {
+      source: DataSource.DHM,
+      riverBasin: 'test-basin',
+      from: new Date('2023-01-01'),
+      to: new Date('2023-01-31'),
+      appId: 'test-app',
+    };
+
+    const mockTemperatureLevels = { data: 'temperature-levels' };
+
+    beforeEach(() => {
+      mockSourceDataService.getHeatwaveDhmLevels.mockResolvedValue(
+        mockTemperatureLevels,
+      );
+    });
+
+    it('should return DHM temperature levels', async () => {
+      const result = await controller.getDhmTemperature(mockPayload as any);
+
+      expect(mockSourceDataService.getHeatwaveDhmLevels).toHaveBeenCalledWith({
+        ...mockPayload,
+        source: 'DHM',
+      });
+      expect(result).toEqual(mockTemperatureLevels);
+    });
+  });
+
+  describe('getOneDhmSeriesTemperature', () => {
+    const mockPayload = {
+      seriesId: 1234,
+      riverBasin: 'test-basin',
+    };
+
+    const mockSeriesTemperature = { data: 'series-temperature' };
+
+    beforeEach(() => {
+      mockSourceDataService.getOneDhmSeriesHeatwave.mockResolvedValue(
+        mockSeriesTemperature,
+      );
+    });
+
+    it('should return DHM single series temperature', async () => {
+      const result = await controller.getOneDhmSeriesTemperature(
+        mockPayload as any,
+      );
+
+      expect(
+        mockSourceDataService.getOneDhmSeriesHeatwave,
+      ).toHaveBeenCalledWith(mockPayload);
+      expect(result).toEqual(mockSeriesTemperature);
+    });
+  });
+
   describe('MessagePattern decorators', () => {
     it('should have correct message patterns', () => {
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM).toBeDefined();
-      expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GLOFAS).toBeDefined();
       expect(MS_TRIGGERS_JOBS.WATER_LEVELS.GET_GFH).toBeDefined();
       expect(MS_TRIGGERS_JOBS.RAINFALL_LEVELS.GET_DHM).toBeDefined();
     });

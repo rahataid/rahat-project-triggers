@@ -46,6 +46,7 @@ model Activity {
 
     title    String
     leadTime String
+    responsibleStation String?
 
     phase      Phase?            @relation(fields: [phaseId], references: [uuid])
     phaseId    String
@@ -63,6 +64,7 @@ model Activity {
     activityCommunication Json? @db.JsonB()
     activityPayout        Json? @db.JsonB()
 
+    isTemplate  Boolean @default(false)
     isAutomated Boolean @default(false)
     isDeleted   Boolean @default(false)
 

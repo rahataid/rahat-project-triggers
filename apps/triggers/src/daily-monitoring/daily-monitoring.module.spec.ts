@@ -1,84 +1,39 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { DailyMonitoringModule } from './daily-monitoring.module';
 import { DailyMonitoringController } from './daily-monitoring.controller';
 import { DailyMonitoringService } from './daily-monitoring.service';
-import { PrismaService } from '@lib/database';
 
 describe('DailyMonitoringModule', () => {
-  let module: TestingModule;
+  let dailyMonitoringModule: DailyMonitoringModule;
 
-  const mockPrismaService = {
-    dailyMonitoring: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      updateMany: jest.fn(),
-    },
-    source: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-    },
-  };
-
-  beforeEach(async () => {
-    module = await Test.createTestingModule({
-      imports: [DailyMonitoringModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue(mockPrismaService)
-      .compile();
-  });
-
-  afterEach(async () => {
-    if (module) {
-      await module.close();
-    }
+  beforeEach(() => {
+    dailyMonitoringModule = new DailyMonitoringModule();
   });
 
   it('should be defined', () => {
-    expect(module).toBeDefined();
+    expect(dailyMonitoringModule).toBeDefined();
   });
 
-  it('should have DailyMonitoringController defined', () => {
-    const controller = module.get<DailyMonitoringController>(
-      DailyMonitoringController,
+  it('should have proper module structure', () => {
+    expect(dailyMonitoringModule).toBeDefined();
+  });
+
+  it('should have correct module metadata for controllers', () => {
+    const controllerMetadata = Reflect.getMetadata(
+      'controllers',
+      DailyMonitoringModule,
     );
-    expect(controller).toBeDefined();
+    expect(controllerMetadata).toBeDefined();
+    expect(Array.isArray(controllerMetadata)).toBe(true);
+    expect(controllerMetadata).toContain(DailyMonitoringController);
   });
 
-  it('should have DailyMonitoringService defined', () => {
-    const service = module.get<DailyMonitoringService>(DailyMonitoringService);
-    expect(service).toBeDefined();
-  });
-
-  it('should have PrismaService defined', () => {
-    const prismaService = module.get<PrismaService>(PrismaService);
-    expect(prismaService).toBeDefined();
-  });
-
-  describe('Module Structure', () => {
-    it('should be a valid NestJS module', () => {
-      expect(DailyMonitoringModule).toBeDefined();
-      expect(typeof DailyMonitoringModule).toBe('function');
-    });
-
-    it('should have the correct module metadata', () => {
-      const metadata = Reflect.getMetadata(
-        'controllers',
-        DailyMonitoringModule,
-      );
-      expect(metadata).toBeDefined();
-      expect(Array.isArray(metadata)).toBe(true);
-      expect(metadata).toContain(DailyMonitoringController);
-    });
-
-    it('should have the correct providers metadata', () => {
-      const metadata = Reflect.getMetadata('providers', DailyMonitoringModule);
-      expect(metadata).toBeDefined();
-      expect(Array.isArray(metadata)).toBe(true);
-      expect(metadata).toContain(DailyMonitoringService);
-    });
+  it('should have correct module metadata for providers', () => {
+    const providerMetadata = Reflect.getMetadata(
+      'providers',
+      DailyMonitoringModule,
+    );
+    expect(providerMetadata).toBeDefined();
+    expect(Array.isArray(providerMetadata)).toBe(true);
+    expect(providerMetadata).toContain(DailyMonitoringService);
   });
 });

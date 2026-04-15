@@ -9,6 +9,7 @@ import {
 } from './dto';
 import { ActivityStatus } from '@lib/database';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
+import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
 
 @Controller('activity')
 export class ActivityController {
@@ -130,9 +131,23 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_SESSION_STATS,
+  })
+  async getTransportSessionStats(payload) {
+    return this.activityService.getTransportSessionStats(payload.appId);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
   async getTransportSessionStatsByGroup(payload: { appId: string }) {
     return this.activityService.getTransportSessionStatsByGroup(payload.appId);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_BY_STAKEHOLDER_UUID,
+  })
+  async getByStakeholderUuid(payload: GetActivityByStakeholderUuidDto) {
+    return this.activityService.getByStakeholderUuid(payload);
   }
 }

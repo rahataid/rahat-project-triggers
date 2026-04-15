@@ -47,9 +47,13 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --filter @lib/database db:generate
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @lib/database db:generate
+
+      - name: Build dependencies
+        run: pnpm turbo build --filter=triggers^...
 
       - name: Run tests with coverage
         run: pnpm turbo test:coverage --filter=triggers

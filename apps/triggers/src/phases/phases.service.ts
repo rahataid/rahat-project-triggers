@@ -26,6 +26,7 @@ import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import { GetPhaseByDetailDto, GetPhaseDto, RevertPhaseDto } from './dto';
+import { activities } from '../utils/activities';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -52,8 +53,6 @@ export class PhasesService {
       activeYear,
       canRevert,
       canTriggerPayout,
-      receivedMandatoryTriggers,
-      receivedOptionalTriggers,
       requiredMandatoryTriggers,
       requiredOptionalTriggers,
     } = payload;
@@ -62,9 +61,37 @@ export class PhasesService {
       `Creating new phase with ${name} source: ${source} river_basin: ${river_basin}`,
     );
 
+    if (!name || !source || !river_basin) {
+      this.logger.error('Missing required fields in payload');
+      throw new RpcException('Name, source and river basin are required');
+    }
+
     if (!activeYear) {
       this.logger.error('Missing active year in payload');
-      throw new BadRequestException('Active year is required');
+      throw new RpcException('Active year is required');
+    }
+
+    const existingPhase = await this.prisma.phase.findFirst({
+      where: {
+        name,
+        activeYear,
+        source: {
+          riverBasin: river_basin,
+        },
+      },
+    });
+
+    if (existingPhase) {
+      this.logger.warn(
+        `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
+      );
+      throw new RpcException(
+        `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
+      );
+    }
+
+    if (canTriggerPayout) {
+      await this.validateSinglePayoutPhase(river_basin);
     }
 
     try {
@@ -86,10 +113,8 @@ export class PhasesService {
           activeYear,
           canRevert,
           canTriggerPayout,
-          receivedMandatoryTriggers,
-          receivedOptionalTriggers,
-          requiredMandatoryTriggers,
-          requiredOptionalTriggers,
+          requiredMandatoryTriggers: requiredMandatoryTriggers || 0,
+          requiredOptionalTriggers: requiredOptionalTriggers || 0,
         },
       });
     } catch (error: any) {
@@ -162,19 +187,35 @@ export class PhasesService {
     };
   }
 
-  async update(uuid: string, dto: UpdatePhaseDto) {
-    const { sourceId, ...rest } = dto;
+  async update(payload: UpdatePhaseDto) {
+    const { uuid, ...rest } = payload;
+
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      throw new RpcException('Cannot update an active phase');
+    }
+
+    if (rest.canTriggerPayout) {
+      await this.validateSinglePayoutPhase(phase.riverBasin, uuid);
+    }
+
+    // Only these three fields are allowed to be updated
+    const fields = {
+      name: rest.name ?? phase.name,
+      canRevert: rest.canRevert ?? phase.canRevert,
+      canTriggerPayout: rest.canTriggerPayout ?? phase.canTriggerPayout,
+      requiredMandatoryTriggers:
+        rest.requiredMandatoryTriggers ?? phase.requiredMandatoryTriggers,
+      requiredOptionalTriggers:
+        rest.requiredOptionalTriggers ?? phase.requiredOptionalTriggers,
+    };
+
     try {
       return await this.prisma.phase.update({
         where: { uuid },
         data: {
-          ...rest,
-          name: dto.name,
-          source: {
-            connect: {
-              uuid: sourceId,
-            },
-          },
+          ...fields,
         },
       });
     } catch (error: any) {
@@ -240,6 +281,9 @@ export class PhasesService {
         },
         include: {
           source: true,
+          _count: {
+            select: { Activity: true }
+          }
         },
       });
     } else {
@@ -249,6 +293,9 @@ export class PhasesService {
         },
         include: {
           source: true,
+          _count: {
+            select: { Activity: true },
+          },
         },
       });
     }
@@ -688,5 +735,102 @@ export class PhasesService {
         requiredMandatoryTriggers,
       },
     });
+  }
+
+  async findOrThrow(uuid: string) {
+    const phase = await this.prisma.phase.findUnique({
+      where: {
+        uuid,
+      },
+    });
+
+    if (!phase) {
+      this.logger.warn(`Phase with uuid ${uuid} not found`);
+      throw new RpcException(`Phase with uuid ${uuid} not found`);
+    }
+
+    return phase;
+  }
+
+  private async validateSinglePayoutPhase(
+    riverBasin: string,
+    excludeUuid?: string,
+  ) {
+    if (!riverBasin) {
+      this.logger.warn(`River basin is required to validate payout phase`);
+      throw new RpcException(
+        `River basin is required to validate payout phase`,
+      );
+    }
+
+    const phaseWithPayoutEnabled = await this.prisma.phase.findFirst({
+      where: {
+        riverBasin,
+        canTriggerPayout: true,
+        ...(excludeUuid && { uuid: { not: excludeUuid } }),
+      },
+    });
+
+    if (phaseWithPayoutEnabled) {
+      this.logger.warn(
+        `Phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has canTriggerPayout enabled for riverBasin ${riverBasin}`,
+      );
+      throw new RpcException(
+        `Another phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has payout enabled for riverBasin ${riverBasin}. Only one phase per project can have canTriggerPayout set to true.`,
+      );
+    }
+  }
+
+  async delete(uuid: string) {
+    this.logger.log(`Deleting phase with uuid: ${uuid}`);
+
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      this.logger.warn(`Cannot delete an active phase: ${uuid}`);
+      throw new RpcException('Cannot delete an active phase');
+    }
+
+    const [triggerCount, activityCount] = await Promise.all([
+      this.prisma.trigger.count({
+        where: {
+          phaseId: uuid,
+          isDeleted: false,
+        },
+      }),
+      this.prisma.activity.count({
+        where: {
+          phaseId: uuid,
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    if (triggerCount > 0) {
+      this.logger.warn(
+        `Cannot delete phase ${uuid}: ${triggerCount} trigger(s) are associated with this phase`,
+      );
+      throw new RpcException(
+        `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${triggerCount} trigger(s) are associated with it. Please remove them first.`,
+      );
+    }
+
+    if (activityCount > 0) {
+      this.logger.warn(
+        `Cannot delete phase ${uuid}: ${activityCount} activity(s) are associated with this phase`,
+      );
+      throw new RpcException(
+        `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${activityCount} activity(s) are associated with it. Please remove them first.`,
+      );
+    }
+
+    try {
+      return await this.prisma.phase.delete({
+        where: { uuid },
+      });
+    } catch (error: any) {
+      this.logger.error('Error while deleting phase', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
   }
 }

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StatsProcessor } from './stats.processor';
 import { StatsService } from '../stats/stat.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('StatsProcessor', () => {
   let processor: StatsProcessor;
@@ -17,6 +18,9 @@ describe('StatsProcessor', () => {
     emit: jest.fn(),
     on: jest.fn(),
   };
+  const mockConfigService = {
+    get: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -30,10 +34,15 @@ describe('StatsProcessor', () => {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
     }).compile();
 
     processor = module.get<StatsProcessor>(StatsProcessor);
+    (processor as any).configService = mockConfigService;
   });
 
   afterEach(() => {
@@ -46,6 +55,7 @@ describe('StatsProcessor', () => {
 
   describe('onApplicationBootstrap', () => {
     it('should call calculateAllStats on bootstrap', async () => {
+      mockConfigService.get.mockReturnValue('production');
       await processor.onApplicationBootstrap();
 
       expect(mockStatsService.calculateAllStats).toHaveBeenCalledTimes(1);
