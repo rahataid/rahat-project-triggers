@@ -96,6 +96,9 @@ export const MS_TRIGGERS_JOBS = {
     UPDATE: 'ms.jobs.phases.update',
     DELETE: 'ms.jobs.phases.delete',
     GET_PHASE_PAYOUT_STATUS: 'ms.jobs.phase.getPhasePayoutStatus',
+    CONFIGURE_EXTENDED_LOGIC: 'ms.jobs.phases.configureExtendedLogic',
+    GET_EXTENDED_LOGIC: 'ms.jobs.phases.getExtendedLogic',
+    REMOVE_EXTENDED_LOGIC: 'ms.jobs.phases.removeExtendedLogic',
   },
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',

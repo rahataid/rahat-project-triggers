@@ -203,8 +203,8 @@ describe('AllExceptionsFilter', () => {
       expect(calledArgs.timestamp).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
       );
-      expect(calledArgs.timestamp).toBeGreaterThanOrEqual(beforeTime);
-      expect(calledArgs.timestamp).toBeLessThanOrEqual(afterTime);
+      expect(calledArgs.timestamp >= beforeTime).toBe(true);
+      expect(calledArgs.timestamp <= afterTime).toBe(true);
     });
 
     it('should include correct request path', () => {
