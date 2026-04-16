@@ -97,4 +97,11 @@ export class PhasesController {
   async delete(payload: { uuid: string }) {
     return this.phasesService.delete(payload.uuid);
   }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.GET_PHASE_PAYOUT_STATUS,
+  })
+  async IsPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+    return this.phasesService.isPayoutPhaseActivated(payload);
+  }
 }

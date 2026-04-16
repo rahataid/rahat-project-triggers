@@ -25,7 +25,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
-import { GetPhaseByDetailDto, GetPhaseDto, RevertPhaseDto } from './dto';
+import {
+  GetPhaseByDetailDto,
+  GetPhaseByLocationDto,
+  GetPhaseDto,
+  RevertPhaseDto,
+} from './dto';
 import { activities } from '../utils/activities';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
@@ -282,8 +287,8 @@ export class PhasesService {
         include: {
           source: true,
           _count: {
-            select: { Activity: true }
-          }
+            select: { Activity: true },
+          },
         },
       });
     } else {
@@ -832,5 +837,37 @@ export class PhasesService {
       this.logger.error('Error while deleting phase', error);
       throw new RpcException(error?.message || 'Something went wrong');
     }
+  }
+
+  async isPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+    this.logger.log(
+      `Getting phase payout status for station: ${payload.riverBasin} and active year ${payload.activeYear}`,
+    );
+
+    const { activeYear, riverBasin } = payload;
+    if (!activeYear || !riverBasin) {
+      this.logger.log('activate year and river basing is messing');
+      throw new RpcException('messing activeYear and riverBasin');
+    }
+
+    const phase = await this.prisma.phase.findMany({
+      where: {
+        activeYear,
+        canTriggerPayout: true,
+        isActive: true,
+        source: {
+          riverBasin: {
+            contains: riverBasin,
+            mode: 'insensitive',
+          },
+        },
+      },
+    });
+
+    if (!phase || !phase.length) {
+      return false;
+    }
+
+    return true;
   }
 }
