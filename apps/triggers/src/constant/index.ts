@@ -95,6 +95,9 @@ export const MS_TRIGGERS_JOBS = {
     CONFIGURE_THRESHOLD: 'ms.jobs.phase.configureThreshold',
     UPDATE: 'ms.jobs.phases.update',
     DELETE: 'ms.jobs.phases.delete',
+    CONFIGURE_EXTENDED_LOGIC: 'ms.jobs.phases.configureExtendedLogic',
+    GET_EXTENDED_LOGIC: 'ms.jobs.phases.getExtendedLogic',
+    REMOVE_EXTENDED_LOGIC: 'ms.jobs.phases.removeExtendedLogic',
   },
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',

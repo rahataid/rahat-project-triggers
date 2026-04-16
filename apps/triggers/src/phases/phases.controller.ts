@@ -9,6 +9,7 @@ import {
   GetPhaseByLocationDto,
   GetPhaseDto,
   RevertPhaseDto,
+  SetExtendedTriggerLogicDto,
   UpdatePhaseDto,
 } from './dto';
 import { ConfigService } from '@nestjs/config';
@@ -96,5 +97,26 @@ export class PhasesController {
   })
   async delete(payload: { uuid: string }) {
     return this.phasesService.delete(payload.uuid);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.CONFIGURE_EXTENDED_LOGIC,
+  })
+  async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
+    return this.phasesService.setExtendedTriggerLogic(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.GET_EXTENDED_LOGIC,
+  })
+  async getExtendedTriggerLogic(payload: { uuid: string }) {
+    return this.phasesService.getExtendedTriggerLogic(payload.uuid);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.REMOVE_EXTENDED_LOGIC,
+  })
+  async removeExtendedTriggerLogic(payload: { uuid: string }) {
+    return this.phasesService.removeExtendedTriggerLogic(payload.uuid);
   }
 }
