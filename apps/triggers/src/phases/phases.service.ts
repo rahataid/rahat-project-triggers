@@ -26,7 +26,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
-import { GetPhaseByDetailDto, GetPhaseDto, RevertPhaseDto } from './dto';
+import {
+  GetPhaseByDetailDto,
+  GetPhaseByLocationDto,
+  GetPhaseDto,
+  RevertPhaseDto,
+} from './dto';
 import { activities } from '../utils/activities';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
@@ -288,8 +293,8 @@ export class PhasesService {
         include: {
           source: true,
           _count: {
-            select: { Activity: true }
-          }
+            select: { Activity: true },
+          },
         },
       });
     } else {
@@ -547,7 +552,8 @@ export class PhasesService {
 
   async addTriggersToPhases(payload) {
     try {
-      const { uuid, triggers, triggerRequirements, extendedTriggerLogic } = payload;
+      const { uuid, triggers, triggerRequirements, extendedTriggerLogic } =
+        payload;
 
       const phase = await this.prisma.phase.findUnique({
         where: {
@@ -841,6 +847,37 @@ export class PhasesService {
     }
   }
 
+  async isPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+    this.logger.log(
+      `Getting phase payout status for station: ${payload.riverBasin} and active year ${payload.activeYear}`,
+    );
+
+    const { activeYear, riverBasin } = payload;
+    if (!activeYear || !riverBasin) {
+      this.logger.log('activate year and river basing is messing');
+      throw new RpcException('messing activeYear and riverBasin');
+    }
+
+    const phase = await this.prisma.phase.findMany({
+      where: {
+        activeYear,
+        canTriggerPayout: true,
+        isActive: true,
+        source: {
+          riverBasin: {
+            contains: riverBasin,
+            mode: 'insensitive',
+          },
+        },
+      },
+    });
+
+    if (!phase || !phase.length) {
+      return false;
+    }
+
+    return true;
+  }
   async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
     const { uuid, ...extendedTriggerLogic } = payload;
     this.logger.log(

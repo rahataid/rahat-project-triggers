@@ -100,6 +100,13 @@ export class PhasesController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.PHASES.GET_PHASE_PAYOUT_STATUS,
+  })
+  async IsPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+    return this.phasesService.isPayoutPhaseActivated(payload);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.PHASES.CONFIGURE_EXTENDED_LOGIC,
   })
   async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
