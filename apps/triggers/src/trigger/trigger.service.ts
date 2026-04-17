@@ -304,6 +304,7 @@ export class TriggerService {
         isDeleted: false,
         repeatKey: randomUUID(),
         createdBy,
+        logicKey: this.generateLogicKey(dto),
       };
 
       const trigger = await this.prisma.trigger.create({
@@ -851,6 +852,51 @@ export class TriggerService {
     });
   }
 
+  private generateLogicKey(dto: CreateTriggerDto): string {
+    const operatorMap: Record<string, string> = {
+      '>': 'gt',
+      '>=': 'gte',
+      '<': 'lt',
+      '<=': 'lte',
+      '=': 'eq',
+    };
+
+    const parts: string[] = [];
+
+    if (dto.source) {
+      parts.push(dto.source.toLowerCase().replace(/_/g, '-'));
+    }
+
+    const stmt = dto.triggerStatement as Record<string, any> | undefined;
+    if (stmt) {
+      if (stmt['sourceSubType']) {
+        parts.push(
+          String(stmt['sourceSubType']).toLowerCase().replace(/_/g, '-'),
+        );
+      }
+      if (stmt['operator']) {
+        parts.push(operatorMap[stmt['operator']] ?? stmt['operator']);
+      }
+      if (stmt['value'] !== undefined) {
+        parts.push(String(stmt['value']).replace('.', '-'));
+      }
+    } else if (dto.title) {
+      parts.push(
+        dto.title
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '')
+          .slice(0, 24),
+      );
+    }
+
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 6);
+    parts.push(suffix);
+
+    return parts.join('-') || `trigger-${suffix}`;
+  }
+
   async generateTriggersStatsForPhase(phaseId: string) {
     try {
       const [stats] = await this.prisma.$queryRawUnsafe<any[]>(
@@ -861,7 +907,31 @@ export class TriggerService {
           COUNT(*) FILTER (WHERE "isMandatory" = true AND "isTriggered" = true AND "isDeleted" = false)::INT AS "totalMandatoryTriggersTriggered",
           COUNT(*) FILTER (WHERE "isMandatory" = false AND "isDeleted" = false)::INT AS "totalOptionalTriggers",
           COUNT(*) FILTER (WHERE "isMandatory" = false AND "isTriggered" = true AND "isDeleted" = false)::INT AS "totalOptionalTriggersTriggered",
-          COALESCE(json_agg(t.*) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
+          COALESCE(json_agg(
+            json_build_object(
+              'id', t.id,
+              'uuid', t.uuid,
+              'repeatKey', t."repeatKey",
+              'title', t.title,
+              'description', t.description,
+              'triggerStatement', t."triggerStatement",
+              'triggerDocuments', t."triggerDocuments",
+              'notes', t.notes,
+              'phaseId', t."phaseId",
+              'source', t.source,
+              'isMandatory', t."isMandatory",
+              'isTriggered', t."isTriggered",
+              'isDeleted', t."isDeleted",
+              'isDailyMonitored', t."isDailyMonitored",
+              'logicKey', t."logicKey",
+              'createdBy', t."createdBy",
+              'triggeredBy', t."triggeredBy",
+              'transactionHash', t."transactionHash",
+              'triggeredAt', t."triggeredAt",
+              'createdAt', t."createdAt",
+              'updatedAt', t."updatedAt"
+            )
+          ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t
         WHERE "phaseId" = $1
       `,

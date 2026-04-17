@@ -23,6 +23,8 @@ model Phase {
   isActive         Boolean @default(false)
   riverBasin       String
 
+  extendedTriggerLogic Json? @db.JsonB()
+
   activatedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt()
