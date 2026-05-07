@@ -137,6 +137,7 @@ export class CreateTriggerDto {
   @IsString()
   @IsOptional()
   riverBasin?: string;
+
 }
 
 export class CreateTriggerPayloadDto {

@@ -8,8 +8,9 @@ import {
 import { CreatePhaseDto } from './dto/create-phase.dto';
 import {
   ConfigureThresholdPhaseDto,
+  SetExtendedTriggerLogicDto,
   UpdatePhaseDto,
-} from './dto/update-phase.dto';
+} from './dto';
 import {
   paginator,
   PaginatorTypes,
@@ -25,7 +26,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
-import { GetPhaseByDetailDto, GetPhaseDto, RevertPhaseDto } from './dto';
+import {
+  GetPhaseByDetailDto,
+  GetPhaseByLocationDto,
+  GetPhaseDto,
+  RevertPhaseDto,
+} from './dto';
 import { activities } from '../utils/activities';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
@@ -55,6 +61,7 @@ export class PhasesService {
       canTriggerPayout,
       requiredMandatoryTriggers,
       requiredOptionalTriggers,
+      extendedTriggerLogic,
     } = payload;
 
     this.logger.log(
@@ -115,6 +122,7 @@ export class PhasesService {
           canTriggerPayout,
           requiredMandatoryTriggers: requiredMandatoryTriggers || 0,
           requiredOptionalTriggers: requiredOptionalTriggers || 0,
+          ...(extendedTriggerLogic && { extendedTriggerLogic }),
         },
       });
     } catch (error: any) {
@@ -209,6 +217,9 @@ export class PhasesService {
         rest.requiredMandatoryTriggers ?? phase.requiredMandatoryTriggers,
       requiredOptionalTriggers:
         rest.requiredOptionalTriggers ?? phase.requiredOptionalTriggers,
+      ...(rest.extendedTriggerLogic !== undefined && {
+        extendedTriggerLogic: rest.extendedTriggerLogic,
+      }),
     };
 
     try {
@@ -282,8 +293,8 @@ export class PhasesService {
         include: {
           source: true,
           _count: {
-            select: { Activity: true }
-          }
+            select: { Activity: true },
+          },
         },
       });
     } else {
@@ -541,7 +552,8 @@ export class PhasesService {
 
   async addTriggersToPhases(payload) {
     try {
-      const { uuid, triggers, triggerRequirements } = payload;
+      const { uuid, triggers, triggerRequirements, extendedTriggerLogic } =
+        payload;
 
       const phase = await this.prisma.phase.findUnique({
         where: {
@@ -581,6 +593,7 @@ export class PhasesService {
             triggerRequirements.mandatoryTriggers.requiredTriggers,
           requiredOptionalTriggers:
             triggerRequirements.optionalTriggers.requiredTriggers,
+          ...(extendedTriggerLogic !== undefined && { extendedTriggerLogic }),
         },
       });
 
@@ -832,5 +845,91 @@ export class PhasesService {
       this.logger.error('Error while deleting phase', error);
       throw new RpcException(error?.message || 'Something went wrong');
     }
+  }
+
+  async isPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+    this.logger.log(
+      `Getting phase payout status for station: ${payload.riverBasin} and active year ${payload.activeYear}`,
+    );
+
+    const { activeYear, riverBasin } = payload;
+    if (!activeYear || !riverBasin) {
+      this.logger.log('activate year and river basing is messing');
+      throw new RpcException('messing activeYear and riverBasin');
+    }
+
+    const phase = await this.prisma.phase.findMany({
+      where: {
+        activeYear,
+        canTriggerPayout: true,
+        isActive: true,
+        source: {
+          riverBasin: {
+            contains: riverBasin,
+            mode: 'insensitive',
+          },
+        },
+      },
+    });
+
+    if (!phase || !phase.length) {
+      return false;
+    }
+
+    return true;
+  }
+  async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
+    const { uuid, ...extendedTriggerLogic } = payload;
+    this.logger.log(
+      `Setting extended trigger logic for phase ${uuid} with groupCount=${extendedTriggerLogic.groups?.length ?? 0}`,
+    );
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      this.logger.warn(
+        `Cannot set extended trigger logic for active phase ${uuid}`,
+      );
+      throw new RpcException(
+        'Cannot update extended trigger logic on an active phase',
+      );
+    }
+
+    this.logger.debug(`Persisting extended trigger logic for phase ${uuid}`);
+    return this.prisma.phase.update({
+      where: { uuid },
+      data: {
+        extendedTriggerLogic: extendedTriggerLogic as unknown as object,
+      },
+    });
+  }
+
+  async getExtendedTriggerLogic(uuid: string) {
+    this.logger.log(`Fetching extended trigger logic for phase ${uuid}`);
+    const phase = await this.findOrThrow(uuid);
+    return {
+      uuid: phase.uuid,
+      extendedTriggerLogic: phase.extendedTriggerLogic ?? null,
+    };
+  }
+
+  async removeExtendedTriggerLogic(uuid: string) {
+    this.logger.log(`Removing extended trigger logic for phase ${uuid}`);
+    const phase = await this.findOrThrow(uuid);
+
+    if (phase.isActive) {
+      this.logger.warn(
+        `Cannot remove extended trigger logic for active phase ${uuid}`,
+      );
+      throw new RpcException(
+        'Cannot remove extended trigger logic from an active phase',
+      );
+    }
+
+    return this.prisma.phase.update({
+      where: { uuid },
+      data: {
+        extendedTriggerLogic: null,
+      },
+    });
   }
 }

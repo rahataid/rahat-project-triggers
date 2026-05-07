@@ -18,7 +18,7 @@ export type RainfallWaterLevelConfig = Omit<
       SERIESID: number[];
     }
   >,
-  'PROB_FLOOD'
+  'PROB_FLOOD' | 'HUMIDITY'
 >;
 
 export type DataSourceValue = {
@@ -33,7 +33,12 @@ export type DataSourceType = {
   isPrivate: boolean;
 };
 
-export type DataSourceKey = 'GLOFAS' | 'DHM:RAINFALL' | 'DHM:WATERLEVEL';
+export type DataSourceKey =
+  | 'GLOFAS'
+  | 'DHM:RAINFALL'
+  | 'DHM:WATERLEVEL'
+  | 'DHM:HUMIDITY'
+  | 'DHM:TEMPERATURE';
 
 export type DataSourceTypesValue = {
   type: string;

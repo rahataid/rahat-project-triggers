@@ -26,6 +26,17 @@ const SOURCE_CONFIG = {
       'twenty_years_return_period',
     ],
   },
+  // for heatwave
+  prob_humidity: {
+    label: 'DHM Humidity',
+    sourceSubType: 'Humidity Probability',
+    subTypes: ['hourly', 'daily'],
+  },
+  temperature_c: {
+    label: 'DHM Temperature',
+    sourceSubType: 'Temperature',
+    subTypes: ['hourly', 'daily'],
+  },
 } as const;
 
 const sourceValues = Object.keys(SOURCE_CONFIG) as [

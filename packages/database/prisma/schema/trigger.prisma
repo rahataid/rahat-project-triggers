@@ -20,6 +20,8 @@ model Trigger {
     isDeleted        Boolean @default(false)
     isDailyMonitored Boolean @default(false)
 
+    logicKey String?
+
     createdBy       String?
     triggeredBy     String?
     transactionHash String?
@@ -56,6 +58,8 @@ model TriggerHistory {
     isTriggered      Boolean     @default(false)
     isDeleted        Boolean     @default(false)
     isDailyMonitored Boolean     @default(false)
+
+    logicKey String?
 
     triggeredBy     String?
     transactionHash String?

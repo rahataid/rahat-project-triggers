@@ -10,6 +10,7 @@
     "db:generate:prod": "prisma generate  --schema=./prisma/schema --no-engine",
     "db:migrate": "prisma migrate dev --schema=./prisma/schema --skip-generate",
     "db:deploy": "prisma migrate deploy --schema=./prisma/schema",
+    "db:reset": "prisma migrate reset --schema=./prisma/schema",
     "seed": "./prisma/seed-db.sh",
     "seed:dist": "./dist/prisma/seed-db.sh",
     "format": "npx prisma format --schema=./prisma/schema"
