@@ -15,7 +15,7 @@ on:
       tag_prefix:
         description: "Tag prefix"
         required: true
-        default: "dev"
+        default: "release-v4.0.0-nrcs"
         type: string
 
 env:
