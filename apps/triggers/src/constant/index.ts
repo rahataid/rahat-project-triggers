@@ -68,6 +68,9 @@ export const JOBS = {
   NOTIFICATION: {
     CREATE: 'rahat.jobs.notification.create',
   },
+  GROUP_CASH_TRANSFER: {
+    DISBURSE: 'aa.jobs.groupCashTransfer.disburse',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {
