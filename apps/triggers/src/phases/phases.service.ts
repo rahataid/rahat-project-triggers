@@ -99,13 +99,10 @@ export class PhasesService {
       );
     }
 
-    if (canTriggerPayout) {
-      if (!disbursementMethods?.length) {
-        throw new RpcException(
-          'disbursementMethods is required when canTriggerPayout is true',
-        );
-      }
-      await this.validateSinglePayoutPhase(river_basin);
+    if (canTriggerPayout && !disbursementMethods?.length) {
+      throw new RpcException(
+        'disbursementMethods is required when canTriggerPayout is true',
+      );
     }
 
     if (disbursementMethods?.length) {
@@ -222,13 +219,10 @@ export class PhasesService {
       throw new RpcException('Cannot update an active phase');
     }
 
-    if (rest.canTriggerPayout) {
-      if (!rest.disbursementMethods?.length) {
-        throw new RpcException(
-          'disbursementMethods is required when canTriggerPayout is true',
-        );
-      }
-      await this.validateSinglePayoutPhase(phase.riverBasin, uuid);
+    if (rest.canTriggerPayout && !rest.disbursementMethods?.length) {
+      throw new RpcException(
+        'disbursementMethods is required when canTriggerPayout is true',
+      );
     }
 
     if (rest.disbursementMethods?.length) {
@@ -863,35 +857,6 @@ export class PhasesService {
           `Disbursement method "${method}" is already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}. Each method can only be used by one phase per project.`,
         );
       }
-    }
-  }
-
-  private async validateSinglePayoutPhase(
-    riverBasin: string,
-    excludeUuid?: string,
-  ) {
-    if (!riverBasin) {
-      this.logger.warn(`River basin is required to validate payout phase`);
-      throw new RpcException(
-        `River basin is required to validate payout phase`,
-      );
-    }
-
-    const phaseWithPayoutEnabled = await this.prisma.phase.findFirst({
-      where: {
-        riverBasin,
-        canTriggerPayout: true,
-        ...(excludeUuid && { uuid: { not: excludeUuid } }),
-      },
-    });
-
-    if (phaseWithPayoutEnabled) {
-      this.logger.warn(
-        `Phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has canTriggerPayout enabled for riverBasin ${riverBasin}`,
-      );
-      throw new RpcException(
-        `Another phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has payout enabled for riverBasin ${riverBasin}. Only one phase per project can have canTriggerPayout set to true.`,
-      );
     }
   }
 
