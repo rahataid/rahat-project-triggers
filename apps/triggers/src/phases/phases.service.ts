@@ -837,7 +837,6 @@ export class PhasesService {
       where: {
         riverBasin,
         ...(excludeUuid && { uuid: { not: excludeUuid } }),
-        NOT: { disbursementConfig: null },
       },
     });
 
