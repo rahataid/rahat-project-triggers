@@ -79,6 +79,15 @@ export class GetPhaseByLocationDto {
   @IsString()
   @IsNotEmpty()
   activeYear: string;
+
+  @ApiProperty({
+    example: 'TOKEN',
+    description: 'Disbursement method to check if the phase is activated',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  disbursementMethod?: string;
 }
 
 export class RevertPhaseDto {

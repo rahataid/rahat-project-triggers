@@ -912,18 +912,23 @@ export class PhasesService {
     }
   }
 
-  async isPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+  async getPayoutPhaseStatusByMethod(payload: GetPhaseByLocationDto) {
     this.logger.log(
       `Getting phase payout status for station: ${payload.riverBasin} and active year ${payload.activeYear}`,
     );
 
-    const { activeYear, riverBasin } = payload;
+    const { activeYear, riverBasin, disbursementMethod } = payload;
     if (!activeYear || !riverBasin) {
-      this.logger.log('activate year and river basing is messing');
-      throw new RpcException('messing activeYear and riverBasin');
+      this.logger.warn('activeYear and riverBasin are required');
+      throw new RpcException('activeYear and riverBasin are required');
     }
 
-    const phase = await this.prisma.phase.findMany({
+    if (!disbursementMethod) {
+      this.logger.warn('disbursementMethod is required');
+      throw new RpcException('disbursementMethod is required');
+    }
+
+    const phases = await this.prisma.phase.findMany({
       where: {
         activeYear,
         canTriggerPayout: true,
@@ -937,11 +942,22 @@ export class PhasesService {
       },
     });
 
-    if (!phase || !phase.length) {
-      return false;
+    if (!phases.length) {
+      return { isPayoutMethodPhaseActivated: false };
     }
 
-    return true;
+    const matchingPhase = phases.find((phase) => {
+      const config = phase.disbursementConfig as {
+        disbursementMethods?: string[];
+      } | null;
+      return config?.disbursementMethods?.includes(disbursementMethod);
+    });
+
+    this.logger.log(
+      `Phase with disbursementMethod "${disbursementMethod}" is ${matchingPhase ? 'active' : 'not active'} for riverBasin ${riverBasin}`,
+    );
+
+    return { isPayoutMethodPhaseActivated: !!matchingPhase };
   }
   async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
     const { uuid, ...extendedTriggerLogic } = payload;

@@ -25,6 +25,7 @@ model Phase {
   canTriggerPayout Boolean @default(false)
   disbursementConfig Json? @db.JsonB()
   isRequiredLeadTime Boolean @default(false)
+  isAutomatedActivity Boolean @default(false)
   extendedTriggerLogic Json? @db.JsonB()
 
   activatedAt DateTime?
