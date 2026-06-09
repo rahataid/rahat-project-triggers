@@ -795,7 +795,7 @@ export class TriggerService {
     return lastValueFrom(
       this.client
         .send(
-          { cmd: JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
+          { cmd: JOBS.CHAIN.ADD_ONCHAIN_TRIGGER_QUEUE, uuid: appId },
           { triggers },
         )
         .pipe(
@@ -803,13 +803,13 @@ export class TriggerService {
           catchError((error) => {
             if (error.name === 'TimeoutError') {
               this.logger.error(
-                `Error while adding trigger onChain, action ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE} for AA ${appId}, timeout in ${timeoutMs}ms`,
+                `Error while adding trigger onChain, action ${JOBS.CHAIN.ADD_ONCHAIN_TRIGGER_QUEUE} for AA ${appId}, timeout in ${timeoutMs}ms`,
               );
               return of(null);
             }
 
             this.logger.error(
-              `Error while adding trigger onChain. Action ${JOBS.STELLAR.ADD_ONCHAIN_TRIGGER_QUEUE} for AA ${appId}, error: ${error.message}`,
+              `Error while adding trigger onChain. Action ${JOBS.CHAIN.ADD_ONCHAIN_TRIGGER_QUEUE} for AA ${appId}, error: ${error.message}`,
             );
 
             return of(null);
@@ -826,7 +826,7 @@ export class TriggerService {
       this.client
         .send(
           {
-            cmd: JOBS.STELLAR.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
+            cmd: JOBS.CHAIN.UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE,
             uuid: appId,
           },
           {

@@ -51,14 +51,16 @@ export const JOBS = {
     GET_ALL_GROUPS_BY_UUIDS: 'aa.jobs.stakeholders.getAllGroupsByUuids',
   },
   STELLAR: {
-    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
-    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
+    // ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.stellar.addTriggerOnChain',
+    // UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.stellar.updateTriggerOnChain',
     DISBURSE: 'jobs.stellar.disburse',
   },
   CHAIN: {
     DISBURSE: 'aa.jobs.chain.disburse',
     SEND_OTP: 'aa.jobs.chain.sendOtp',
     SEND_ASSET: 'aa.jobs.chain.sendAsset',
+    UPDATE_ONCHAIN_TRIGGER_PARAMS_QUEUE: 'aa.jobs.chain.updateTriggerOnChain',
+    ADD_ONCHAIN_TRIGGER_QUEUE: 'aa.jobs.chain.addTriggerOnChain',
   },
   STATS: {
     GET_STATS: 'ms.jobs.triggers.get_stats',
