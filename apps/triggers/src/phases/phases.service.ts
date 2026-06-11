@@ -63,6 +63,7 @@ export class PhasesService {
       requiredOptionalTriggers,
       extendedTriggerLogic,
       isRequiredLeadTime,
+      isAutomatedActivity,
       disbursementMethods,
     } = payload;
 
@@ -135,6 +136,7 @@ export class PhasesService {
           requiredOptionalTriggers: requiredOptionalTriggers || 0,
           ...(extendedTriggerLogic && { extendedTriggerLogic }),
           isRequiredLeadTime: isRequiredLeadTime || false,
+          isAutomatedActivity: isAutomatedActivity || false,
           ...(disbursementMethods && {
             disbursementConfig: { disbursementMethods } as unknown as object,
           }),
@@ -246,6 +248,7 @@ export class PhasesService {
         extendedTriggerLogic: rest.extendedTriggerLogic,
       }),
       isRequiredLeadTime: rest.isRequiredLeadTime ?? phase.isRequiredLeadTime,
+      isAutomatedActivity: rest.isAutomatedActivity ?? phase.isAutomatedActivity,
       ...(rest.disbursementMethods !== undefined && {
         disbursementConfig: {
           disbursementMethods: rest.disbursementMethods,

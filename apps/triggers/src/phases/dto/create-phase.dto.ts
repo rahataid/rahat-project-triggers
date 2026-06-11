@@ -107,6 +107,13 @@ export class CreatePhaseDto {
   isRequiredLeadTime?: boolean;
 
   @ApiProperty({
+    example: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isAutomatedActivity?: boolean;
+
+  @ApiProperty({
     description: 'Disbursement methods for the phase',
     required: false,
     example: ['TOKEN', 'INKIND', 'GROUP_TOKEN'],
