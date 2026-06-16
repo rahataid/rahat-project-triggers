@@ -1,7 +1,7 @@
-import { DataSource, Prisma, PrismaService, SourceType } from '@lib/database';
+import { DataSource, PrismaService, SourceType } from '@lib/database';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
-  GfofasInfo,
+  GlofasInfo,
   GlofasDataObject,
   GlofasInfoObject,
 } from 'types/glofas-observation.type';
@@ -17,8 +17,12 @@ export class GlofasServices {
   ): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
+        // Step 4: expand indicator into one record per return period (2yr, 5yr, 20yr)
         const returnPeriodInfos = this.expandReturnPeriodInfos(payload.info);
+        this.logger.log(`[Store] [${riverBasin}] Saving ${returnPeriodInfos.length} return period record(s)`);
+
         for (const info of returnPeriodInfos) {
+          // Step 4.1: upsert by (riverBasin, forecastDate, returnPeriod)
           const existingRecord = await tx.sourcesData.findFirst({
             where: {
               dataSource: DataSource.GLOFAS,
@@ -43,27 +47,20 @@ export class GlofasServices {
           });
 
           if (existingRecord) {
-            const existingInfo = JSON.parse(
-              JSON.stringify(existingRecord.info),
-            );
-            this.logger.log(
-              `Found existing record for ${riverBasin}; return period ${info.returnPeriod}`,
-            );
+            // Step 4.2: record exists — merge and update
+            const existingInfo = JSON.parse(JSON.stringify(existingRecord.info));
+            this.logger.log(`Found existing record for ${riverBasin}; return period ${info.returnPeriod}`);
 
             await tx.sourcesData.update({
               where: { id: existingRecord.id },
               data: {
-                info: {
-                  ...existingInfo,
-                  ...info,
-                },
+                info: { ...existingInfo, ...info },
                 updatedAt: new Date(),
               },
             });
           } else {
-            this.logger.log(
-              `No record found. Creating new for ${riverBasin}; return period ${info.returnPeriod}`,
-            );
+            // Step 4.2: no record — create new
+            this.logger.log(`No record found. Creating new for ${riverBasin}; return period ${info.returnPeriod}`);
 
             await tx.sourcesData.create({
               data: {
@@ -83,6 +80,7 @@ export class GlofasServices {
             });
           }
         }
+
       });
     } catch (error: any) {
       this.logger.error(`Error saving data for ${riverBasin}:`, error);
@@ -109,7 +107,7 @@ export class GlofasServices {
       });
 
       return sourceData.map((value) => {
-        const info = value.info as GfofasInfo;
+        const info = value.info as GlofasInfo;
         return {
           seriesId: info['location'].basinId,
           stationName: info['location'].basinId,
@@ -129,26 +127,14 @@ export class GlofasServices {
       .map((v: string) => Number(v.trim()) || 0);
 
     const returnPeriods = [
-      {
-        period: 2,
-        value: returnPeriodValues[0] ?? 0,
-        tableKey: 'returnPeriodTable2yr',
-      },
-      {
-        period: 5,
-        value: returnPeriodValues[1] ?? 0,
-        tableKey: 'returnPeriodTable5yr',
-      },
-      {
-        period: 20,
-        value: returnPeriodValues[2] ?? 0,
-        tableKey: 'returnPeriodTable20yr',
-      },
+      { period: 2,  value: returnPeriodValues[0] ?? 0 },
+      { period: 5,  value: returnPeriodValues[1] ?? 0 },
+      { period: 20, value: returnPeriodValues[2] ?? 0 },
     ];
 
-    return returnPeriods?.map((rp) => ({
+    return returnPeriods.map((rp) => ({
       returnPeriod: `${rp.period} years`,
-      returnPeriodTable: info[rp.tableKey],
+      returnPeriodTable: info.returnPeriodTable,
       pointForecastData: {
         ...info.pointForecastData,
         maxProbability: {

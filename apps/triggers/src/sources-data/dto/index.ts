@@ -7,12 +7,9 @@ type PointForecast = {
   data: string;
 };
 export interface GlofasStationInfo {
-  LOCATION: string;
-  I: string;
-  J: string;
-  URL: string;
-  BBOX: string;
-  TIMESTRING: string;
+ stationId: string;
+ orgFolder: string;
+ location: string; 
 }
 
 export interface GlofasDataObject {
@@ -21,10 +18,8 @@ export interface GlofasDataObject {
     maxProbability: PointForecast;
     alertLevel: PointForecast;
     maxProbabilityStep: PointForecast;
-    dischargeTendencyImage: PointForecast;
     peakForecasted: PointForecast;
   };
-  hydrographImageUrl: string;
   returnPeriodTable: {
     returnPeriodData: any[];
     returnPeriodHeaders: string[];

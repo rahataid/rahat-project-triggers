@@ -2,12 +2,9 @@ import { GfhStationDetails } from './gfh-station.type';
 import { DataSource, SourceType } from '../../../index';
 
 export type GlofasStationInfo = {
-  LOCATION: string;
-  I: string;
-  J: string;
-  URL: string;
-  BBOX: string;
-  TIMESTRING: string;
+  stationId: string;
+  orgFolder: string;
+  location: string;
 };
 
 export type RainfallWaterLevelConfig = Omit<
