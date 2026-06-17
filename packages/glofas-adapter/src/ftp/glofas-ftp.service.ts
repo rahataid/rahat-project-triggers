@@ -20,6 +20,24 @@ export class GlofasFtpService {
     return ftpClient;
   }
 
+  async listLatestFile(dir: string, prefix: string): Promise<string> {
+    let ftpClient;
+    try {
+      ftpClient = await this.connect();
+      const list = await ftpClient.list(dir);
+      const files = list
+        .filter((f) => f.name.startsWith(prefix) && f.name.endsWith('.tar.gz'))
+        .map((f) => f.name)
+        .sort(); // lexicographic = chronological since date is embedded in filename
+      if (files.length === 0) throw new Error(`No files found in ${dir} with prefix ${prefix}`);
+      return files[files.length - 1]!;
+    } catch (error: any) {
+      throw new Error(`FTP list failed for ${dir}: ${error.message}`);
+    } finally {
+      ftpClient?.close();
+    }
+  }
+
   async downloadFile(remotePath: string): Promise<Buffer> {
     let ftpClient;
     try {

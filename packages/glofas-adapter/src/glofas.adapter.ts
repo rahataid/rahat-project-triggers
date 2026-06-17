@@ -87,16 +87,22 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     try {
       const config: GlofasStationInfo[] = this.getConfig();
       const { dateString } = getFormattedDate();
-      const datePart = dateString.replace(/-/g, '');
 
-      this.logger.log(`[Fetch] Starting for ${config.length} station(s), date: ${dateString}`);
+      this.logger.log(`[Fetch] Starting for ${config.length} station(s)`);
 
       // Step 1: fetch tar.gz from FTP for each configured station
       const results = await Promise.allSettled(
         config.map(async (cfg) => {
-          const remotePath = `/for_${cfg.orgFolder}/glofas_pointdata_${cfg.orgFolder}_${datePart}00.tar.gz`;
+          const dir = `/for_${cfg.orgFolder}`;
+          const prefix = `glofas_pointdata_${cfg.orgFolder}_`;
 
-          // Step 1.1: download tar.gz buffer via FTP
+          // Step 1.1: list FTP dir and pick the latest available file
+          this.logger.log(`[Fetch] [${cfg.stationId}] Listing ${dir} for latest file`);
+          const latestFile = await this.ftpService.listLatestFile(dir, prefix);
+          const remotePath = `${dir}/${latestFile}`;
+          this.logger.log(`[Fetch] [${cfg.stationId}] Latest file: ${latestFile}`);
+
+          // Step 1.2: download tar.gz buffer via FTP
           this.logger.log(`[Fetch] [${cfg.stationId}] Downloading ${remotePath}`);
           const buffer = await this.ftpService.downloadFile(remotePath);
 

@@ -47,20 +47,12 @@ export class GlofasServices {
           });
 
           if (existingRecord) {
-            // Step 4.2: record exists — merge and update
-            const existingInfo = JSON.parse(JSON.stringify(existingRecord.info));
-            this.logger.log(`Found existing record for ${riverBasin}; return period ${info.returnPeriod}`);
-
-            await tx.sourcesData.update({
-              where: { id: existingRecord.id },
-              data: {
-                info: { ...existingInfo, ...info },
-                updatedAt: new Date(),
-              },
-            });
+            // Step 4.2: already stored for this forecastDate + returnPeriod — skip
+            this.logger.log(`[Store] [${riverBasin}] Already exists for forecastDate=${info.forecastDate} returnPeriod=${info.returnPeriod}, skipping`);
+            continue;
           } else {
             // Step 4.2: no record — create new
-            this.logger.log(`No record found. Creating new for ${riverBasin}; return period ${info.returnPeriod}`);
+            this.logger.log(`[Store] [${riverBasin}] Creating new record for forecastDate=${info.forecastDate} returnPeriod=${info.returnPeriod}`);
 
             await tx.sourcesData.create({
               data: {
