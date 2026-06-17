@@ -112,12 +112,11 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
 
           let dischargeContent: string | undefined;
           let returnLevelContent: string | undefined;
-          let dischargeFile: string | undefined;
 
           // Step 1.3: identify discharge series and return levels files
           for (const [name, content] of files.entries()) {
             if (name.includes('glofas_discharge_') && !name.includes('returnlevels')) {
-              dischargeContent = content; dischargeFile = name;
+              dischargeContent = content;
             } else if (name.includes('glofas_returnlevels_')) {
               returnLevelContent = content;
             }
@@ -127,9 +126,9 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
             throw new Error(`Missing required files in tar.gz for station ${cfg.stationId}`);
           }
 
-          // Step 1.4: derive forecast date from filename, fall back to today
+          // Step 1.4: derive forecast date from the tar.gz filename (reliable), fall back to today
           let forecastDate = dateString;
-          if (dischargeFile) try { forecastDate = extractDateFromFilename(dischargeFile); } catch { /* use dateString */ }
+          try { forecastDate = extractDateFromFilename(latestFile); } catch { /* use dateString */ }
 
           this.logger.log(`[Fetch] [${cfg.stationId}] Ready — forecastDate: ${forecastDate}`);
 
@@ -197,6 +196,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         const dischargeRecords = parseDischargeSeries(dischargeContent);
         const returnLevels = parseReturnLevels(returnLevelContent);
         this.logger.log(`[Aggregate] [${stationId}] ${dischargeRecords.length} discharge records, ${returnLevels.length} return level entries`);
+        this.logger.debug(`[Aggregate] Return levels raw: ${JSON.stringify(returnLevels.slice(0, 3))}`);
 
         // Step 2.1: match station return level thresholds by stationId
         const stationLevel = returnLevels.find((r) => r.stationId === stationId);
@@ -208,7 +208,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         // Step 2.2: filter discharge records for this station and compute exceedance probabilities
         const stationRecords = dischargeRecords.filter((r) => r.name.startsWith(stationId));
         this.logger.log(`[Aggregate] [${stationId}] ${stationRecords.length} records matched, computing probabilities`);
-        const glofasData = this.computeObservation(stationRecords, stationLevel);
+        const glofasData = this.computeObservation(stationRecords, stationLevel, forecastDate);
         this.logger.log(`[Aggregate] [${stationId}] alertLevel=${glofasData.pointForecastData.alertLevel.data} maxProbability=${glofasData.pointForecastData.maxProbability.data}`);
 
         observations.push({
@@ -241,7 +241,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         info: obs.data,
         indicator: 'prob_flood',
         units: 'percentage',
-        value: obs.data?.pointForecastData?.maxProbability?.data || '0 / 0 / 0',
+        value: obs.data?.pointForecastData?.maxProbability?.data || "",
       }));
 
       this.logger.log(`Transformed to ${indicators.length} indicators`);
@@ -261,7 +261,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     );
   }
 
-  private computeObservation(records: DischargeRecord[], levels: ReturnLevelRecord) {
+  private computeObservation(records: DischargeRecord[], levels: ReturnLevelRecord, forecastDate: string) {
     const peakByMember = new Map<number, number>();
     const byStep = new Map<string, number[]>();
 
@@ -285,15 +285,19 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     const alertLevel = this.getAlertLevel(prob2yr, prob5yr, prob20yr);
     const maxProbStep = this.getMaxProbStep(records, levels.level2yr, totalMembers);
 
-    const rpHeaders = ['Date', 'Min', 'Mean', 'Max', '2yr RP', '5yr RP', '20yr RP'];
-    const rpData = Array.from(byStep.entries())
-      .slice(0, 10)
-      .map(([date, vals]) => {
-        const min = Math.min(...vals).toFixed(1);
-        const mean = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
-        const max = Math.max(...vals).toFixed(1);
-        return [date, min, mean, max, levels.level2yr, levels.level5yr, levels.level20yr];
-      });
+    // per-step exceedance counts: rows=forecastDates, cols=day-of-month numbers (matches old WMS format)
+    const stepDates = Array.from(byStep.keys());
+    const rpHeaders = ['Forecast Day', ...stepDates.map((d) => String(new Date(d).getDate()))];
+    const buildRpTable = (threshold: number) => ({
+      returnPeriodHeaders: rpHeaders,
+      returnPeriodData: [[
+        forecastDate,
+        ...Array.from(byStep.values()).map((vals) => {
+          const count = vals.filter((d) => d > threshold).length;
+          return count === 0 ? "" : String(count);
+        }),
+      ]],
+    });
 
     return {
       pointForecastData: {
@@ -302,7 +306,9 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         peakForecasted: { header: 'Peak discharge (m³/s)', data: peakDis.toFixed(1) },
         maxProbabilityStep: { header: 'Max probability step', data: maxProbStep },
       },
-      returnPeriodTable: { returnPeriodHeaders: rpHeaders, returnPeriodData: rpData },
+      returnPeriodTable2yr: buildRpTable(levels.level2yr),
+      returnPeriodTable5yr: buildRpTable(levels.level5yr),
+      returnPeriodTable20yr: buildRpTable(levels.level20yr),
     };
   }
 

@@ -47,8 +47,16 @@ export interface GlofasInfoObject {
     maxProbabilityStep: PointForecast;
     peakForecasted: PointForecast;
   };
-  returnPeriodTable: {
-    returnPeriodData: any[];
+  returnPeriodTable2yr: {
+    returnPeriodData: string[][];
+    returnPeriodHeaders: string[];
+  };
+  returnPeriodTable5yr: {
+    returnPeriodData: string[][];
+    returnPeriodHeaders: string[];
+  };
+  returnPeriodTable20yr: {
+    returnPeriodData: string[][];
     returnPeriodHeaders: string[];
   };
   forecastDate: string;

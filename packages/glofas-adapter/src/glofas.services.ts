@@ -116,17 +116,17 @@ export class GlofasServices {
     const maxProbability = info?.pointForecastData?.maxProbability?.data ?? '';
     const returnPeriodValues = maxProbability
       .split('/')
-      .map((v: string) => Number(v.trim()) || 0);
+      .map((v: string) => v.trim() === "" ? "" : Number(v.trim()) || "");
 
     const returnPeriods = [
-      { period: 2,  value: returnPeriodValues[0] ?? 0 },
-      { period: 5,  value: returnPeriodValues[1] ?? 0 },
-      { period: 20, value: returnPeriodValues[2] ?? 0 },
+      { period: 2,  value: returnPeriodValues[0] ?? "", tableKey: 'returnPeriodTable2yr' as const },
+      { period: 5,  value: returnPeriodValues[1] ?? "", tableKey: 'returnPeriodTable5yr' as const },
+      { period: 20, value: returnPeriodValues[2] ?? "", tableKey: 'returnPeriodTable20yr' as const },
     ];
 
     return returnPeriods.map((rp) => ({
       returnPeriod: `${rp.period} years`,
-      returnPeriodTable: info.returnPeriodTable,
+      returnPeriodTable: info[rp.tableKey],
       pointForecastData: {
         ...info.pointForecastData,
         maxProbability: {
