@@ -103,7 +103,7 @@ export class PhasesController {
     cmd: MS_TRIGGERS_JOBS.PHASES.GET_PHASE_PAYOUT_STATUS,
   })
   async IsPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
-    return this.phasesService.isPayoutPhaseActivated(payload);
+    return this.phasesService.getPayoutPhaseStatusByMethod(payload);
   }
 
   @MessagePattern({

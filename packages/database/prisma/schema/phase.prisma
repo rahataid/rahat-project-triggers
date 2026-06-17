@@ -19,10 +19,13 @@ model Phase {
   receivedOptionalTriggers  Int? @default(0)
 
   canRevert        Boolean @default(false)
-  canTriggerPayout Boolean @default(false)
   isActive         Boolean @default(false)
   riverBasin       String
 
+  canTriggerPayout Boolean @default(false)
+  disbursementConfig Json? @db.JsonB()
+  isRequiredLeadTime Boolean @default(false)
+  isAutomatedActivity Boolean @default(false)
   extendedTriggerLogic Json? @db.JsonB()
 
   activatedAt DateTime?

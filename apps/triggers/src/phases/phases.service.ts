@@ -62,6 +62,9 @@ export class PhasesService {
       requiredMandatoryTriggers,
       requiredOptionalTriggers,
       extendedTriggerLogic,
+      isRequiredLeadTime,
+      isAutomatedActivity,
+      disbursementMethods,
     } = payload;
 
     this.logger.log(
@@ -97,8 +100,17 @@ export class PhasesService {
       );
     }
 
-    if (canTriggerPayout) {
-      await this.validateSinglePayoutPhase(river_basin);
+    if (canTriggerPayout && !disbursementMethods?.length) {
+      throw new RpcException(
+        'disbursementMethods is required when canTriggerPayout is true',
+      );
+    }
+
+    if (disbursementMethods?.length) {
+      await this.validateUniqueDisbursementMethods(
+        river_basin,
+        disbursementMethods,
+      );
     }
 
     try {
@@ -123,6 +135,11 @@ export class PhasesService {
           requiredMandatoryTriggers: requiredMandatoryTriggers || 0,
           requiredOptionalTriggers: requiredOptionalTriggers || 0,
           ...(extendedTriggerLogic && { extendedTriggerLogic }),
+          isRequiredLeadTime: isRequiredLeadTime || false,
+          isAutomatedActivity: isAutomatedActivity || false,
+          ...(disbursementMethods && {
+            disbursementConfig: { disbursementMethods } as unknown as object,
+          }),
         },
       });
     } catch (error: any) {
@@ -204,8 +221,18 @@ export class PhasesService {
       throw new RpcException('Cannot update an active phase');
     }
 
-    if (rest.canTriggerPayout) {
-      await this.validateSinglePayoutPhase(phase.riverBasin, uuid);
+    if (rest.canTriggerPayout && !rest.disbursementMethods?.length) {
+      throw new RpcException(
+        'disbursementMethods is required when canTriggerPayout is true',
+      );
+    }
+
+    if (rest.disbursementMethods?.length) {
+      await this.validateUniqueDisbursementMethods(
+        phase.riverBasin,
+        rest.disbursementMethods,
+        uuid,
+      );
     }
 
     // Only these three fields are allowed to be updated
@@ -219,6 +246,13 @@ export class PhasesService {
         rest.requiredOptionalTriggers ?? phase.requiredOptionalTriggers,
       ...(rest.extendedTriggerLogic !== undefined && {
         extendedTriggerLogic: rest.extendedTriggerLogic,
+      }),
+      isRequiredLeadTime: rest.isRequiredLeadTime ?? phase.isRequiredLeadTime,
+      isAutomatedActivity: rest.isAutomatedActivity ?? phase.isAutomatedActivity,
+      ...(rest.disbursementMethods !== undefined && {
+        disbursementConfig: {
+          disbursementMethods: rest.disbursementMethods,
+        } as unknown as object,
       }),
     };
 
@@ -468,45 +502,73 @@ export class PhasesService {
 
         if (appIds.length === 0) {
           this.logger.warn(
-            `No appIds found for phase ${phaseDetails.uuid}, skipping disbursement`,
+            `No appIds found for phase ${phaseDetails.uuid}, skipping disbursement. Please add activity to start disbursement for this phase.`,
           );
         } else {
-          for (const appId of appIds) {
-            try {
-              const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
+          const config = phaseDetails?.disbursementConfig as {
+            disbursementMethods?: string[];
+          } | null;
+          const methods = config?.disbursementMethods ?? [];
 
-              // Add timeout to prevent hanging
-              const stellerDistrub = await firstValueFrom(
-                // TODO: EVM Change
+          if (methods.length === 0) {
+            this.logger.warn(
+              `Phase ${phaseDetails.uuid} has canTriggerPayout=true but no disbursementMethods configured in disbursementConfig. Skipping disbursement.`,
+            );
+          }
+
+          // if new disbursement methods are added in future, we can just add the mapping in methodJobMap without changing the rest of the code
+          const methodJobMap: Record<string, string> = {
+            TOKEN: JOBS.CHAIN.DISBURSE,
+            GROUP_TOKEN: JOBS.GROUP_CASH_TRANSFER.DISBURSE,
+            // INKIND: no event fired
+          };
+
+          const disbursementTasks = appIds.flatMap((appId) => {
+            const disburseName = `${phaseDetails.name}-${phaseDetails.source.riverBasin}-${Date.now()}`;
+
+            return methods
+              .filter((method) => {
+                const cmd = methodJobMap[method];
+                if (!cmd) {
+                  this.logger.warn(
+                    `Job not found for disbursement method "${method}" for phase ${phaseDetails.uuid}, skipping`,
+                  );
+                }
+                return !!cmd;
+              })
+              .map((method) => ({
+                appId,
+                method,
+                disburseName,
+                cmd: methodJobMap[method],
+              }));
+          });
+
+          const results = await Promise.allSettled(
+            disbursementTasks.map(({ appId, method, disburseName, cmd }) =>
+              firstValueFrom(
                 this.client
-                  .send(
-                    {
-                      // cmd: JOBS.STELLAR.DISBURSE,
-                      cmd: JOBS.CHAIN.DISBURSE,
-                      uuid: appId,
-                    },
-                    {
-                      dName: disburseName,
-                    },
-                  )
-                  .pipe(timeout(30000)), // 30 second timeout
-              ).catch((error) => {
-                this.logger.error(
-                  `Microservice call failed for appId ${appId}:`,
-                  error,
+                  .send({ cmd, uuid: appId }, { dName: disburseName })
+                  .pipe(timeout(30000)),
+              ).then((result) => {
+                this.logger.log(
+                  `Disbursement method ${method} completed successfully for appId ${appId}`,
+                  result,
                 );
-                throw error;
-              });
+              }),
+            ),
+          );
 
-              this.logger.log(`Disbursement for ${appId}`, stellerDistrub);
-            } catch (error: any) {
+          results.forEach((result, index) => {
+            const { appId, method } = disbursementTasks[index];
+            if (result.status === 'rejected') {
               this.logger.error(
-                `Error during disbursement for appId ${appId}:`,
-                error,
+                `Disbursement method ${method} FAILED for appId ${appId}:`,
+                result.reason,
               );
               disbursementCompleted = false;
             }
-          }
+          });
         }
       }
 
@@ -542,6 +604,10 @@ export class PhasesService {
           `Phase ${uuid} activated but disbursement had errors. Check logs for details.`,
         );
       }
+
+      console.log('///////////////////////');
+      console.log('///////////////////////');
+      console.log('///////////////////////');
 
       return updatedPhase;
     } catch (error: any) {
@@ -765,32 +831,34 @@ export class PhasesService {
     return phase;
   }
 
-  private async validateSinglePayoutPhase(
+  private async validateUniqueDisbursementMethods(
     riverBasin: string,
+    methods: string[],
     excludeUuid?: string,
   ) {
-    if (!riverBasin) {
-      this.logger.warn(`River basin is required to validate payout phase`);
-      throw new RpcException(
-        `River basin is required to validate payout phase`,
-      );
-    }
-
-    const phaseWithPayoutEnabled = await this.prisma.phase.findFirst({
+    const existingPhases = await this.prisma.phase.findMany({
       where: {
         riverBasin,
-        canTriggerPayout: true,
         ...(excludeUuid && { uuid: { not: excludeUuid } }),
       },
     });
 
-    if (phaseWithPayoutEnabled) {
-      this.logger.warn(
-        `Phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has canTriggerPayout enabled for riverBasin ${riverBasin}`,
-      );
-      throw new RpcException(
-        `Another phase "${phaseWithPayoutEnabled.name}" (${phaseWithPayoutEnabled.activeYear}) already has payout enabled for riverBasin ${riverBasin}. Only one phase per project can have canTriggerPayout set to true.`,
-      );
+    for (const method of methods) {
+      const conflict = existingPhases.find((phase) => {
+        const config = phase.disbursementConfig as {
+          disbursementMethods?: string[];
+        } | null;
+        return config?.disbursementMethods?.includes(method);
+      });
+
+      if (conflict) {
+        this.logger.warn(
+          `Disbursement method "${method}" already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}`,
+        );
+        throw new RpcException(
+          `Disbursement method "${method}" is already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}. Each method can only be used by one phase per project.`,
+        );
+      }
     }
   }
 
@@ -847,18 +915,23 @@ export class PhasesService {
     }
   }
 
-  async isPayoutPhaseActivated(payload: GetPhaseByLocationDto) {
+  async getPayoutPhaseStatusByMethod(payload: GetPhaseByLocationDto) {
     this.logger.log(
       `Getting phase payout status for station: ${payload.riverBasin} and active year ${payload.activeYear}`,
     );
 
-    const { activeYear, riverBasin } = payload;
+    const { activeYear, riverBasin, disbursementMethod } = payload;
     if (!activeYear || !riverBasin) {
-      this.logger.log('activate year and river basing is messing');
-      throw new RpcException('messing activeYear and riverBasin');
+      this.logger.warn('activeYear and riverBasin are required');
+      throw new RpcException('activeYear and riverBasin are required');
     }
 
-    const phase = await this.prisma.phase.findMany({
+    if (!disbursementMethod) {
+      this.logger.warn('disbursementMethod is required');
+      throw new RpcException('disbursementMethod is required');
+    }
+
+    const phases = await this.prisma.phase.findMany({
       where: {
         activeYear,
         canTriggerPayout: true,
@@ -872,11 +945,22 @@ export class PhasesService {
       },
     });
 
-    if (!phase || !phase.length) {
-      return false;
+    if (!phases.length) {
+      return { isPayoutMethodPhaseActivated: false };
     }
 
-    return true;
+    const matchingPhase = phases.find((phase) => {
+      const config = phase.disbursementConfig as {
+        disbursementMethods?: string[];
+      } | null;
+      return config?.disbursementMethods?.includes(disbursementMethod);
+    });
+
+    this.logger.log(
+      `Phase with disbursementMethod "${disbursementMethod}" is ${matchingPhase ? 'active' : 'not active'} for riverBasin ${riverBasin}`,
+    );
+
+    return { isPayoutMethodPhaseActivated: !!matchingPhase };
   }
   async setExtendedTriggerLogic(payload: SetExtendedTriggerLogicDto) {
     const { uuid, ...extendedTriggerLogic } = payload;
