@@ -46,6 +46,7 @@ export interface GlofasInfoObject {
     alertLevel: PointForecast;
     maxProbabilityStep: PointForecast;
     peakForecasted: PointForecast;
+    dischargeTendencyImage: PointForecast;
   };
   returnPeriodTable2yr: {
     returnPeriodData: string[][];

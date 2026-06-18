@@ -29,6 +29,9 @@ import {
 import { GlofasFetchResponse, GlofasObservation } from './types';
 import { GlofasFtpService } from './ftp/glofas-ftp.service';
 
+const RISING_ARROW_IMAGE = 'https://global-flood.emergency.copernicus.eu/static/images/viewer/RisingArrow.gif';
+const FALLING_ARROW_IMAGE = 'https://global-flood.emergency.copernicus.eu/static/images/viewer/FallingArrow.gif';
+
 @Injectable()
 export class GlofasAdapter extends ObservationAdapter implements OnApplicationBootstrap {
   private readonly logger = new Logger(GlofasAdapter.name);
@@ -327,6 +330,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     const peakDis = Math.max(...peakPerMember);
     const alertLevel = this.getAlertLevel(prob2yr, prob5yr, prob20yr);
     const maxProbStep = this.getMaxProbStep(records, levels.level2yr, totalMembers);
+    const dischargeTendencyImage = this.getDischargeTendencyImage(byStep);
 
     // per-step exceedance counts keyed by exact ISO date — merged across forecast dates in aggregate()
     const countsByDate = (threshold: number) => {
@@ -344,6 +348,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         alertLevel: { header: 'Alert level', data: alertLevel },
         peakForecasted: { header: 'Peak discharge (m³/s)', data: peakDis.toFixed(1) },
         maxProbabilityStep: { header: 'Max probability step', data: maxProbStep },
+        dischargeTendencyImage: { header: 'Discharge tendency', data: dischargeTendencyImage },
       },
       countsByDate2yr: countsByDate(levels.level2yr),
       countsByDate5yr: countsByDate(levels.level5yr),
@@ -375,6 +380,17 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     }
 
     return maxStep;
+  }
+
+  private getDischargeTendencyImage(byStep: Map<string, number[]>): string {
+    const steps = Array.from(byStep.keys()).sort();
+    if (steps.length < 2) return RISING_ARROW_IMAGE;
+
+    const mean = (vals: number[]) => vals.reduce((a, b) => a + b, 0) / vals.length;
+    const first = mean(byStep.get(steps[0]!)!);
+    const last = mean(byStep.get(steps[steps.length - 1]!)!);
+
+    return last >= first ? RISING_ARROW_IMAGE : FALLING_ARROW_IMAGE;
   }
 
   private emitDataSourceEvent(indicators: Indicator[]): void {
