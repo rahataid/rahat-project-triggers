@@ -20,7 +20,7 @@ export class GlofasFtpService {
     return ftpClient;
   }
 
-  async listLatestFile(dir: string, prefix: string): Promise<string> {
+  async listFiles(dir: string, prefix: string): Promise<string[]> {
     let ftpClient;
     try {
       ftpClient = await this.connect();
@@ -30,7 +30,7 @@ export class GlofasFtpService {
         .map((f) => f.name)
         .sort(); // lexicographic = chronological since date is embedded in filename
       if (files.length === 0) throw new Error(`No files found in ${dir} with prefix ${prefix}`);
-      return files[files.length - 1]!;
+      return files;
     } catch (error: any) {
       throw new Error(`FTP list failed for ${dir}: ${error.message}`);
     } finally {

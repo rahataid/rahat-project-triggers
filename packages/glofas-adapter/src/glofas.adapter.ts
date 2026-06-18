@@ -90,55 +90,60 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
 
       this.logger.log(`[Fetch] Starting for ${config.length} station(s)`);
 
-      // Step 1: fetch tar.gz from FTP for each configured station
+      // Step 1: fetch every available tar.gz from FTP for each configured station (full backlog, not just latest)
       const results = await Promise.allSettled(
         config.map(async (cfg) => {
           const dir = `/for_${cfg.orgFolder}`;
           const prefix = `glofas_pointdata_${cfg.orgFolder}_`;
 
-          // Step 1.1: list FTP dir and pick the latest available file
-          this.logger.log(`[Fetch] [${cfg.stationId}] Listing ${dir} for latest file`);
-          const latestFile = await this.ftpService.listLatestFile(dir, prefix);
-          const remotePath = `${dir}/${latestFile}`;
-          this.logger.log(`[Fetch] [${cfg.stationId}] Latest file: ${latestFile}`);
+          // Step 1.1: list FTP dir for all available files
+          this.logger.log(`[Fetch] [${cfg.stationId}] Listing ${dir} for available files`);
+          const allFiles = await this.ftpService.listFiles(dir, prefix);
+          this.logger.log(`[Fetch] [${cfg.stationId}] Found ${allFiles.length} file(s)`);
 
-          // Step 1.2: download tar.gz buffer via FTP
-          this.logger.log(`[Fetch] [${cfg.stationId}] Downloading ${remotePath}`);
-          const buffer = await this.ftpService.downloadFile(remotePath);
+          // Step 1.2: download + extract each file in sequence (FTP client is not safely shared across concurrent calls)
+          const stationResults: GlofasFetchResponse[] = [];
+          for (const file of allFiles) {
+            const remotePath = `${dir}/${file}`;
+            this.logger.log(`[Fetch] [${cfg.stationId}] Downloading ${remotePath}`);
+            const buffer = await this.ftpService.downloadFile(remotePath);
+            const extracted = await extractTarGz(buffer);
 
-          // Step 1.2: extract files from tar.gz
-          this.logger.log(`[Fetch] [${cfg.stationId}] Downloaded ${buffer.length} bytes, extracting`);
-          const files = await extractTarGz(buffer);
+            let dischargeContent: string | undefined;
+            let returnLevelContent: string | undefined;
 
-          let dischargeContent: string | undefined;
-          let returnLevelContent: string | undefined;
-
-          // Step 1.3: identify discharge series and return levels files
-          for (const [name, content] of files.entries()) {
-            if (name.includes('glofas_discharge_') && !name.includes('returnlevels')) {
-              dischargeContent = content;
-            } else if (name.includes('glofas_returnlevels_')) {
-              returnLevelContent = content;
+            for (const [name, content] of extracted.entries()) {
+              if (name.includes('glofas_discharge_') && !name.includes('returnlevels')) {
+                dischargeContent = content;
+              } else if (name.includes('glofas_returnlevels_')) {
+                returnLevelContent = content;
+              }
             }
+
+            if (!dischargeContent || !returnLevelContent) {
+              this.logger.warn(`[Fetch] [${cfg.stationId}] Missing required files in ${file}, skipping`);
+              continue;
+            }
+
+            // Step 1.3: derive forecast date from the tar.gz filename (reliable), fall back to today
+            let forecastDate = dateString;
+            try { forecastDate = extractDateFromFilename(file); } catch { /* use dateString */ }
+
+            stationResults.push({
+              dischargeContent,
+              returnLevelContent,
+              forecastDate,
+              location: cfg.location,
+              stationId: cfg.stationId,
+            });
           }
 
-          if (!dischargeContent || !returnLevelContent) {
-            throw new Error(`Missing required files in tar.gz for station ${cfg.stationId}`);
+          if (stationResults.length === 0) {
+            throw new Error(`No usable files in tar.gz for station ${cfg.stationId}`);
           }
 
-          // Step 1.4: derive forecast date from the tar.gz filename (reliable), fall back to today
-          let forecastDate = dateString;
-          try { forecastDate = extractDateFromFilename(latestFile); } catch { /* use dateString */ }
-
-          this.logger.log(`[Fetch] [${cfg.stationId}] Ready — forecastDate: ${forecastDate}`);
-
-          return {
-            dischargeContent,
-            returnLevelContent,
-            forecastDate,
-            location: cfg.location,
-            stationId: cfg.stationId,
-          };
+          this.logger.log(`[Fetch] [${cfg.stationId}] Ready — ${stationResults.length} forecast date(s)`);
+          return stationResults;
         }),
       );
 
@@ -147,7 +152,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         if (!station) return;
 
         if (result.status === 'fulfilled') {
-          successfulResults.push(result.value);
+          successfulResults.push(...result.value);
         } else {
           itemErrors.push({
             itemId: station.location,
@@ -189,27 +194,65 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     try {
       const observations: GlofasObservation[] = [];
 
-      this.logger.log(`[Aggregate] Processing ${rawDatas.length} station(s)`);
+      this.logger.log(`[Aggregate] Processing ${rawDatas.length} forecast file(s)`);
 
-      for (const { dischargeContent, returnLevelContent, forecastDate, location, stationId } of rawDatas) {
-        // Step 2: parse discharge series and return levels from file contents
-        const dischargeRecords = parseDischargeSeries(dischargeContent);
-        const returnLevels = parseReturnLevels(returnLevelContent);
-        this.logger.log(`[Aggregate] [${stationId}] ${dischargeRecords.length} discharge records, ${returnLevels.length} return level entries`);
-        this.logger.debug(`[Aggregate] Return levels raw: ${JSON.stringify(returnLevels.slice(0, 3))}`);
+      // Step 2: group fetched files by station — each station may have a week's worth of forecast dates
+      const byStation = new Map<string, GlofasFetchResponse[]>();
+      for (const raw of rawDatas) {
+        if (!byStation.has(raw.stationId)) byStation.set(raw.stationId, []);
+        byStation.get(raw.stationId)!.push(raw);
+      }
 
-        // Step 2.1: match station return level thresholds by stationId
-        const stationLevel = returnLevels.find((r) => r.stationId === stationId);
-        if (!stationLevel) {
-          this.logger.warn(`[${stationId}] Return level not found. Available: ${returnLevels.map((r) => r.stationId).join(', ')}`);
+      for (const [stationId, stationFiles] of byStation.entries()) {
+        const location = stationFiles[0]!.location;
+
+        // Step 2.1: compute one result per forecast date, oldest first
+        const sorted = [...stationFiles].sort((a, b) => a.forecastDate.localeCompare(b.forecastDate));
+        const perDate: { forecastDate: string; result: ReturnType<GlofasAdapter['computeObservation']> }[] = [];
+
+        for (const { dischargeContent, returnLevelContent, forecastDate } of sorted) {
+          const dischargeRecords = parseDischargeSeries(dischargeContent);
+          const returnLevels = parseReturnLevels(returnLevelContent);
+
+          const stationLevel = returnLevels.find((r) => r.stationId === stationId);
+          if (!stationLevel) {
+            this.logger.warn(`[${stationId}] Return level not found for ${forecastDate}. Available: ${returnLevels.map((r) => r.stationId).join(', ')}`);
+            continue;
+          }
+
+          const stationRecords = dischargeRecords.filter((r) => r.name.startsWith(stationId));
+          perDate.push({ forecastDate, result: this.computeObservation(stationRecords, stationLevel) });
+        }
+
+        if (perDate.length === 0) {
+          this.logger.warn(`[Aggregate] [${stationId}] No usable forecast dates`);
           continue;
         }
 
-        // Step 2.2: filter discharge records for this station and compute exceedance probabilities
-        const stationRecords = dischargeRecords.filter((r) => r.name.startsWith(stationId));
-        this.logger.log(`[Aggregate] [${stationId}] ${stationRecords.length} records matched, computing probabilities`);
-        const glofasData = this.computeObservation(stationRecords, stationLevel, forecastDate);
-        this.logger.log(`[Aggregate] [${stationId}] alertLevel=${glofasData.pointForecastData.alertLevel.data} maxProbability=${glofasData.pointForecastData.maxProbability.data}`);
+        // Step 2.2: column grid = union of all step-dates across every forecast date (day-of-month, matches old WMS)
+        const newestFirst = [...perDate].reverse();
+        const allStepDates = Array.from(
+          new Set(perDate.flatMap(({ result }) => Array.from(result.countsByDate2yr.keys()))),
+        ).sort();
+        const rpHeaders = ['Forecast Day', ...allStepDates.map((d) => String(new Date(d).getDate()))];
+
+        const mergeRpTable = (key: 'countsByDate2yr' | 'countsByDate5yr' | 'countsByDate20yr') => ({
+          returnPeriodHeaders: rpHeaders,
+          returnPeriodData: newestFirst.map(({ forecastDate, result }) => [
+            forecastDate,
+            ...allStepDates.map((d) => result[key].get(d) ?? ""),
+          ]),
+        });
+
+        const glofasData = {
+          pointForecastData: newestFirst[0]!.result.pointForecastData,
+          returnPeriodTable2yr: mergeRpTable('countsByDate2yr'),
+          returnPeriodTable5yr: mergeRpTable('countsByDate5yr'),
+          returnPeriodTable20yr: mergeRpTable('countsByDate20yr'),
+        };
+
+        const forecastDate = newestFirst[0]!.forecastDate;
+        this.logger.log(`[Aggregate] [${stationId}] Merged ${perDate.length} date(s) — alertLevel=${glofasData.pointForecastData.alertLevel.data} maxProbability=${glofasData.pointForecastData.maxProbability.data}`);
 
         observations.push({
           data: { ...glofasData, forecastDate },
@@ -261,7 +304,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     );
   }
 
-  private computeObservation(records: DischargeRecord[], levels: ReturnLevelRecord, forecastDate: string) {
+  private computeObservation(records: DischargeRecord[], levels: ReturnLevelRecord) {
     const peakByMember = new Map<number, number>();
     const byStep = new Map<string, number[]>();
 
@@ -285,19 +328,15 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
     const alertLevel = this.getAlertLevel(prob2yr, prob5yr, prob20yr);
     const maxProbStep = this.getMaxProbStep(records, levels.level2yr, totalMembers);
 
-    // per-step exceedance counts: rows=forecastDates, cols=day-of-month numbers (matches old WMS format)
-    const stepDates = Array.from(byStep.keys());
-    const rpHeaders = ['Forecast Day', ...stepDates.map((d) => String(new Date(d).getDate()))];
-    const buildRpTable = (threshold: number) => ({
-      returnPeriodHeaders: rpHeaders,
-      returnPeriodData: [[
-        forecastDate,
-        ...Array.from(byStep.values()).map((vals) => {
-          const count = vals.filter((d) => d > threshold).length;
-          return count === 0 ? "" : String(count);
-        }),
-      ]],
-    });
+    // per-step exceedance counts keyed by exact ISO date — merged across forecast dates in aggregate()
+    const countsByDate = (threshold: number) => {
+      const counts = new Map<string, string>();
+      for (const [date, vals] of byStep.entries()) {
+        const count = vals.filter((d) => d > threshold).length;
+        counts.set(date, count === 0 ? "" : String(count));
+      }
+      return counts;
+    };
 
     return {
       pointForecastData: {
@@ -306,9 +345,9 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
         peakForecasted: { header: 'Peak discharge (m³/s)', data: peakDis.toFixed(1) },
         maxProbabilityStep: { header: 'Max probability step', data: maxProbStep },
       },
-      returnPeriodTable2yr: buildRpTable(levels.level2yr),
-      returnPeriodTable5yr: buildRpTable(levels.level5yr),
-      returnPeriodTable20yr: buildRpTable(levels.level20yr),
+      countsByDate2yr: countsByDate(levels.level2yr),
+      countsByDate5yr: countsByDate(levels.level5yr),
+      countsByDate20yr: countsByDate(levels.level20yr),
     };
   }
 

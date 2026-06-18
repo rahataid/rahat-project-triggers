@@ -337,30 +337,18 @@ export class SourcesDataService {
     return dataInfos;
   }
 
-  private getGlofasForecastDate() {
-    const yesterdayDate = new Date();
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const date = getFormattedDate(yesterdayDate);
-    return date.dateString;
-  }
-
   async getAllGlofasProbFlood(payload: GetAllGlofasProbFloodDto) {
     this.logger.log('Fetching all Glofas Prob Flood data');
 
     const { riverBasin } = payload;
 
-    const forecastDate = this.getGlofasForecastDate();
-
+    // one record per returnPeriod, continuously upserted — no forecastDate filter needed
     const records = await this.prisma.sourcesData.findMany({
       where: {
         type: SourceType.PROB_FLOOD,
         dataSource: DataSource.GLOFAS,
         source: {
           riverBasin,
-        },
-        info: {
-          path: ['forecastDate'],
-          equals: forecastDate,
         },
       },
       include: {
@@ -380,8 +368,7 @@ export class SourcesDataService {
       `Fetching Glofas Prob Flood data; return period ${returnPeriod}`,
     );
 
-    const forecastDate = this.getGlofasForecastDate();
-
+    // one record per (riverBasin, returnPeriod), continuously upserted — no forecastDate filter needed
     const record = await this.prisma.sourcesData.findFirst({
       where: {
         type: SourceType.PROB_FLOOD,
@@ -389,20 +376,10 @@ export class SourcesDataService {
         source: {
           riverBasin,
         },
-        AND: [
-          {
-            info: {
-              path: ['forecastDate'],
-              equals: forecastDate,
-            },
-          },
-          {
-            info: {
-              path: ['returnPeriod'],
-              equals: returnPeriod,
-            },
-          },
-        ],
+        info: {
+          path: ['returnPeriod'],
+          equals: returnPeriod,
+        },
       },
       include: {
         source: { select: { riverBasin: true } },
