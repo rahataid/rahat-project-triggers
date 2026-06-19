@@ -342,7 +342,8 @@ export class SourcesDataService {
 
     const { riverBasin } = payload;
 
-    // one record per returnPeriod, continuously upserted — no forecastDate filter needed
+    // many rows per returnPeriod now (one per forecastDate, kept for audit) — returnPeriod lives in the JSON info
+    // column so Prisma's `distinct` can't target it; take newest-first and dedupe by returnPeriod in JS
     const records = await this.prisma.sourcesData.findMany({
       where: {
         type: SourceType.PROB_FLOOD,
@@ -355,10 +356,17 @@ export class SourcesDataService {
         source: { select: { riverBasin: true } },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc',
       },
     });
-    return records;
+
+    const seen = new Set<string>();
+    return records.filter((record) => {
+      const returnPeriod = (record.info as any)?.returnPeriod;
+      if (seen.has(returnPeriod)) return false;
+      seen.add(returnPeriod);
+      return true;
+    });
   }
 
   async getOneGlofasProbFlood(payload: GetOneGlofasProbFloodDto) {
@@ -368,7 +376,7 @@ export class SourcesDataService {
       `Fetching Glofas Prob Flood data; return period ${returnPeriod}`,
     );
 
-    // one record per (riverBasin, returnPeriod), continuously upserted — no forecastDate filter needed
+    // many rows per (riverBasin, returnPeriod) now, one per forecastDate kept for audit — take the latest
     const record = await this.prisma.sourcesData.findFirst({
       where: {
         type: SourceType.PROB_FLOOD,
@@ -383,6 +391,9 @@ export class SourcesDataService {
       },
       include: {
         source: { select: { riverBasin: true } },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
 

@@ -35,6 +35,8 @@ const FALLING_ARROW_IMAGE = 'https://global-flood.emergency.copernicus.eu/static
 @Injectable()
 export class GlofasAdapter extends ObservationAdapter implements OnApplicationBootstrap {
   private readonly logger = new Logger(GlofasAdapter.name);
+  // ponytail: in-memory cache, per-station file -> parsed response. Lost on restart, refetches everything once.
+  private readonly fileCache = new Map<string, Map<string, GlofasFetchResponse>>();
 
   constructor(
     @Inject(HttpService) httpService: HttpService,
@@ -104,9 +106,16 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
           const allFiles = await this.ftpService.listFiles(dir, prefix);
           this.logger.log(`[Fetch] [${cfg.stationId}] Found ${allFiles.length} file(s)`);
 
-          // Step 1.2: download + extract each file in sequence (FTP client is not safely shared across concurrent calls)
-          const stationResults: GlofasFetchResponse[] = [];
+          // Step 1.2: reuse cached files already downloaded; drop cache entries for files rotated off FTP
+          const cache = this.fileCache.get(cfg.stationId) ?? new Map<string, GlofasFetchResponse>();
+          for (const cachedFile of cache.keys()) {
+            if (!allFiles.includes(cachedFile)) cache.delete(cachedFile);
+          }
+
+          // Step 1.3: download + extract only files not already cached (FTP client is not safely shared across concurrent calls)
           for (const file of allFiles) {
+            if (cache.has(file)) continue;
+
             const remotePath = `${dir}/${file}`;
             this.logger.log(`[Fetch] [${cfg.stationId}] Downloading ${remotePath}`);
             const buffer = await this.ftpService.downloadFile(remotePath);
@@ -128,11 +137,11 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
               continue;
             }
 
-            // Step 1.3: derive forecast date from the tar.gz filename (reliable), fall back to today
+            // Step 1.4: derive forecast date from the tar.gz filename (reliable), fall back to today
             let forecastDate = dateString;
             try { forecastDate = extractDateFromFilename(file); } catch { /* use dateString */ }
 
-            stationResults.push({
+            cache.set(file, {
               dischargeContent,
               returnLevelContent,
               forecastDate,
@@ -140,7 +149,9 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
               stationId: cfg.stationId,
             });
           }
+          this.fileCache.set(cfg.stationId, cache);
 
+          const stationResults = Array.from(cache.values());
           if (stationResults.length === 0) {
             throw new Error(`No usable files in tar.gz for station ${cfg.stationId}`);
           }

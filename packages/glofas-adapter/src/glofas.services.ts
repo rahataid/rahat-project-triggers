@@ -22,7 +22,7 @@ export class GlofasServices {
         this.logger.log(`[Store] [${riverBasin}] Saving ${returnPeriodInfos.length} return period record(s)`);
 
         for (const info of returnPeriodInfos) {
-          // Step 4.1: find existing record by (riverBasin, returnPeriod) — table now holds a merged week of forecast dates, so overwrite rather than skip
+          // Step 4.1: insert-only by (riverBasin, returnPeriod, forecastDate) — keeps full history for audit, skip if FTP hasn't published anything newer
           const existingRecord = await tx.sourcesData.findFirst({
             where: {
               type: SourceType.PROB_FLOOD,
@@ -32,34 +32,37 @@ export class GlofasServices {
                 path: ['returnPeriod'],
                 equals: info.returnPeriod,
               },
+              AND: {
+                info: {
+                  path: ['forecastDate'],
+                  equals: info.forecastDate,
+                },
+              },
             },
           });
 
           if (existingRecord) {
-            this.logger.log(`[Store] [${riverBasin}] Updating record for returnPeriod=${info.returnPeriod} (forecastDate=${info.forecastDate})`);
-            await tx.sourcesData.update({
-              where: { id: existingRecord.id },
-              data: { info },
-            });
-          } else {
-            this.logger.log(`[Store] [${riverBasin}] Creating new record for returnPeriod=${info.returnPeriod} (forecastDate=${info.forecastDate})`);
-            await tx.sourcesData.create({
-              data: {
-                type: SourceType.PROB_FLOOD,
-                dataSource: DataSource.GLOFAS,
-                info: info,
-                source: {
-                  connectOrCreate: {
-                    where: { riverBasin },
-                    create: {
-                      riverBasin,
-                      source: [DataSource.GLOFAS],
-                    },
+            this.logger.log(`[Store] [${riverBasin}] Already have returnPeriod=${info.returnPeriod} forecastDate=${info.forecastDate}, skipping`);
+            continue;
+          }
+
+          this.logger.log(`[Store] [${riverBasin}] Creating new record for returnPeriod=${info.returnPeriod} (forecastDate=${info.forecastDate})`);
+          await tx.sourcesData.create({
+            data: {
+              type: SourceType.PROB_FLOOD,
+              dataSource: DataSource.GLOFAS,
+              info,
+              source: {
+                connectOrCreate: {
+                  where: { riverBasin },
+                  create: {
+                    riverBasin,
+                    source: [DataSource.GLOFAS],
                   },
                 },
               },
-            });
-          }
+            },
+          });
         }
 
       });
