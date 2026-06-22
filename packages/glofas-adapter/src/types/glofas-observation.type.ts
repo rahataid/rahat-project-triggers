@@ -61,6 +61,7 @@ export interface GlofasInfoObject {
     returnPeriodHeaders: string[];
   };
   forecastDate: string;
+  dischargeSeries: { date: string; min: number; mean: number; max: number }[];
 }
 
 export type GlofasInfo = {

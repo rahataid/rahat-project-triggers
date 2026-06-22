@@ -263,6 +263,8 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
           returnPeriodTable2yr: mergeRpTable('countsByDate2yr'),
           returnPeriodTable5yr: mergeRpTable('countsByDate5yr'),
           returnPeriodTable20yr: mergeRpTable('countsByDate20yr'),
+          // only the latest forecast's window — no stacking of superseded leadtime ranges
+          dischargeSeries: newestFirst[0]!.result.dischargeSeries,
         };
 
         const forecastDate = newestFirst[0]!.forecastDate;
@@ -353,6 +355,16 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
       return counts;
     };
 
+    // ponytail: min/mean/max per leadtime date, no percentile bands — enough for an ensemble-fan chart
+    const dischargeSeries = Array.from(byStep.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, vals]) => ({
+        date,
+        min: Math.min(...vals),
+        mean: vals.reduce((sum, v) => sum + v, 0) / vals.length,
+        max: Math.max(...vals),
+      }));
+
     return {
       pointForecastData: {
         maxProbability: { header: 'Maximum probability', data: `${prob2yr} / ${prob5yr} / ${prob20yr}` },
@@ -364,6 +376,7 @@ export class GlofasAdapter extends ObservationAdapter implements OnApplicationBo
       countsByDate2yr: countsByDate(levels.level2yr),
       countsByDate5yr: countsByDate(levels.level5yr),
       countsByDate20yr: countsByDate(levels.level20yr),
+      dischargeSeries,
     };
   }
 

@@ -126,7 +126,7 @@ export class GlofasServices {
           header: `Maximum probability (${rp.period} yr)`,
         },
       },
-      hydrographImageUrl: info.hydrographImageUrl,
+      dischargeSeries: info.dischargeSeries,
       forecastDate: info.forecastDate,
     }));
   }
