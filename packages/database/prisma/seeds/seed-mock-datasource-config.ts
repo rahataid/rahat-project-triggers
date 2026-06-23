@@ -17,7 +17,9 @@ const config: DataSourceConfigType = {
       },
     },
     [DataSource.GLOFAS]: {
-      URL: 'http://localhost:3005/v1/forecast/glofas',
+      URL: 'aux.ecmwf.int',
+      USER: '',
+      PASSWORD: '',
     },
     [DataSource.GFH]: {
       URL: 'http://localhost:3005/v1/forecast/gauges:queryGaugeForecasts',

@@ -337,20 +337,13 @@ export class SourcesDataService {
     return dataInfos;
   }
 
-  private getGlofasForecastDate() {
-    const yesterdayDate = new Date();
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const date = getFormattedDate(yesterdayDate);
-    return date.dateString;
-  }
-
   async getAllGlofasProbFlood(payload: GetAllGlofasProbFloodDto) {
     this.logger.log('Fetching all Glofas Prob Flood data');
 
     const { riverBasin } = payload;
 
-    const forecastDate = this.getGlofasForecastDate();
-
+    // many rows per returnPeriod now (one per forecastDate, kept for audit) — returnPeriod lives in the JSON info
+    // column so Prisma's `distinct` can't target it; take newest-first and dedupe by returnPeriod in JS
     const records = await this.prisma.sourcesData.findMany({
       where: {
         type: SourceType.PROB_FLOOD,
@@ -358,19 +351,22 @@ export class SourcesDataService {
         source: {
           riverBasin,
         },
-        info: {
-          path: ['forecastDate'],
-          equals: forecastDate,
-        },
       },
       include: {
         source: { select: { riverBasin: true } },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc',
       },
     });
-    return records;
+
+    const seen = new Set<string>();
+    return records.filter((record) => {
+      const returnPeriod = (record.info as any)?.returnPeriod;
+      if (seen.has(returnPeriod)) return false;
+      seen.add(returnPeriod);
+      return true;
+    });
   }
 
   async getOneGlofasProbFlood(payload: GetOneGlofasProbFloodDto) {
@@ -380,8 +376,7 @@ export class SourcesDataService {
       `Fetching Glofas Prob Flood data; return period ${returnPeriod}`,
     );
 
-    const forecastDate = this.getGlofasForecastDate();
-
+    // many rows per (riverBasin, returnPeriod) now, one per forecastDate kept for audit — take the latest
     const record = await this.prisma.sourcesData.findFirst({
       where: {
         type: SourceType.PROB_FLOOD,
@@ -389,23 +384,16 @@ export class SourcesDataService {
         source: {
           riverBasin,
         },
-        AND: [
-          {
-            info: {
-              path: ['forecastDate'],
-              equals: forecastDate,
-            },
-          },
-          {
-            info: {
-              path: ['returnPeriod'],
-              equals: returnPeriod,
-            },
-          },
-        ],
+        info: {
+          path: ['returnPeriod'],
+          equals: returnPeriod,
+        },
       },
       include: {
         source: { select: { riverBasin: true } },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
 

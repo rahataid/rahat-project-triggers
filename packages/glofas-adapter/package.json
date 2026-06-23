@@ -10,12 +10,15 @@
   "dependencies": {
     "@lib/core": "workspace:*",
     "@lib/database": "workspace:*",
-    "axios": "^1.12.2",
     "@nestjs/axios": "^4.0.1",
-    "cheerio": "^1.1.2"
+    "axios": "^1.12.2",
+    "basic-ftp": "^6.0.1",
+    "cheerio": "^1.1.2",
+    "tar-stream": "^3.2.0"
   },
   "devDependencies": {
     "@types/jest": "^27.0.2",
+    "@types/tar-stream": "^3.1.4",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "jest": "^27.0.6",
