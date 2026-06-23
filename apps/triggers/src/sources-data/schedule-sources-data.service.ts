@@ -164,7 +164,7 @@ export class ScheduleSourcesDataService
     }
   }
 
-  // run every hour
+  // run every 1 hour
   @Cron('0 * * * *')
   async synchronizeGlofas() {
     const glofasResult = await this.glofasMonitored.execute(null);

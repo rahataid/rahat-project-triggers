@@ -2,6 +2,8 @@ import { DataSource, SourceType } from '@lib/database';
 
 export type URLConfig = {
   URL: string;
+  USER?: string;
+  PASSWORD?: string;
 };
 
 export type DataSourceDHMConfig = {

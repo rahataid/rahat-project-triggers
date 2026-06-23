@@ -2,6 +2,8 @@ import { DataSource, SourceType } from '../../../index';
 
 export type URLConfig = {
   URL: string;
+  USER?: string;
+  PASSWORD?: string;
 };
 
 export type DataSourceDHMConfig = Omit<
