@@ -248,7 +248,8 @@ export class PhasesService {
         extendedTriggerLogic: rest.extendedTriggerLogic,
       }),
       isRequiredLeadTime: rest.isRequiredLeadTime ?? phase.isRequiredLeadTime,
-      isAutomatedActivity: rest.isAutomatedActivity ?? phase.isAutomatedActivity,
+      isAutomatedActivity:
+        rest.isAutomatedActivity ?? phase.isAutomatedActivity,
       ...(rest.disbursementMethods !== undefined && {
         disbursementConfig: {
           disbursementMethods: rest.disbursementMethods,
@@ -604,10 +605,6 @@ export class PhasesService {
           `Phase ${uuid} activated but disbursement had errors. Check logs for details.`,
         );
       }
-
-      console.log('///////////////////////');
-      console.log('///////////////////////');
-      console.log('///////////////////////');
 
       return updatedPhase;
     } catch (error: any) {
