@@ -22,6 +22,16 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.BULK_ADD,
+  })
+  async bulkAdd(
+    @Payload() payload: { data: CreateActivityDto[]; appId: string },
+  ) {
+    const data = payload.data.map((item) => ({ ...item, appId: payload.appId }));
+    return this.activityService.bulkAdd(data);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ALL,
   })
   async getAll(@Payload() payload: GetActivityDto): Promise<any> {

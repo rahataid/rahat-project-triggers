@@ -6,6 +6,7 @@ export const BQUEUE = {
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
   NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER',
+  ACTIVITY_BULK: 'ACTIVITY_BULK',
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
@@ -25,6 +26,7 @@ export const JOBS = {
     GET_ALL: 'rahat.jobs.activities.getAll',
     GET_HAVING_COMMS: 'rahat.jobs.activities.getHavingComms',
     ADD: 'rahat.jobs.activities.add',
+    PROCESS_BULK_CHUNK: 'rahat.jobs.activities.processBulkChunk',
     REMOVE: 'rahat.jobs.activities.remove',
     UPDATE: 'rahat.jobs.activities.update',
     UPDATE_STATUS: 'rahat.jobs.activities.updateStatus',
@@ -138,6 +140,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
     GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
+    BULK_ADD: 'ms.jobs.activities.bulkAdd',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',

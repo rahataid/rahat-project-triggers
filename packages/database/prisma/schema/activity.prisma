@@ -79,3 +79,23 @@ model Activity {
     @@map("tbl_activities")
     @@schema("public")
 }
+
+model TempActivity {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+
+    batchId String
+
+    // array of { data, status, activityId? } - one entry per activity in this chunk
+    items Json @db.JsonB()
+
+    status String @default("NOT_STARTED")
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    @@index([batchId])
+    @@index([status])
+    @@map("tbl_temp_activities")
+    @@schema("public")
+}
