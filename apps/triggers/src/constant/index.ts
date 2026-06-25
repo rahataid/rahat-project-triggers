@@ -141,6 +141,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
     BULK_ADD: 'ms.jobs.activities.bulkAdd',
+    VALIDATE_BULK_ADD: 'ms.jobs.activities.validateBulkAdd',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',

@@ -160,6 +160,78 @@ export class ActivityService {
     });
   }
 
+  async validateBulkAdd(payload: CreateActivityDto[]) {
+    if (!payload?.length) {
+      throw new RpcException('No activities provided');
+    }
+
+    const appId = payload[0]?.appId;
+
+    const [phases, categories, existingActivities] = await Promise.all([
+      this.prisma.phase.findMany({ select: { uuid: true } }),
+      this.prisma.activityCategory.findMany({
+        where: { app: appId },
+        select: { uuid: true },
+      }),
+      this.prisma.activity.findMany({
+        where: { app: appId },
+        select: {
+          title: true,
+          responsibleStation: true,
+          categoryId: true,
+          phaseId: true,
+          managerId: true,
+        },
+      }),
+    ]);
+
+    const phaseIds = new Set(phases.map((p) => p.uuid));
+    const categoryIds = new Set(categories.map((c) => c.uuid));
+
+    const dupKey = (a: {
+      title?: string;
+      responsibleStation?: string;
+      categoryId?: string;
+      phaseId?: string;
+      managerId?: string | null;
+    }) =>
+      JSON.stringify([
+        a.title,
+        a.responsibleStation,
+        a.categoryId,
+        a.phaseId,
+        a.managerId || null,
+      ]);
+
+    const existingKeys = new Set(existingActivities.map(dupKey));
+    const seenInBatch = new Set<string>();
+
+    const errors: Array<CreateActivityDto & { error: string }> = [];
+
+    for (const activity of payload) {
+      const rowErrors: string[] = [];
+
+      if (!activity.phaseId || !phaseIds.has(activity.phaseId)) {
+        rowErrors.push('Invalid phaseId');
+      }
+      if (!activity.categoryId || !categoryIds.has(activity.categoryId)) {
+        rowErrors.push('Invalid categoryId');
+      }
+
+      const key = dupKey({ ...activity, managerId: activity.manager?.id });
+      if (existingKeys.has(key) || seenInBatch.has(key)) {
+        rowErrors.push('Duplicate error: this activity already exists in the project');
+      }
+      seenInBatch.add(key);
+
+      if (rowErrors.length) {
+        errors.push({ ...activity, error: rowErrors.join(', ') });
+      }
+    }
+
+    return { valid: errors.length === 0, total: payload.length, errors };
+  }
+
   async bulkAdd(payload: CreateActivityDto[]) {
     this.logger.log(`Bulk adding ${payload?.length || 0} activities`);
 

@@ -32,6 +32,16 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.VALIDATE_BULK_ADD,
+  })
+  async validateBulkAdd(
+    @Payload() payload: { data: CreateActivityDto[]; appId: string },
+  ) {
+    const data = payload.data.map((item) => ({ ...item, appId: payload.appId }));
+    return this.activityService.validateBulkAdd(data);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_ALL,
   })
   async getAll(@Payload() payload: GetActivityDto): Promise<any> {
