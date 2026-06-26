@@ -189,6 +189,7 @@ export class ActivityService {
     const categoryIds = new Set(categories.map((c) => c.uuid));
 
     const dupKey = (a: {
+      appId?: string;
       title?: string;
       responsibleStation?: string;
       categoryId?: string;
@@ -196,6 +197,7 @@ export class ActivityService {
       managerId?: string | null;
     }) =>
       JSON.stringify([
+        a.appId,
         a.title,
         a.responsibleStation,
         a.categoryId,
@@ -203,7 +205,9 @@ export class ActivityService {
         a.managerId || null,
       ]);
 
-    const existingKeys = new Set(existingActivities.map(dupKey));
+    const existingKeys = new Set(
+      existingActivities.map((a) => dupKey({ ...a, appId })),
+    );
     const seenInBatch = new Set<string>();
 
     const errors: Array<CreateActivityDto & { error: string }> = [];
