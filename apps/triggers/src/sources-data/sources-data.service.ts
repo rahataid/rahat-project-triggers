@@ -105,7 +105,6 @@ export class SourcesDataService {
         stationName,
         levelType = null,
       } = payload;
-
       switch (dataSource) {
         case DataSource.DHM: {
           const dhm = await this.dhm.getSourceData(type, riverBasin, levelType);
