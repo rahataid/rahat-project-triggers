@@ -25,7 +25,6 @@ export const JOBS = {
     GET_ALL: 'rahat.jobs.activities.getAll',
     GET_HAVING_COMMS: 'rahat.jobs.activities.getHavingComms',
     ADD: 'rahat.jobs.activities.add',
-    PROCESS_BULK_CHUNK: 'rahat.jobs.activities.processBulkChunk',
     REMOVE: 'rahat.jobs.activities.remove',
     UPDATE: 'rahat.jobs.activities.update',
     UPDATE_STATUS: 'rahat.jobs.activities.updateStatus',
