@@ -9,7 +9,6 @@ import { StatsModule } from 'src/stats/stat.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { CORE_MODULE } from 'src/constant';
 import { NotificationProcessor } from './notification.processor';
-import { ActivityBulkProcessor } from './activity-bulk.processor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
@@ -39,7 +38,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     CommunicationProcessor,
     StatsProcessor,
     NotificationProcessor,
-    ActivityBulkProcessor,
   ],
 })
 export class ProcessorsModule {}

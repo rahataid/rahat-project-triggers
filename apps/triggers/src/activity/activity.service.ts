@@ -1,6 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import type { Queue } from 'bull';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
@@ -9,7 +7,7 @@ import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import type { CommsClient } from 'src/comms/comms.service';
-import { BQUEUE, EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
+import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import {
   CreateActivityDto,
@@ -32,7 +30,6 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     @Inject('COMMS_CLIENT')
     private commsClient: CommsClient,
-    @InjectQueue(BQUEUE.ACTIVITY_BULK) private readonly activityBulkQueue: Queue,
   ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
@@ -244,127 +241,79 @@ export class ActivityService {
         throw new RpcException('No activities provided');
       }
 
-      const batchId = randomUUID();
-      const chunkSize = 10;
-      const chunks: CreateActivityDto[][] = [];
-      for (let i = 0; i < payload.length; i += chunkSize) {
-        chunks.push(payload.slice(i, i + chunkSize));
-      }
+      const createdActivities = await this.prisma.$transaction(
+        payload.map((p) => {
+          const {
+            activityCommunication,
+            title,
+            responsibleStation,
+            isAutomated,
+            isTemplate,
+            leadTime,
+            categoryId,
+            description,
+            phaseId,
+            manager,
+            activityDocuments,
+            appId,
+            activityPayout,
+          } = p;
 
-      const tempActivities = await Promise.all(
-        chunks.map((chunk) =>
-          this.prisma.tempActivity.create({
+          return this.prisma.activity.create({
             data: {
-              batchId,
-              items: chunk.map((data) => ({
-                data,
-                status: 'NOT_STARTED',
-              })) as unknown as Prisma.InputJsonValue,
+              title,
+              responsibleStation,
+              description,
+              leadTime,
+              isAutomated,
+              isTemplate,
+              ...(manager && {
+                manager: {
+                  connectOrCreate: {
+                    where: { id: manager.id },
+                    create: {
+                      id: manager.id,
+                      name: manager.name,
+                      email: manager.email,
+                      phone: manager.phone,
+                    },
+                  },
+                },
+              }),
+              category: { connect: { uuid: categoryId } },
+              phase: { connect: { uuid: phaseId } },
+              activityCommunication: (
+                activityCommunication?.map((comms: any) => ({
+                  ...comms,
+                  communicationId: randomUUID(),
+                })) || []
+              ) as unknown as Prisma.InputJsonValue,
+              activityPayout:
+                (activityPayout || []) as unknown as Prisma.InputJsonValue,
+              activityDocuments:
+                (activityDocuments || []) as unknown as Prisma.InputJsonValue,
+              app: appId,
             },
-          }),
-        ),
+            include: { manager: true },
+          });
+        }),
       );
 
-      await this.activityBulkQueue.addBulk(
-        tempActivities.map((tempActivity) => ({
-          name: JOBS.ACTIVITIES.PROCESS_BULK_CHUNK,
-          data: { tempActivityId: tempActivity.uuid },
-        })),
+      this.logger.log(`Created ${createdActivities.length} activities`);
+      payload.forEach((p) =>
+        this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: p.appId }),
       );
 
-      this.logger.log(
-        `Queued batch ${batchId} as ${chunks.length} chunk(s) of ${chunkSize}`,
-      );
-
-      return { batchId, totalActivities: payload.length, chunks: chunks.length };
+      return {
+        totalCreated: createdActivities.length,
+        activities: createdActivities,
+      };
     } catch (error: any) {
       this.logger.error('Something went wrong while adding activities', error);
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
 
-  async processBulkChunk(tempActivityId: string) {
-    const tempActivity = await this.prisma.tempActivity.findUnique({
-      where: { uuid: tempActivityId },
-    });
-
-    if (!tempActivity) {
-      this.logger.warn(`TempActivity not found: ${tempActivityId}`);
-      return;
-    }
-
-    this.logger.log(
-      `Processing batch ${tempActivity.batchId}, chunk ${tempActivityId}`,
-    );
-
-    const items = JSON.parse(JSON.stringify(tempActivity.items)) as Array<{
-      data: CreateActivityDto;
-      status: string;
-      activityId?: string;
-    }>;
-
-    for (const item of items) {
-      if (item.status === 'COMPLETED') continue;
-      try {
-        const activity = await this.createActivityRecord(item.data);
-        item.status = 'COMPLETED';
-        item.activityId = activity.uuid;
-        this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, {
-          appId: item.data.appId,
-        });
-      } catch (error: any) {
-        item.status = 'FAILED';
-        this.logger.error(
-          `Failed to create activity in batch ${tempActivity.batchId}`,
-          error,
-        );
-      }
-    }
-
-    const completedItems = items.filter((item) => item.status === 'COMPLETED');
-    const failedItems = items.filter((item) => item.status === 'FAILED');
-
-    if (completedItems.length) {
-      await this.prisma.tempActivity.update({
-        where: { uuid: tempActivityId },
-        data: {
-          items: completedItems as unknown as Prisma.InputJsonValue,
-          status: 'COMPLETED',
-        },
-      });
-    } else {
-      await this.prisma.tempActivity.delete({ where: { uuid: tempActivityId } });
-    }
-
-    if (failedItems.length) {
-      await this.prisma.tempActivity.create({
-        data: {
-          batchId: tempActivity.batchId,
-          items: failedItems as unknown as Prisma.InputJsonValue,
-          status: 'FAILED',
-        },
-      });
-    }
-
-    this.logger.log(
-      `Finished chunk ${tempActivityId} of batch ${tempActivity.batchId}: ${completedItems.length} completed, ${failedItems.length} failed`,
-    );
-
-    await this.purgeBatchIfDone(tempActivity.batchId);
-  }
-
-  private async purgeBatchIfDone(batchId: string) {
-    const remaining = await this.prisma.tempActivity.findMany({
-      where: { batchId, status: 'NOT_STARTED' },
-    });
-
-    if (!remaining.length) {
-      const { count } = await this.prisma.tempActivity.deleteMany({
-        where: { batchId, status: 'COMPLETED' },
-      });
-      this.logger.log(`Purged ${count} completed chunk(s) of batch ${batchId}`);
-    }
-  }
 
   // async getOne(payload: { uuid: string; appId: string }) {
   //   const { uuid, appId } = payload;

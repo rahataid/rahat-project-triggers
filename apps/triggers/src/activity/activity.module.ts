@@ -2,8 +2,7 @@ import { Module } from '@nestjs/common';
 import { ActivityService } from './activity.service';
 import { ActivityController } from './activity.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { BullModule } from '@nestjs/bull';
-import { BQUEUE, MS_TRIGGER_CLIENTS } from 'src/constant';
+import { MS_TRIGGER_CLIENTS } from 'src/constant';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
@@ -23,9 +22,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         inject: [ConfigService],
       },
     ]),
-    BullModule.registerQueue({
-      name: BQUEUE.ACTIVITY_BULK,
-    }),
   ],
   controllers: [ActivityController],
   exports: [ActivityService],
