@@ -5,7 +5,7 @@ export const BQUEUE = {
   COMMUNICATION: 'COMMUNICATION',
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
-  NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER',
+  NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER'
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
@@ -138,6 +138,8 @@ export const MS_TRIGGERS_JOBS = {
     GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
     GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
+    BULK_ADD: 'ms.jobs.activities.bulkAdd',
+    VALIDATE_BULK_ADD: 'ms.jobs.activities.validateBulkAdd',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
