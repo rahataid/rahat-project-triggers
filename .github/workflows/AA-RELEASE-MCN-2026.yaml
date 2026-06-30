@@ -1,4 +1,4 @@
-name: AA MCN RELEASE CICD
+name: AA MCN RELEASE 2026 CICD
 on:
   workflow_dispatch:
     inputs:
