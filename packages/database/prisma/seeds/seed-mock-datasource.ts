@@ -43,12 +43,9 @@ const config: DataSourceType = {
     ],
     [DataSource.GLOFAS]: [
       {
-        LOCATION: 'Doda river at East-West Highway',
-        URL: 'http://localhost:3005/v1/forecast/glofas',
-        BBOX: '8918060.964088082,3282511.7426786087,9006116.420672605,3370567.1992631317',
-        I: '227',
-        J: '67',
-        TIMESTRING: '2023-10-01T00:00:00Z',
+        stationId: 'G4475',
+        orgFolder: 'ICIMOD',
+        location: 'Saptakoshi at Chatara',
       },
     ],
     [DataSource.GFH]: [

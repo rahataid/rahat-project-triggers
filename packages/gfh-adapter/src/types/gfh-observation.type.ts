@@ -153,6 +153,11 @@ export interface GfhTransformedResult {
   history: GfhHistoryItem[];
 }
 
-export type GfhInfo = {
-  info: { riverGaugeId: string; stationName: string };
+// export type GfhInfo = {
+//   info: { riverGaugeId: string; stationName: string };
+// };
+
+export type GfhInfoNew = {
+  riverGaugeId: string;
+  stationName: string;
 };

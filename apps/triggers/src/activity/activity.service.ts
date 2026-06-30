@@ -78,84 +78,11 @@ export class ActivityService {
   async add(payload: CreateActivityDto) {
     this.logger.log('Adding new activity');
     try {
-      const {
-        activityCommunication,
-        title,
-        responsibleStation,
-        isAutomated,
-        isTemplate,
-        leadTime,
-        categoryId,
-        description,
-        phaseId,
-        manager, // < ----- We need responsibility object like name, email from rahat platfrom
-        activityDocuments,
-        appId,
-        activityPayout,
-      } = payload;
-
-      const createActivityCommunicationPayload = [];
-      const createActivityPayoutPayload = activityPayout || [];
-      const docs = activityDocuments || [];
-
-      if (activityCommunication?.length) {
-        for (const comms of activityCommunication as any) {
-          const communicationId = randomUUID();
-
-          createActivityCommunicationPayload.push({
-            ...comms,
-            communicationId,
-          });
-        }
-      }
-
-      const newActivity = await this.prisma.activity.create({
-        data: {
-          title,
-          responsibleStation,
-          description,
-          leadTime,
-          isAutomated,
-          isTemplate,
-          ...(manager && {
-            manager: {
-              connectOrCreate: {
-                where: {
-                  id: manager.id,
-                },
-                create: {
-                  id: manager.id,
-                  name: manager.name,
-                  email: manager.email,
-                  phone: manager.phone,
-                },
-              },
-            },
-          }),
-          category: {
-            connect: { uuid: categoryId },
-          },
-          phase: {
-            connect: { uuid: phaseId },
-          },
-          activityCommunication: JSON.parse(
-            JSON.stringify(createActivityCommunicationPayload),
-          ),
-          activityPayout: JSON.parse(
-            JSON.stringify(createActivityPayoutPayload),
-          ),
-
-          activityDocuments: JSON.parse(JSON.stringify(docs)),
-          app: appId,
-        },
-        include: {
-          manager: true,
-        },
-      });
+      const newActivity = await this.createActivityRecord(payload);
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: appId });
+      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
 
       return newActivity;
     } catch (error: any) {
@@ -163,6 +90,230 @@ export class ActivityService {
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
+
+  private async createActivityRecord(payload: CreateActivityDto) {
+    const {
+      activityCommunication,
+      title,
+      responsibleStation,
+      isAutomated,
+      isTemplate,
+      leadTime,
+      categoryId,
+      description,
+      phaseId,
+      manager, // < ----- We need responsibility object like name, email from rahat platfrom
+      activityDocuments,
+      appId,
+      activityPayout,
+    } = payload;
+
+    const createActivityCommunicationPayload =
+      activityCommunication?.map((comms: any) => ({
+        ...comms,
+        communicationId: randomUUID(),
+      })) || [];
+    const createActivityPayoutPayload = activityPayout || [];
+    const docs = activityDocuments || [];
+
+    return this.prisma.activity.create({
+      data: {
+        title,
+        responsibleStation,
+        description,
+        leadTime,
+        isAutomated,
+        isTemplate,
+        ...(manager && {
+          manager: {
+            connectOrCreate: {
+              where: {
+                id: manager.id,
+              },
+              create: {
+                id: manager.id,
+                name: manager.name,
+                email: manager.email,
+                phone: manager.phone,
+              },
+            },
+          },
+        }),
+        category: {
+          connect: { uuid: categoryId },
+        },
+        phase: {
+          connect: { uuid: phaseId },
+        },
+        activityCommunication:
+          createActivityCommunicationPayload as unknown as Prisma.InputJsonValue,
+        activityPayout: createActivityPayoutPayload as unknown as Prisma.InputJsonValue,
+        activityDocuments: docs as unknown as Prisma.InputJsonValue,
+        app: appId,
+      },
+      include: {
+        manager: true,
+      },
+    });
+  }
+
+  async validateBulkAdd(payload: CreateActivityDto[]) {
+    if (!payload?.length) {
+      throw new RpcException('No activities provided');
+    }
+
+    const appId = payload[0]?.appId;
+
+    const [phases, categories, existingActivities] = await Promise.all([
+      this.prisma.phase.findMany({ select: { uuid: true } }),
+      this.prisma.activityCategory.findMany({
+        where: { app: appId },
+        select: { uuid: true },
+      }),
+      this.prisma.activity.findMany({
+        where: { app: appId },
+        select: {
+          title: true,
+          responsibleStation: true,
+          categoryId: true,
+          phaseId: true,
+          managerId: true,
+        },
+      }),
+    ]);
+
+    const phaseIds = new Set(phases.map((p) => p.uuid));
+    const categoryIds = new Set(categories.map((c) => c.uuid));
+
+    const dupKey = (a: {
+      appId?: string;
+      title?: string;
+      responsibleStation?: string;
+      categoryId?: string;
+      phaseId?: string;
+      managerId?: string | null;
+    }) =>
+      JSON.stringify([
+        a.appId,
+        a.title,
+        a.responsibleStation,
+        a.categoryId,
+        a.phaseId,
+        a.managerId || null,
+      ]);
+
+    const existingKeys = new Set(
+      existingActivities.map((a) => dupKey({ ...a, appId })),
+    );
+    const seenInBatch = new Set<string>();
+
+    const errors: Array<CreateActivityDto & { error: string }> = [];
+
+    for (const activity of payload) {
+      const rowErrors: string[] = [];
+
+      if (!activity.phaseId || !phaseIds.has(activity.phaseId)) {
+        rowErrors.push('Invalid phaseId');
+      }
+      if (!activity.categoryId || !categoryIds.has(activity.categoryId)) {
+        rowErrors.push('Invalid categoryId');
+      }
+
+      const key = dupKey({ ...activity, managerId: activity.manager?.id });
+      if (existingKeys.has(key) || seenInBatch.has(key)) {
+        rowErrors.push('Duplicate error: this activity already exists in the project');
+      }
+      seenInBatch.add(key);
+
+      if (rowErrors.length) {
+        errors.push({ ...activity, error: rowErrors.join(', ') });
+      }
+    }
+
+    return { valid: errors.length === 0, total: payload.length, errors };
+  }
+
+  async bulkAdd(payload: CreateActivityDto[]) {
+    this.logger.log(`Bulk adding ${payload?.length || 0} activities`);
+
+    try {
+      if (!payload?.length) {
+        throw new RpcException('No activities provided');
+      }
+
+      const createdActivities = await this.prisma.$transaction(
+        payload.map((p) => {
+          const {
+            activityCommunication,
+            title,
+            responsibleStation,
+            isAutomated,
+            isTemplate,
+            leadTime,
+            categoryId,
+            description,
+            phaseId,
+            manager,
+            activityDocuments,
+            appId,
+            activityPayout,
+          } = p;
+
+          return this.prisma.activity.create({
+            data: {
+              title,
+              responsibleStation,
+              description,
+              leadTime,
+              isAutomated,
+              isTemplate,
+              ...(manager && {
+                manager: {
+                  connectOrCreate: {
+                    where: { id: manager.id },
+                    create: {
+                      id: manager.id,
+                      name: manager.name,
+                      email: manager.email,
+                      phone: manager.phone,
+                    },
+                  },
+                },
+              }),
+              category: { connect: { uuid: categoryId } },
+              phase: { connect: { uuid: phaseId } },
+              activityCommunication: (
+                activityCommunication?.map((comms: any) => ({
+                  ...comms,
+                  communicationId: randomUUID(),
+                })) || []
+              ) as unknown as Prisma.InputJsonValue,
+              activityPayout:
+                (activityPayout || []) as unknown as Prisma.InputJsonValue,
+              activityDocuments:
+                (activityDocuments || []) as unknown as Prisma.InputJsonValue,
+              app: appId,
+            },
+            include: { manager: true },
+          });
+        }),
+      );
+
+      this.logger.log(`Created ${createdActivities.length} activities`);
+      payload.forEach((p) =>
+        this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: p.appId }),
+      );
+
+      return {
+        totalCreated: createdActivities.length,
+        activities: createdActivities,
+      };
+    } catch (error: any) {
+      this.logger.error('Something went wrong while adding activities', error);
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
 
   // async getOne(payload: { uuid: string; appId: string }) {
   //   const { uuid, appId } = payload;

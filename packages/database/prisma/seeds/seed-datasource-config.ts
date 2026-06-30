@@ -17,7 +17,9 @@ const config: DataSourceConfigType = {
       },
     },
     [DataSource.GLOFAS]: {
-      URL: 'https://ows.globalfloods.eu/glofas-ows/ows.py',
+      URL: 'aux.ecmwf.int',
+      USER: '',
+      PASSWORD: '',
     },
     [DataSource.GFH]: {
       URL: 'https://floodforecasting.googleapis.com/v1',
