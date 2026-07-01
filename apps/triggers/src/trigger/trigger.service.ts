@@ -60,11 +60,12 @@ export class TriggerService {
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
 
-      const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
-        this.buildAddTriggerJobDto(trigger),
-      );
+      // TODO: Need to think about onchain queue update
+      // const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
+      //   this.buildAddTriggerJobDto(trigger),
+      // );
 
-      const res = await this.sendAddTriggerToOnChain(appId, queueData);
+      // const res = await this.sendAddTriggerToOnChain(appId, queueData);
 
       this.logger.log(`
         Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
@@ -199,13 +200,14 @@ export class TriggerService {
         },
       });
 
-      const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+      // TODO: Need to think about onchain queue update
+      // const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
-      const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
+      // const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
+      //   `);
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
