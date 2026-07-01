@@ -629,14 +629,15 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-      const res = await this.sendUpdateTriggerToOnChain(
-        appId ? appId : appIds?.app,
-        jobDetails,
-      );
+      // TODO: make this function dynamic based on chain type
+      // const res = await this.sendUpdateTriggerToOnChain(
+      //   appId ? appId : appIds?.app,
+      //   jobDetails,
+      // );
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
+      //   `);
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
