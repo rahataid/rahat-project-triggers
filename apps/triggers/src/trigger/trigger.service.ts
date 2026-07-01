@@ -60,15 +60,16 @@ export class TriggerService {
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
 
-      const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
-        this.buildAddTriggerJobDto(trigger),
-      );
+      // TODO: Need to think about onchain queue update
+      // const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
+      //   this.buildAddTriggerJobDto(trigger),
+      // );
 
-      const res = await this.sendAddTriggerToOnChain(appId, queueData);
+      // const res = await this.sendAddTriggerToOnChain(appId, queueData);
 
-      this.logger.log(`
-        Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
+      //   `);
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
@@ -199,13 +200,14 @@ export class TriggerService {
         },
       });
 
-      const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+      // TODO: Need to think about onchain queue update
+      // const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
-      const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
+      // const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
+      //   `);
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
@@ -572,7 +574,7 @@ export class TriggerService {
         },
       });
 
-      const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+      // const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
@@ -629,14 +631,15 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-      const res = await this.sendUpdateTriggerToOnChain(
-        appId ? appId : appIds?.app,
-        jobDetails,
-      );
+      // TODO: make this function dynamic based on chain type
+      // const res = await this.sendUpdateTriggerToOnChain(
+      //   appId ? appId : appIds?.app,
+      //   jobDetails,
+      // );
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
+      //   `);
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
