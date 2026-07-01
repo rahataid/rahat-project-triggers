@@ -67,9 +67,9 @@ export class TriggerService {
 
       // const res = await this.sendAddTriggerToOnChain(appId, queueData);
 
-      this.logger.log(`
-        Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
+      //   `);
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
@@ -574,7 +574,7 @@ export class TriggerService {
         },
       });
 
-      const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+      // const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
