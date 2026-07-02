@@ -552,4 +552,38 @@ export class SourcesDataService {
 
     return Array.from(uniqueSeriesMap.values());
   }
+
+  async syncForecastData() {
+    this.logger.log(
+      'Manually triggering forecast data sync for DHM, GLOFAS and GFH',
+    );
+
+    const jobs: [string, () => Promise<unknown>][] = [
+      ['DHM_WATER_LEVEL', () => this.scheduleSourcesDataService.syncRiverWaterData()],
+      ['DHM_RAINFALL', () => this.scheduleSourcesDataService.syncRainfallData()],
+      ['DHM_TEMPERATURE', () => this.scheduleSourcesDataService.syncTemperatureData()],
+      ['GLOFAS', () => this.scheduleSourcesDataService.synchronizeGlofas()],
+      ['GFH', () => this.scheduleSourcesDataService.syncGfhData()],
+    ];
+    const results = await Promise.allSettled(jobs.map(([, run]) => run()));
+    const summary = results.map((result, index) => {
+      const [source] = jobs[index];
+      if (result.status === 'rejected') {
+        this.logger.warn(
+          `Manual forecast data sync failed for ${source}: ${result.reason?.message ?? result.reason}`,
+        );
+        return { source, status: 'failed', error: String(result.reason?.message ?? result.reason) };
+      }
+      return { source, status: 'success' };
+    });
+
+    const hasFailures = summary.some((item) => item.status === 'failed');
+
+    return {
+      message: hasFailures
+        ? 'Forecast data sync completed with some failures'
+        : 'Forecast data sync completed successfully',
+      results: summary,
+    };
+  }
 }
