@@ -20,9 +20,15 @@ import {
 import * as https from 'https';
 import { getFormattedDate } from 'src/common';
 import { GetSeriesDto } from './dto/get-series';
-import { DhmService as DHM } from '@lib/dhm-adapter';
-import { GlofasServices } from '@lib/glofas-adapter';
-import { GfhService } from '@lib/gfh-adapter';
+import {
+  DhmService as DHM,
+  DhmWaterLevelAdapter,
+  DhmRainfallAdapter,
+  DhmTemperatureAdapter,
+} from '@lib/dhm-adapter';
+import { GlofasServices, GlofasAdapter } from '@lib/glofas-adapter';
+import { GfhService, GfhAdapter } from '@lib/gfh-adapter';
+import { isErr, Indicator } from '@lib/core';
 import { ScheduleSourcesDataService } from './schedule-sources-data.service';
 import {
   GetDhmSingleSeriesDto,
@@ -39,6 +45,11 @@ export class SourcesDataService {
     private readonly glofasServices: GlofasServices,
     private readonly gfhServices: GfhService,
     private readonly scheduleSourcesDataService: ScheduleSourcesDataService,
+    private readonly dhmWaterLevelAdapter: DhmWaterLevelAdapter,
+    private readonly dhmRainfallAdapter: DhmRainfallAdapter,
+    private readonly dhmTemperatureAdapter: DhmTemperatureAdapter,
+    private readonly glofasAdapter: GlofasAdapter,
+    private readonly gfhAdapter: GfhAdapter,
   ) {}
 
   async create(dto: CreateSourcesDataDto) {
@@ -553,28 +564,112 @@ export class SourcesDataService {
     return Array.from(uniqueSeriesMap.values());
   }
 
+  private async saveDhmIndicators(indicators: Indicator[], type: SourceType) {
+    const basinIndicators = indicators.filter(
+      (indicator) => indicator.location.type === 'BASIN',
+    );
+    await Promise.all(
+      basinIndicators.map(async (indicator) => {
+        try {
+          const { basinId } = indicator.location as {
+            type: 'BASIN';
+            basinId: string;
+          };
+          await this.dhm.saveDataInDhm(type, basinId, indicator.info);
+        } catch (error: any) {
+          this.logger.warn(
+            `Failed to save DHM data for basin ${(indicator.location as any).basinId}: ${error.message}`,
+          );
+        }
+      }),
+    );
+  }
+
   async syncForecastData() {
     this.logger.log(
       'Manually triggering forecast data sync for DHM, GLOFAS and GFH',
     );
 
-    const jobs: [string, () => Promise<unknown>][] = [
-      ['DHM_WATER_LEVEL', () => this.scheduleSourcesDataService.syncRiverWaterData()],
-      ['DHM_RAINFALL', () => this.scheduleSourcesDataService.syncRainfallData()],
-      ['DHM_TEMPERATURE', () => this.scheduleSourcesDataService.syncTemperatureData()],
-      ['GLOFAS', () => this.scheduleSourcesDataService.synchronizeGlofas()],
-      ['GFH', () => this.scheduleSourcesDataService.syncGfhData()],
-    ];
-    const results = await Promise.allSettled(jobs.map(([, run]) => run()));
+    const jobs: Record<string, () => Promise<{ source: string; status: string; error?: string }>> = {
+      DHM_WATER_LEVEL: async () => {
+        const result = await this.dhmWaterLevelAdapter.execute();
+        if (isErr<Indicator[]>(result)) {
+          return { source: 'DHM_WATER_LEVEL', status: 'failed', error: result.error };
+        }
+        await this.saveDhmIndicators(result.data, SourceType.WATER_LEVEL);
+        return { source: 'DHM_WATER_LEVEL', status: 'success' };
+      },
+      DHM_RAINFALL: async () => {
+        const result = await this.dhmRainfallAdapter.execute();
+        if (isErr<Indicator[]>(result)) {
+          return { source: 'DHM_RAINFALL', status: 'failed', error: result.error };
+        }
+        await this.saveDhmIndicators(result.data, SourceType.RAINFALL);
+        return { source: 'DHM_RAINFALL', status: 'success' };
+      },
+      DHM_TEMPERATURE: async () => {
+        const result = await this.dhmTemperatureAdapter.execute();
+        if (isErr<Indicator[]>(result)) {
+          return { source: 'DHM_TEMPERATURE', status: 'failed', error: result.error };
+        }
+        const grouped = result.data.reduce(
+          (acc, ind) => {
+            (acc[ind.indicator] = acc[ind.indicator] || []).push(ind);
+            return acc;
+          },
+          {} as Record<string, Indicator[]>,
+        );
+        if (grouped['temperature_c']) {
+          await this.saveDhmIndicators(grouped['temperature_c'], SourceType.TEMPERATURE);
+        }
+        if (grouped['prob_humidity']) {
+          await this.saveDhmIndicators(grouped['prob_humidity'], SourceType.HUMIDITY);
+        }
+        return { source: 'DHM_TEMPERATURE', status: 'success' };
+      },
+      GLOFAS: async () => {
+        const result = await this.glofasAdapter.execute();
+        if (isErr<Indicator[]>(result)) {
+          return { source: 'GLOFAS', status: 'failed', error: result.error };
+        }
+        await Promise.all(
+          result.data.map(async (indicator) => {
+            const basinId = (indicator.location as any).basinId;
+            await this.glofasServices.saveDataInGlofas(basinId, indicator);
+          }),
+        );
+        return { source: 'GLOFAS', status: 'success' };
+      },
+      GFH: async () => {
+        const result = await this.gfhAdapter.execute();
+        if (isErr<Indicator[]>(result)) {
+          return { source: 'GFH', status: 'failed', error: result.error };
+        }
+        await Promise.all(
+          result.data.map(async (indicator) => {
+            const basinId = (indicator.location as any).basinId;
+            await this.gfhServices.saveDataInGfh(SourceType.WATER_LEVEL, basinId, indicator);
+          }),
+        );
+        return { source: 'GFH', status: 'success' };
+      },
+    };
+
+    const entries = Object.entries(jobs);
+    const results = await Promise.allSettled(entries.map(([_, fn]) => fn()));
     const summary = results.map((result, index) => {
-      const [source] = jobs[index];
+      const [source] = entries[index];
       if (result.status === 'rejected') {
         this.logger.warn(
           `Manual forecast data sync failed for ${source}: ${result.reason?.message ?? result.reason}`,
         );
-        return { source, status: 'failed', error: String(result.reason?.message ?? result.reason) };
+        return {
+          source,
+          status: 'failed',
+          error: String(result.reason?.message ?? result.reason),
+        };
       }
-      return { source, status: 'success' };
+      return result.value;
     });
 
     const hasFailures = summary.some((item) => item.status === 'failed');
