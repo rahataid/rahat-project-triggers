@@ -104,7 +104,17 @@ export function evaluateGroup(
   );
   const triggers: Record<string, boolean> = {};
 
-  for (const key of group.triggers) {
+  for (const triggerEntry of group.triggers) {
+    const key =
+      typeof triggerEntry === 'string'
+        ? triggerEntry
+        : triggerEntry.triggerLogicKey;
+
+    if (!key) {
+      logger.warn('Found trigger entry without triggerLogicKey; treating as false');
+      continue;
+    }
+
     triggers[key] = evaluateTrigger(key, triggersMap, cache);
   }
 
