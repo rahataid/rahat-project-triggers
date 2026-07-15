@@ -14,11 +14,15 @@
 
 export type LogicOperator = 'AND' | 'OR';
 
+export interface TriggerReference {
+  triggerLogicKey: string;
+}
+
 export interface TriggerGroup {
   /** Operator applied within this group's triggers */
   operator: LogicOperator;
   /** logicKey references to triggers belonging to this group */
-  triggers: string[];
+  triggers: Array<string | TriggerReference>;
 }
 
 export interface ExtendedTriggerLogic {
