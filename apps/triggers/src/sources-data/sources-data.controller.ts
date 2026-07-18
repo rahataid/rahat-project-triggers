@@ -63,7 +63,13 @@ export class SourcesDataController {
     payload.source = DataSource.DHM;
     return this.sourceDataService.getRainfallLevels(payload);
   }
-
+@MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.SYNC_FORECAST_DATA,
+  })
+  async syncForecastData() {
+    return this.sourceDataService.syncForecastData();
+  }
+  
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.WATER_LEVELS.GET_DHM_SINGLE_SERIES,
   })

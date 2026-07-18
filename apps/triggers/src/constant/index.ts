@@ -112,7 +112,8 @@ export const MS_TRIGGERS_JOBS = {
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
   },
-  HUMIDITY: {
+ SYNC_FORECAST_DATA: 'ms.jobs.sources-data.syncForecastData',
+ HUMIDITY: {
     GET_DHM: 'ms.jobs.humidity.getDhm',
     GET_DHM_SINGLE_SERIES: 'ms.jobs.humidity.getDhmSingleSeries',
   },
