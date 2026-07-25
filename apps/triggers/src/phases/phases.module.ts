@@ -6,6 +6,7 @@ import { PhasesService } from './phases.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TriggerModule } from 'src/trigger/trigger.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 
 @Module({
   imports: [
@@ -36,7 +37,19 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ]),
   ],
   controllers: [PhasesController],
-  providers: [PhasesService],
+  providers: [
+    PhasesService,
+    {
+      provide: 'REDIS_PUBLISHER',
+      useFactory: (config: ConfigService) =>
+        new Redis({
+          host: config.get('REDIS_HOST'),
+          port: Number(config.get('REDIS_PORT')),
+          password: config.get('REDIS_PASSWORD'),
+        }),
+      inject: [ConfigService],
+    },
+  ],
   exports: [PhasesService],
 })
 export class PhasesModule {}

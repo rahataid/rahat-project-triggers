@@ -33,6 +33,7 @@ import {
   RevertPhaseDto,
 } from './dto';
 import { activities } from '../utils/activities';
+import Redis from 'ioredis';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -49,6 +50,7 @@ export class PhasesService {
     @InjectQueue(BQUEUE.COMMUNICATION)
     private readonly communicationQueue: Queue,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
+    @Inject('REDIS_PUBLISHER') private readonly redisPublisher: Redis,
   ) {}
 
   async create(payload: CreatePhaseDto) {
@@ -114,7 +116,7 @@ export class PhasesService {
     }
 
     try {
-      return await this.prisma.phase.create({
+      const phase = await this.prisma.phase.create({
         data: {
           name,
           source: {
@@ -142,6 +144,8 @@ export class PhasesService {
           }),
         },
       });
+      await this.publishPhaseEvent('phase.created', phase);
+      return phase;
     } catch (error: any) {
       this.logger.error('Error while creating new Phase', error);
       throw new RpcException(error);
@@ -258,12 +262,14 @@ export class PhasesService {
     };
 
     try {
-      return await this.prisma.phase.update({
+      const phase = await this.prisma.phase.update({
         where: { uuid },
         data: {
           ...fields,
         },
       });
+      await this.publishPhaseEvent('phase.updated', phase);
+      return phase;
     } catch (error: any) {
       this.logger.error('Error while updating phase', error);
       throw new RpcException(error);
@@ -1012,5 +1018,14 @@ export class PhasesService {
         extendedTriggerLogic: null,
       },
     });
+  }
+
+  private async publishPhaseEvent(event: string, data: any) {
+    const message = JSON.stringify({
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+    await this.redisPublisher.publish('phase:events', message);
   }
 }
