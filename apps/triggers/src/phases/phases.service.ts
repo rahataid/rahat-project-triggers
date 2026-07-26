@@ -19,7 +19,13 @@ import {
   DataSource,
 } from '@lib/database';
 import { InjectQueue } from '@nestjs/bull';
-import { BQUEUE, EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
+import {
+  BQUEUE,
+  EVENTS,
+  JOBS,
+  MS_TRIGGER_CLIENTS,
+  SSE_EVENTS,
+} from 'src/constant';
 import type { Queue } from 'bull';
 import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -50,7 +56,7 @@ export class PhasesService {
     @InjectQueue(BQUEUE.COMMUNICATION)
     private readonly communicationQueue: Queue,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
-    @Inject('REDIS_PUBLISHER') private readonly redisPublisher: Redis,
+    @Inject(SSE_EVENTS.PUBLISHER) private readonly redisPublisher: Redis,
   ) {}
 
   async create(payload: CreatePhaseDto) {

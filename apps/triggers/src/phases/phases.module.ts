@@ -1,6 +1,6 @@
 import { BullModule } from '@nestjs/bull';
 import { forwardRef, Module } from '@nestjs/common';
-import { BQUEUE, MS_TRIGGER_CLIENTS } from 'src/constant';
+import { BQUEUE, MS_TRIGGER_CLIENTS, SSE_EVENTS } from 'src/constant';
 import { PhasesController } from './phases.controller';
 import { PhasesService } from './phases.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
@@ -40,7 +40,7 @@ import Redis from 'ioredis';
   providers: [
     PhasesService,
     {
-      provide: 'REDIS_PUBLISHER',
+      provide: SSE_EVENTS.PUBLISHER,
       useFactory: (config: ConfigService) =>
         new Redis({
           host: config.get('REDIS_HOST'),
