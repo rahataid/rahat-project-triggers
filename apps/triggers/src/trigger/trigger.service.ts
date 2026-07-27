@@ -24,7 +24,7 @@ import {
 } from '@lib/database';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
-import { BQUEUE, CORE_MODULE, EVENTS, JOBS } from 'src/constant';
+import { BQUEUE, CORE_MODULE, EVENTS, JOBS, SSE_EVENTS } from 'src/constant';
 import type { Queue } from 'bull';
 import { PhasesService } from 'src/phases/phases.service';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
@@ -33,6 +33,7 @@ import { catchError, lastValueFrom, of, timeout } from 'rxjs';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { triggerPayloadSchema } from './validation/trigger.schema';
 import { TRIGGER_CONSTANTS } from './trigger.constants';
+import Redis from 'ioredis';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -46,6 +47,7 @@ export class TriggerService {
     private readonly phasesService: PhasesService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
+    @Inject(SSE_EVENTS.PUBLISHER) private readonly redisPublisher: Redis,
   ) {}
 
   async create(payload: CreateTriggerPayloadDto) {
@@ -573,6 +575,7 @@ export class TriggerService {
           phase: true,
         },
       });
+      await this.publishPhaseEvent('phase.updated', updatedTrigger);
 
       // const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
@@ -948,5 +951,13 @@ export class TriggerService {
       this.logger.warn('Error while generating phase triggers stats', error);
       throw new RpcException(error);
     }
+  }
+  private async publishPhaseEvent(event: string, data: any) {
+    const message = JSON.stringify({
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+    await this.redisPublisher.publish('phase:events', message);
   }
 }

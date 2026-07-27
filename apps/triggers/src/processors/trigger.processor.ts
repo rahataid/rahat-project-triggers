@@ -1,7 +1,7 @@
 import { Process, Processor } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import type { Job } from 'bull';
-import { BQUEUE, JOBS } from 'src/constant';
+import { BQUEUE, JOBS, SSE_EVENTS } from 'src/constant';
 import { PhasesService } from 'src/phases/phases.service';
 import { PrismaService } from '@lib/database';
 import { evaluatePhase } from 'src/phases/phase-evaluation.engine';
@@ -9,6 +9,7 @@ import type {
   ExtendedTriggerLogic,
   TriggersMap,
 } from 'src/phases/phase-evaluation.types';
+import Redis from 'ioredis';
 
 @Processor(BQUEUE.TRIGGER)
 export class TriggerProcessor {
@@ -17,6 +18,7 @@ export class TriggerProcessor {
   constructor(
     private readonly phaseService: PhasesService,
     private readonly prisma: PrismaService,
+    @Inject(SSE_EVENTS.PUBLISHER) private readonly redisPublisher: Redis,
   ) {}
 
   @Process(JOBS.TRIGGER.REACHED_THRESHOLD)
@@ -48,7 +50,8 @@ export class TriggerProcessor {
         `Legacy conditions met to activate phase ${phaseData.uuid}: ${conditionsMet}`,
       );
       if (conditionsMet) {
-        this.phaseService.activatePhase(phaseData.uuid);
+        const result = this.phaseService.activatePhase(phaseData.uuid);
+        this.publishPhaseEvent('phase.updated', result);
       }
       return;
     }
@@ -119,7 +122,14 @@ export class TriggerProcessor {
     const optionalMet =
       optionalTriggers.receivedTriggers >= optionalTriggers.requiredTriggers;
 
-
     return mandatoryMet && optionalMet;
+  }
+  private async publishPhaseEvent(event: string, data: any) {
+    const message = JSON.stringify({
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+    await this.redisPublisher.publish('phase:events', message);
   }
 }
