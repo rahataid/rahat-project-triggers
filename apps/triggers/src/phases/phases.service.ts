@@ -915,9 +915,11 @@ export class PhasesService {
     }
 
     try {
-      return await this.prisma.phase.delete({
+      const deleted = await this.prisma.phase.delete({
         where: { uuid },
       });
+      await this.publishPhaseEvent('phase.deleted', deleted);
+      return deleted;
     } catch (error: any) {
       this.logger.error('Error while deleting phase', error);
       throw new RpcException(error?.message || 'Something went wrong');
