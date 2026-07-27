@@ -210,6 +210,8 @@ export class TriggerService {
       // this.logger.log(`
       //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
       //   `);
+      await this.sseService.publishEvent('trigger.updated', updatedTrigger);
+
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
@@ -318,6 +320,8 @@ export class TriggerService {
         },
       });
 
+      await this.sseService.publishEvent('trigger.created', trigger);
+
       return trigger;
     } catch (error: any) {
       this.logger.error(error);
@@ -390,6 +394,7 @@ export class TriggerService {
           isDeleted: true,
         },
       });
+      await this.sseService.publishEvent('trigger.updated', updatedTrigger);
 
       return updatedTrigger;
     } catch (error: any) {
