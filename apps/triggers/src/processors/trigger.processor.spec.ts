@@ -59,11 +59,30 @@ describe('TriggerProcessor', () => {
       );
     });
 
-    it('should process trigger job without source', async () => {
+    it('should process trigger job without source as long as phaseId is present (manual triggers)', async () => {
       const mockJob = {
         data: {
           repeatKey: 'test-repeat-key',
           phaseId: 'test-phase-id',
+        },
+      } as Job;
+
+      jest
+        .spyOn(processor as any, 'processAutomatedData')
+        .mockResolvedValue(undefined);
+
+      await processor.processTrigger(mockJob);
+
+      expect(processor['processAutomatedData']).toHaveBeenCalledWith(
+        mockJob.data,
+      );
+    });
+
+    it('should not process trigger job when phaseId is missing', async () => {
+      const mockJob = {
+        data: {
+          repeatKey: 'test-repeat-key',
+          source: DataSource.DHM,
         },
       } as Job;
 
