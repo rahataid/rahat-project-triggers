@@ -20,24 +20,45 @@ export class CategoryService {
     });
   }
 
-  findAll(payload: ListCategoryDto) {
+  async findAll(payload: ListCategoryDto) {
     const { appId, name, page, perPage } = payload;
 
     const query = {
       where: {
         app: appId,
         isDeleted: false,
-        ...(name && { name: { contains: name, mode: 'insensitive' } }),
+        ...(name && {
+          name: {
+            contains: name,
+            mode: 'insensitive' as const,
+          },
+        }),
       },
       orderBy: {
         // [sort]: order,
       },
     };
 
-    return paginate(this.prisma.activityCategory, query, {
-      page,
-      perPage,
-    });
+    if (page !== undefined && perPage !== undefined) {
+      return paginate(this.prisma.activityCategory, query, {
+        page,
+        perPage,
+      });
+    }
+
+    const data = await this.prisma.activityCategory.findMany(query);
+
+    return {
+      data,
+      meta: {
+        total: data.length,
+        lastPage: 1,
+        currentPage: 1,
+        perPage: data.length,
+        prev: null,
+        next: null,
+      },
+    };
   }
 
   findOne(uuid: string) {
