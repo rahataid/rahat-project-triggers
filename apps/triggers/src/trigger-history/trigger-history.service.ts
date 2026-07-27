@@ -208,12 +208,4 @@ export class TriggerHistoryService {
       throw new RpcException(error.message);
     }
   }
-  // private async publishPhaseEvent(event: string, data: any) {
-  //   const message = JSON.stringify({
-  //     event,
-  //     data,
-  //     timestamp: new Date().toISOString(),
-  //   });
-  //   await this.redisPublisher.publish('phase:events', message);
-  // }
 }

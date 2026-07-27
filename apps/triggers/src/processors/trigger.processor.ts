@@ -124,12 +124,4 @@ export class TriggerProcessor {
 
     return mandatoryMet && optionalMet;
   }
-  // private async publishPhaseEvent(event: string, data: any) {
-  //   const message = JSON.stringify({
-  //     event,
-  //     data,
-  //     timestamp: new Date().toISOString(),
-  //   });
-  //   await this.redisPublisher.publish('phase:events', message);
-  // }
 }

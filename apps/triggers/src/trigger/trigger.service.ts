@@ -952,12 +952,4 @@ export class TriggerService {
       throw new RpcException(error);
     }
   }
-  // private async publishPhaseEvent(event: string, data: any) {
-  //   const message = JSON.stringify({
-  //     event,
-  //     data,
-  //     timestamp: new Date().toISOString(),
-  //   });
-  //   await this.redisPublisher.publish('phase:events', message);
-  // }
 }
