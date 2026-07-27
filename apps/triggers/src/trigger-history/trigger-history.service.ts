@@ -1,10 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService, Prisma } from '@lib/database';
 import { GetTriggerHistoryDto } from './dto/get-trigger-history.dto';
 import { GetOneTriggerHistoryDto } from './dto/get-one-trigger-history';
-import Redis from 'ioredis';
-import { SSE_EVENTS } from 'src/constant';
+import { SseService } from 'src/sse/sse.service';
 
 @Injectable()
 export class TriggerHistoryService {
@@ -12,7 +11,7 @@ export class TriggerHistoryService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(SSE_EVENTS.PUBLISHER) private readonly redisPublisher: Redis,
+    private readonly sseService: SseService,
   ) {}
 
   async create(payload: { phaseUuid: string; user: any }) {
@@ -87,7 +86,7 @@ export class TriggerHistoryService {
             isActive: false,
           },
         });
-        await this.publishPhaseEvent('phase.updated', res);
+        await this.sseService.publishEvent('phase.updated', res);
 
         return {
           message: 'Phase reverted successfully',
@@ -209,12 +208,12 @@ export class TriggerHistoryService {
       throw new RpcException(error.message);
     }
   }
-  private async publishPhaseEvent(event: string, data: any) {
-    const message = JSON.stringify({
-      event,
-      data,
-      timestamp: new Date().toISOString(),
-    });
-    await this.redisPublisher.publish('phase:events', message);
-  }
+  // private async publishPhaseEvent(event: string, data: any) {
+  //   const message = JSON.stringify({
+  //     event,
+  //     data,
+  //     timestamp: new Date().toISOString(),
+  //   });
+  //   await this.redisPublisher.publish('phase:events', message);
+  // }
 }

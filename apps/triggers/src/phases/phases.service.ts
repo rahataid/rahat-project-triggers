@@ -19,13 +19,7 @@ import {
   DataSource,
 } from '@lib/database';
 import { InjectQueue } from '@nestjs/bull';
-import {
-  BQUEUE,
-  EVENTS,
-  JOBS,
-  MS_TRIGGER_CLIENTS,
-  SSE_EVENTS,
-} from 'src/constant';
+import { BQUEUE, EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import type { Queue } from 'bull';
 import { TriggerService } from 'src/trigger/trigger.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -39,7 +33,7 @@ import {
   RevertPhaseDto,
 } from './dto';
 import { activities } from '../utils/activities';
-import Redis from 'ioredis';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -56,7 +50,7 @@ export class PhasesService {
     @InjectQueue(BQUEUE.COMMUNICATION)
     private readonly communicationQueue: Queue,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
-    @Inject(SSE_EVENTS.PUBLISHER) private readonly redisPublisher: Redis,
+    private readonly sseService: SseService,
   ) {}
 
   async create(payload: CreatePhaseDto) {
@@ -150,7 +144,7 @@ export class PhasesService {
           }),
         },
       });
-      await this.publishPhaseEvent('phase.created', phase);
+      await this.sseService.publishEvent('phase.created', phase);
       return phase;
     } catch (error: any) {
       this.logger.error('Error while creating new Phase', error);
@@ -274,7 +268,7 @@ export class PhasesService {
           ...fields,
         },
       });
-      await this.publishPhaseEvent('phase.updated', phase);
+      await this.sseService.publishEvent('phase.updated', phase);
       return phase;
     } catch (error: any) {
       this.logger.error('Error while updating phase', error);
@@ -918,7 +912,7 @@ export class PhasesService {
       const deleted = await this.prisma.phase.delete({
         where: { uuid },
       });
-      await this.publishPhaseEvent('phase.deleted', deleted);
+      await this.sseService.publishEvent('phase.deleted', deleted);
       return deleted;
     } catch (error: any) {
       this.logger.error('Error while deleting phase', error);
@@ -1028,12 +1022,12 @@ export class PhasesService {
     });
   }
 
-  private async publishPhaseEvent(event: string, data: any) {
-    const message = JSON.stringify({
-      event,
-      data,
-      timestamp: new Date().toISOString(),
-    });
-    await this.redisPublisher.publish('phase:events', message);
-  }
+  // private async publishPhaseEvent(event: string, data: any) {
+  //   const message = JSON.stringify({
+  //     event,
+  //     data,
+  //     timestamp: new Date().toISOString(),
+  //   });
+  //   await this.redisPublisher.publish('phase:events', message);
+  // }
 }

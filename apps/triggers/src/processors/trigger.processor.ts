@@ -1,7 +1,7 @@
 import { Process, Processor } from '@nestjs/bull';
-import { Inject, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import type { Job } from 'bull';
-import { BQUEUE, JOBS, SSE_EVENTS } from 'src/constant';
+import { BQUEUE, JOBS } from 'src/constant';
 import { PhasesService } from 'src/phases/phases.service';
 import { PrismaService } from '@lib/database';
 import { evaluatePhase } from 'src/phases/phase-evaluation.engine';
@@ -9,7 +9,7 @@ import type {
   ExtendedTriggerLogic,
   TriggersMap,
 } from 'src/phases/phase-evaluation.types';
-import Redis from 'ioredis';
+import { SseService } from 'src/sse/sse.service';
 
 @Processor(BQUEUE.TRIGGER)
 export class TriggerProcessor {
@@ -18,7 +18,7 @@ export class TriggerProcessor {
   constructor(
     private readonly phaseService: PhasesService,
     private readonly prisma: PrismaService,
-    @Inject(SSE_EVENTS.PUBLISHER) private readonly redisPublisher: Redis,
+    private readonly sseService: SseService,
   ) {}
 
   @Process(JOBS.TRIGGER.REACHED_THRESHOLD)
@@ -51,7 +51,7 @@ export class TriggerProcessor {
       );
       if (conditionsMet) {
         const result = this.phaseService.activatePhase(phaseData.uuid);
-        this.publishPhaseEvent('phase.updated', result);
+        this.sseService.publishEvent('phase.updated', result);
       }
       return;
     }
@@ -124,12 +124,12 @@ export class TriggerProcessor {
 
     return mandatoryMet && optionalMet;
   }
-  private async publishPhaseEvent(event: string, data: any) {
-    const message = JSON.stringify({
-      event,
-      data,
-      timestamp: new Date().toISOString(),
-    });
-    await this.redisPublisher.publish('phase:events', message);
-  }
+  // private async publishPhaseEvent(event: string, data: any) {
+  //   const message = JSON.stringify({
+  //     event,
+  //     data,
+  //     timestamp: new Date().toISOString(),
+  //   });
+  //   await this.redisPublisher.publish('phase:events', message);
+  // }
 }
