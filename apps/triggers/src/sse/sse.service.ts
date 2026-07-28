@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
-import { SSE_EVENTS } from 'src/constant';
+import { REDIS_CHANNELS, SSE_EVENTS } from 'src/constant';
 
 @Injectable()
 export class SseService {
@@ -12,6 +12,6 @@ export class SseService {
       data,
       timestamp: new Date().toISOString(),
     });
-    await this.redis.publish('phase:events', message);
+    await this.redis.publish(REDIS_CHANNELS.EVENT_TO_PLATFORM, message);
   }
 }

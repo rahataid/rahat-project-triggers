@@ -207,3 +207,7 @@ export const MS_TRIGGER_CLIENTS = {
 export const SSE_EVENTS = {
   PUBLISHER: 'REDIS_EVENTS_PUBLISHER',
 };
+
+export const REDIS_CHANNELS = {
+  EVENT_TO_PLATFORM: 'event.platform',
+};
