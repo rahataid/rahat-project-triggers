@@ -12,6 +12,6 @@ export class SseService {
       data,
       timestamp: new Date().toISOString(),
     });
-    await this.redis.publish(REDIS_CHANNELS.EVENT_TO_PLATFORM, message);
+    await this.redis.publish(REDIS_CHANNELS.SSE_LISTENER, message);
   }
 }

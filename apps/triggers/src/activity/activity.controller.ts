@@ -27,7 +27,10 @@ export class ActivityController {
   async bulkAdd(
     @Payload() payload: { data: CreateActivityDto[]; appId: string },
   ) {
-    const data = payload.data.map((item) => ({ ...item, appId: payload.appId }));
+    const data = payload.data.map((item) => ({
+      ...item,
+      appId: payload.appId,
+    }));
     return this.activityService.bulkAdd(data);
   }
 
@@ -37,7 +40,10 @@ export class ActivityController {
   async validateBulkAdd(
     @Payload() payload: { data: CreateActivityDto[]; appId: string },
   ) {
-    const data = payload.data.map((item) => ({ ...item, appId: payload.appId }));
+    const data = payload.data.map((item) => ({
+      ...item,
+      appId: payload.appId,
+    }));
     return this.activityService.validateBulkAdd(data);
   }
 
@@ -161,6 +167,7 @@ export class ActivityController {
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
   async getTransportSessionStatsByGroup(payload: { appId: string }) {
+    console.log('payload:', payload);
     return this.activityService.getTransportSessionStatsByGroup(payload.appId);
   }
 
