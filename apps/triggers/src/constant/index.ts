@@ -5,7 +5,7 @@ export const BQUEUE = {
   COMMUNICATION: 'COMMUNICATION',
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
-  NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER'
+  NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER',
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
@@ -68,6 +68,9 @@ export const JOBS = {
   NOTIFICATION: {
     CREATE: 'rahat.jobs.notification.create',
   },
+  AUTH: {
+    CHECK_ABILITY: 'rahat.jobs.shared_auth.check_ability',
+  },
   GROUP_CASH_TRANSFER: {
     DISBURSE: 'aa.jobs.groupCashTransfer.disburse',
   },
@@ -112,8 +115,8 @@ export const MS_TRIGGERS_JOBS = {
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
   },
- SYNC_FORECAST_DATA: 'ms.jobs.sources-data.syncForecastData',
- HUMIDITY: {
+  SYNC_FORECAST_DATA: 'ms.jobs.sources-data.syncForecastData',
+  HUMIDITY: {
     GET_DHM: 'ms.jobs.humidity.getDhm',
     GET_DHM_SINGLE_SERIES: 'ms.jobs.humidity.getDhmSingleSeries',
   },
@@ -202,4 +205,5 @@ export const EVENTS = {
 
 export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
+  AUTH_SERVICE: 'AUTH_SERVICE',
 };
