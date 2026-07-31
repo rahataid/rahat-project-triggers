@@ -210,7 +210,7 @@ export class TriggerService {
       // this.logger.log(`
       //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
       //   `);
-      await this.sseService.publishEvent('trigger.updated', updatedTrigger);
+      await this.sseService.publishEvent('phase.updated', updatedTrigger);
 
       return updatedTrigger;
     } catch (error: any) {
