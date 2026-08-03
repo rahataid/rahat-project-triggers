@@ -24,7 +24,8 @@ export class TriggerProcessor {
     const payload = job.data;
 
     this.logger.log(`Processing trigger job for uuid: ${payload.uuid}`);
-    if (payload.source) {
+    // Process both automated and manual triggers through extended logic evaluation
+    if (payload.phaseId) {
       this.processAutomatedData(payload);
     }
   }

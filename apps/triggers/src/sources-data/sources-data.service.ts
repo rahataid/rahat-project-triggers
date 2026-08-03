@@ -8,7 +8,6 @@ import {
   SourceType,
 } from '@lib/database';
 import { PaginationDto } from 'src/common/dto';
-import { HttpService } from '@nestjs/axios';
 import { RpcException } from '@nestjs/microservices';
 import {
   GetAllGlofasProbFloodDto,
@@ -17,7 +16,6 @@ import {
   GetTemperatureSourceDataDto,
   SourceDataType,
 } from './dto/get-source-data';
-import * as https from 'https';
 import { getFormattedDate } from 'src/common';
 import { GetSeriesDto } from './dto/get-series';
 import { DhmService as DHM } from '@lib/dhm-adapter';
@@ -551,5 +549,47 @@ export class SourcesDataService {
     });
 
     return Array.from(uniqueSeriesMap.values());
+  }
+
+  async syncForecastData() {
+    this.logger.log(
+      'Manually triggering forecast data sync for DHM, GLOFAS and GFH',
+    );
+
+    const jobs: Record<string, () => Promise<void>> = {
+      DHM_WATER_LEVEL: () =>
+        this.scheduleSourcesDataService.syncRiverWaterData(),
+      DHM_RAINFALL: () => this.scheduleSourcesDataService.syncRainfallData(),
+      DHM_TEMPERATURE: () =>
+        this.scheduleSourcesDataService.syncTemperatureData(),
+      GLOFAS: () => this.scheduleSourcesDataService.synchronizeGlofas(),
+      GFH: () => this.scheduleSourcesDataService.syncGfhData(),
+    };
+
+    const entries = Object.entries(jobs);
+    const results = await Promise.allSettled(entries.map(([_, fn]) => fn()));
+    const summary = results.map((result, index) => {
+      const [source] = entries[index];
+      if (result.status === 'rejected') {
+        this.logger.warn(
+          `Manual forecast data sync failed for ${source}: ${result.reason?.message ?? result.reason}`,
+        );
+        return {
+          source,
+          status: 'failed',
+          error: String(result.reason?.message ?? result.reason),
+        };
+      }
+      return { source, status: 'success' };
+    });
+
+    const hasFailures = summary.some((item) => item.status === 'failed');
+
+    return {
+      message: hasFailures
+        ? 'Forecast data sync completed with some failures'
+        : 'Forecast data sync completed successfully',
+      results: summary,
+    };
   }
 }

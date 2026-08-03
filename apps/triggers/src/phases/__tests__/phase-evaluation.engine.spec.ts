@@ -160,6 +160,45 @@ describe('Phase Evaluation Engine', () => {
       const group: TriggerGroup = { operator: 'OR', triggers: [] };
       expect(evaluateGroup(group, {}).result).toBe(false);
     });
+
+    it('resolves logicKey from { triggerLogicKey } object entries', () => {
+      const map: TriggersMap = {
+        t1: { isTriggered: true },
+        t2: { isTriggered: true },
+      };
+      const group: TriggerGroup = {
+        operator: 'AND',
+        triggers: [{ triggerLogicKey: 't1' }, { triggerLogicKey: 't2' }],
+      };
+      const result = evaluateGroup(group, map);
+      expect(result.result).toBe(true);
+      expect(result.triggers).toEqual({ t1: true, t2: true });
+    });
+
+    it('handles a mix of plain strings and { triggerLogicKey } objects', () => {
+      const map: TriggersMap = {
+        t1: { isTriggered: true },
+        t2: { isTriggered: false },
+      };
+      const group: TriggerGroup = {
+        operator: 'OR',
+        triggers: ['t1', { triggerLogicKey: 't2' }],
+      };
+      const result = evaluateGroup(group, map);
+      expect(result.result).toBe(true);
+      expect(result.triggers).toEqual({ t1: true, t2: false });
+    });
+
+    it('skips an entry with a missing/empty triggerLogicKey instead of treating it as a literal key', () => {
+      const map: TriggersMap = { t1: { isTriggered: true } };
+      const group: TriggerGroup = {
+        operator: 'OR',
+        triggers: [{ triggerLogicKey: '' } as any, 't1'],
+      };
+      const result = evaluateGroup(group, map);
+      expect(result.result).toBe(true);
+      expect(result.triggers).toEqual({ t1: true });
+    });
   });
 
   // ── evaluateExtendedLogic ──
