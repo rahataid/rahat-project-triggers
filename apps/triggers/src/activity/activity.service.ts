@@ -1713,15 +1713,19 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStatsByGroup(appId: string) {
+  async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-
+    const { appId, startDate, endDate } = payload;
     try {
       // Step 1: Fetch all activities with their related communications
+      const where: any = { app: appId };
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt.gte = new Date(startDate);
+        if (endDate) where.createdAt.lte = new Date(endDate);
+      }
       const activities = await this.prisma.activity.findMany({
-        where: {
-          app: appId,
-        },
+        where,
         select: {
           activityCommunication: true,
         },

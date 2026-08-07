@@ -166,9 +166,12 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
-  async getTransportSessionStatsByGroup(payload: { appId: string }) {
-    console.log('payload:', payload);
-    return this.activityService.getTransportSessionStatsByGroup(payload.appId);
+  async getTransportSessionStatsByGroup(payload: {
+    appId: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    return this.activityService.getTransportSessionStatsByGroup(payload);
   }
 
   @MessagePattern({
