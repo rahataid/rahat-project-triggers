@@ -9,6 +9,7 @@ import type {
   ExtendedTriggerLogic,
   TriggersMap,
 } from 'src/phases/phase-evaluation.types';
+import { SseService } from 'src/sse/sse.service';
 
 @Processor(BQUEUE.TRIGGER)
 export class TriggerProcessor {
@@ -17,6 +18,7 @@ export class TriggerProcessor {
   constructor(
     private readonly phaseService: PhasesService,
     private readonly prisma: PrismaService,
+    private readonly sseService: SseService,
   ) {}
 
   @Process(JOBS.TRIGGER.REACHED_THRESHOLD)
@@ -48,7 +50,8 @@ export class TriggerProcessor {
         `Legacy conditions met to activate phase ${phaseData.uuid}: ${conditionsMet}`,
       );
       if (conditionsMet) {
-        this.phaseService.activatePhase(phaseData.uuid);
+        const result = this.phaseService.activatePhase(phaseData.uuid);
+        this.sseService.publishEvent('phase.updated', result);
       }
       return;
     }
@@ -118,7 +121,6 @@ export class TriggerProcessor {
       mandatoryTriggers.receivedTriggers >= mandatoryTriggers.requiredTriggers;
     const optionalMet =
       optionalTriggers.receivedTriggers >= optionalTriggers.requiredTriggers;
-
 
     return mandatoryMet && optionalMet;
   }
