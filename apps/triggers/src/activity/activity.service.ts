@@ -18,6 +18,7 @@ import {
 import { paginateResult } from 'src/utils/pagination';
 import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
 import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -30,6 +31,7 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     @Inject('COMMS_CLIENT')
     private commsClient: CommsClient,
+    private readonly sseService: SseService,
   ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
@@ -83,6 +85,7 @@ export class ActivityService {
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
+      await this.sseService.publishEvent('activity.created', newActivity);
 
       return newActivity;
     } catch (error: any) {
@@ -306,6 +309,9 @@ export class ActivityService {
       payload.forEach((p) =>
         this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: p.appId }),
       );
+      await this.sseService.publishEvent('activity.created', {
+        count: createdActivities.length,
+      });
 
       return {
         totalCreated: createdActivities.length,
@@ -1069,6 +1075,7 @@ export class ActivityService {
       });
 
       this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
+      await this.sseService.publishEvent('activity.updated', deletedActivity);
 
       return deletedActivity;
     } catch (error: any) {
@@ -1126,6 +1133,7 @@ export class ActivityService {
           phase: true,
         },
       });
+      await this.sseService.publishEvent('activity.updated', updatedActivity);
 
       if (
         updatedActivity?.status === 'COMPLETED' &&
@@ -1202,7 +1210,7 @@ export class ActivityService {
         }
       }
 
-      return await this.prisma.activity.update({
+      const updatedActivity = await this.prisma.activity.update({
         where: {
           uuid: uuid,
         },
@@ -1240,6 +1248,8 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+      await this.sseService.publishEvent('activity.updated', updatedActivity);
+      return updatedActivity;
     } catch (error: any) {
       this.logger.error('Error while updating activity', error);
       throw new RpcException(error?.message || 'Something went wrong');
@@ -1619,7 +1629,7 @@ export class ActivityService {
       return c;
     });
 
-    await this.prisma.activity.update({
+    const updatedActivity = await this.prisma.activity.update({
       where: {
         uuid: payload.activityId,
       },
@@ -1627,6 +1637,7 @@ export class ActivityService {
         activityCommunication: updatedCommunicationsData,
       },
     });
+    await this.sseService.publishEvent('activity.updated', updatedActivity);
 
     return sessionData;
   }
