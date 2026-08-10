@@ -1,15 +1,18 @@
 import { Global, Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MS_TRIGGER_CLIENTS } from 'src/constant';
-import { MicroserviceAuthGuard } from './microservice-auth.guard';
+import {
+  AUTH_SERVICE_CLIENT,
+  MicroserviceAuthModule,
+} from '@rumsan/user/ability/ms-rpc-auth';
 
 @Global()
 @Module({
   imports: [
+    MicroserviceAuthModule,
     ClientsModule.registerAsync([
       {
-        name: MS_TRIGGER_CLIENTS.AUTH_SERVICE,
+        name: AUTH_SERVICE_CLIENT,
         imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => ({
           transport: Transport.REDIS,
@@ -23,7 +26,6 @@ import { MicroserviceAuthGuard } from './microservice-auth.guard';
       },
     ]),
   ],
-  providers: [MicroserviceAuthGuard],
-  exports: [MicroserviceAuthGuard, ClientsModule],
+  exports: [MicroserviceAuthModule, ClientsModule],
 })
 export class AuthModule {}

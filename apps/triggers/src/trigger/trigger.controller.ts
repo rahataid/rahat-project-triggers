@@ -1,8 +1,10 @@
 import { Controller, Logger, UseGuards } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
-import { MicroserviceAuthGuard } from 'src/auth/microservice-auth.guard';
-import { RequireAbility } from 'src/auth/require-ability.decorator';
+import {
+  MicroserviceAuthGuard,
+  RequireAbility,
+} from '@rumsan/user/ability/ms-rpc-auth';
 import { ACTIONS, SUBJECTS } from 'src/common/ability.constants';
 import {
   GetTriggersDto,
@@ -26,7 +28,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ADD,
   })
-  @RequireAbility({ action: ACTIONS.CREATE, subject: SUBJECTS.TRIGGER })
+  @RequireAbility(ACTIONS.CREATE, SUBJECTS.TRIGGER)
   async create(payload: CreateTriggerPayloadDto) {
     return this.triggerService.create(payload);
   }
@@ -55,7 +57,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.ACTIVATE,
   })
-  @RequireAbility({ action: ACTIONS.ACTIVATE, subject: SUBJECTS.TRIGGER })
+  @RequireAbility(ACTIONS.ACTIVATE, SUBJECTS.TRIGGER)
   activateTrigger(payload: ActivateTriggerPayloadDto) {
     return this.triggerService.activateTrigger(payload);
   }
@@ -63,7 +65,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE,
   })
-  @RequireAbility({ action: ACTIONS.UPDATE, subject: SUBJECTS.TRIGGER })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
   updateTrigger(payload: UpdateTriggerPayloadDto) {
     return this.triggerService.update(payload);
   }
@@ -71,7 +73,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.UPDATE_TRANSCTION,
   })
-  @RequireAbility({ action: ACTIONS.UPDATE, subject: SUBJECTS.TRIGGER })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
   updateTriggerTransaction(payload: UpdateTriggerTransactionDto) {
     return this.triggerService.updateTransaction(payload);
   }
@@ -79,7 +81,7 @@ export class TriggerController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.REMOVE,
   })
-  @RequireAbility({ action: ACTIONS.DELETE, subject: SUBJECTS.TRIGGER })
+  @RequireAbility(ACTIONS.DELETE, SUBJECTS.TRIGGER)
   remove(payload: RemoveTriggerPayloadDto) {
     return this.triggerService.remove(payload);
   }

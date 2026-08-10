@@ -69,7 +69,7 @@ export const JOBS = {
     CREATE: 'rahat.jobs.notification.create',
   },
   AUTH: {
-    CHECK_ABILITY: 'rahat.jobs.shared_auth.check_ability',
+    CHECK_ABILITY: 'auth.check_ability',
   },
   GROUP_CASH_TRANSFER: {
     DISBURSE: 'aa.jobs.groupCashTransfer.disburse',
