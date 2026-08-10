@@ -191,6 +191,7 @@ export class TriggerService {
         description: dto.description ?? trigger.description,
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
         source: dto.source || trigger.source,
+        leadTime: dto.leadTime ?? trigger.leadTime,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
