@@ -14,6 +14,7 @@ model Trigger {
     phase   Phase?      @relation(fields: [phaseId], references: [uuid])
     phaseId String?
     source  DataSource?
+    leadTime         String?
 
     isMandatory      Boolean @default(false)
     isTriggered      Boolean @default(false)
