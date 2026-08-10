@@ -207,3 +207,11 @@ export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
   AUTH_SERVICE: 'AUTH_SERVICE',
 };
+
+export const SSE_EVENTS = {
+  PUBLISHER: 'REDIS_EVENTS_PUBLISHER',
+};
+
+export const REDIS_CHANNELS = {
+  SSE_LISTENER: 'sse:listener',
+};
