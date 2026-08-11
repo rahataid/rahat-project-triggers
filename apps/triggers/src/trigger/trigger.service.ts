@@ -941,7 +941,8 @@ export class TriggerService {
               'transactionHash', t."transactionHash",
               'triggeredAt', t."triggeredAt"::timestamptz,
               'createdAt', t."createdAt"::timestamptz,
-              'updatedAt', t."updatedAt"::timestamptz
+              'updatedAt', t."updatedAt"::timestamptz,
+              'leadTime', t."leadTime"
             )
           ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t
