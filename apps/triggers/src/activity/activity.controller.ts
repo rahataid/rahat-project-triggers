@@ -13,7 +13,7 @@ import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakehold
 
 @Controller('activity')
 export class ActivityController {
-  constructor(private readonly activityService: ActivityService) {}
+  constructor(private readonly activityService: ActivityService) { }
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.ADD,
   })
@@ -170,6 +170,9 @@ export class ActivityController {
     appId: string;
     startDate?: string;
     endDate?: string;
+    filters?: {
+      phase?: string;
+    }
   }) {
     return this.activityService.getTransportSessionStatsByGroup(payload);
   }

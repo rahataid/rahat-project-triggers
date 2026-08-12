@@ -32,7 +32,7 @@ export class ActivityService {
     @Inject('COMMS_CLIENT')
     private commsClient: CommsClient,
     private readonly sseService: SseService,
-  ) {}
+  ) { }
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
@@ -1345,11 +1345,11 @@ export class ActivityService {
       ) as Array<{
         groupId: string;
         message:
-          | string
-          | {
-              mediaURL: string;
-              fileName: string;
-            };
+        | string
+        | {
+          mediaURL: string;
+          fileName: string;
+        };
         groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
         transportId: string;
         communicationId: string;
@@ -1546,11 +1546,11 @@ export class ActivityService {
     ) as Array<{
       groupId: string;
       message:
-        | string
-        | {
-            mediaURL: string;
-            fileName: string;
-          };
+      | string
+      | {
+        mediaURL: string;
+        fileName: string;
+      };
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;
@@ -1715,7 +1715,7 @@ export class ActivityService {
 
   async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-    const { appId, startDate, endDate } = payload;
+    const { appId, startDate, endDate, filters = {} } = payload;
     try {
       // Step 1: Fetch all activities with their related communications
       const where: any = { app: appId };
@@ -1723,6 +1723,9 @@ export class ActivityService {
         where.createdAt = {};
         if (startDate) where.createdAt.gte = new Date(startDate);
         if (endDate) where.createdAt.lte = new Date(endDate);
+      }
+      if (filters.phase) {
+        where.phase = { name: filters.phase };
       }
       const activities = await this.prisma.activity.findMany({
         where,
