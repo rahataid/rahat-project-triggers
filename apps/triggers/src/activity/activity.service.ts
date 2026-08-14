@@ -1222,8 +1222,16 @@ export class ActivityService {
           isAutomated: isAutomated,
           ...(manager && {
             manager: {
-              connect: {
-                id: manager.id,
+              connectOrCreate: {
+                where: {
+                  id: manager.id,
+                },
+                create: {
+                  id: manager.id,
+                  name: manager.name,
+                  email: manager.email,
+                  phone: manager.phone,
+                },
               },
             },
           }),
