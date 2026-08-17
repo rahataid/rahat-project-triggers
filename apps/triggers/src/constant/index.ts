@@ -68,6 +68,9 @@ export const JOBS = {
   NOTIFICATION: {
     CREATE: 'rahat.jobs.notification.create',
   },
+  AUTH: {
+    CHECK_ABILITY: 'auth.check_ability',
+  },
   GROUP_CASH_TRANSFER: {
     DISBURSE: 'aa.jobs.groupCashTransfer.disburse',
   },
@@ -202,6 +205,7 @@ export const EVENTS = {
 
 export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
+  AUTH_SERVICE: 'AUTH_SERVICE',
 };
 
 export const SSE_EVENTS = {
