@@ -23,6 +23,8 @@ import { StatsModule } from './stats/stat.module';
 import { HttpModule } from '@nestjs/axios';
 import { SettingsModule } from '@lib/core';
 import { LibraryModule } from './library/library.module';
+import { AuthModule } from './auth/auth.module';
+import { SseModule } from './sse/sse.module';
 
 @Module({
   imports: [
@@ -63,6 +65,7 @@ import { LibraryModule } from './library/library.module';
       global: true,
     }),
     SettingsModule,
+    AuthModule,
     ProcessorsModule,
     CategoryModule,
     PhasesModule,
@@ -77,6 +80,7 @@ import { LibraryModule } from './library/library.module';
     TriggerHistoryModule,
     StatsModule,
     LibraryModule,
+    SseModule,
   ],
   controllers: [AppController],
   providers: [AppService],

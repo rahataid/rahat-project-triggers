@@ -3,12 +3,16 @@ import { RpcException } from '@nestjs/microservices';
 import { PrismaService, Prisma } from '@lib/database';
 import { GetTriggerHistoryDto } from './dto/get-trigger-history.dto';
 import { GetOneTriggerHistoryDto } from './dto/get-one-trigger-history';
+import { SseService } from 'src/sse/sse.service';
 
 @Injectable()
 export class TriggerHistoryService {
   private readonly logger = new Logger(TriggerHistoryService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sseService: SseService,
+  ) {}
 
   async create(payload: { phaseUuid: string; user: any }) {
     this.logger.log(`Creating trigger history for phase: ${payload.phaseUuid}`);
@@ -82,6 +86,7 @@ export class TriggerHistoryService {
             isActive: false,
           },
         });
+        await this.sseService.publishEvent('phase.updated', res);
 
         return {
           message: 'Phase reverted successfully',

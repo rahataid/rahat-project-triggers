@@ -13,7 +13,7 @@ import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakehold
 
 @Controller('activity')
 export class ActivityController {
-  constructor(private readonly activityService: ActivityService) {}
+  constructor(private readonly activityService: ActivityService) { }
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.ADD,
   })
@@ -27,7 +27,10 @@ export class ActivityController {
   async bulkAdd(
     @Payload() payload: { data: CreateActivityDto[]; appId: string },
   ) {
-    const data = payload.data.map((item) => ({ ...item, appId: payload.appId }));
+    const data = payload.data.map((item) => ({
+      ...item,
+      appId: payload.appId,
+    }));
     return this.activityService.bulkAdd(data);
   }
 
@@ -37,7 +40,10 @@ export class ActivityController {
   async validateBulkAdd(
     @Payload() payload: { data: CreateActivityDto[]; appId: string },
   ) {
-    const data = payload.data.map((item) => ({ ...item, appId: payload.appId }));
+    const data = payload.data.map((item) => ({
+      ...item,
+      appId: payload.appId,
+    }));
     return this.activityService.validateBulkAdd(data);
   }
 
@@ -160,8 +166,15 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
-  async getTransportSessionStatsByGroup(payload: { appId: string }) {
-    return this.activityService.getTransportSessionStatsByGroup(payload.appId);
+  async getTransportSessionStatsByGroup(payload: {
+    appId: string;
+    startDate?: string;
+    endDate?: string;
+    filters?: {
+      phase?: string;
+    }
+  }) {
+    return this.activityService.getTransportSessionStatsByGroup(payload);
   }
 
   @MessagePattern({

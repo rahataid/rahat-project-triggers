@@ -33,6 +33,7 @@ import {
   RevertPhaseDto,
 } from './dto';
 import { activities } from '../utils/activities';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -49,6 +50,7 @@ export class PhasesService {
     @InjectQueue(BQUEUE.COMMUNICATION)
     private readonly communicationQueue: Queue,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
+    private readonly sseService: SseService,
   ) {}
 
   async create(payload: CreatePhaseDto) {
@@ -114,7 +116,7 @@ export class PhasesService {
     }
 
     try {
-      return await this.prisma.phase.create({
+      const phase = await this.prisma.phase.create({
         data: {
           name,
           source: {
@@ -142,6 +144,8 @@ export class PhasesService {
           }),
         },
       });
+      await this.sseService.publishEvent('phase.created', phase);
+      return phase;
     } catch (error: any) {
       this.logger.error('Error while creating new Phase', error);
       throw new RpcException(error);
@@ -258,12 +262,14 @@ export class PhasesService {
     };
 
     try {
-      return await this.prisma.phase.update({
+      const phase = await this.prisma.phase.update({
         where: { uuid },
         data: {
           ...fields,
         },
       });
+      await this.sseService.publishEvent('phase.updated', phase);
+      return phase;
     } catch (error: any) {
       this.logger.error('Error while updating phase', error);
       throw new RpcException(error);
@@ -731,6 +737,7 @@ export class PhasesService {
             isMandatory: trigger.isMandatory,
             phaseId: trigger.phaseId,
             source: trigger.source,
+            leadTime: trigger.leadTime,
           },
           trigger.createdBy,
         );
@@ -746,6 +753,7 @@ export class PhasesService {
             isMandatory: trigger.isMandatory,
             phaseId: trigger.phaseId,
             source: trigger.source,
+            leadTime: trigger.leadTime,
           },
           trigger.createdBy,
         );
@@ -903,9 +911,11 @@ export class PhasesService {
     }
 
     try {
-      return await this.prisma.phase.delete({
+      const deleted = await this.prisma.phase.delete({
         where: { uuid },
       });
+      await this.sseService.publishEvent('phase.deleted', deleted);
+      return deleted;
     } catch (error: any) {
       this.logger.error('Error while deleting phase', error);
       throw new RpcException(error?.message || 'Something went wrong');
