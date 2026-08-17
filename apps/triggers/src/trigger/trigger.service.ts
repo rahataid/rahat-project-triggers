@@ -33,6 +33,7 @@ import { catchError, lastValueFrom, of, timeout } from 'rxjs';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { triggerPayloadSchema } from './validation/trigger.schema';
 import { TRIGGER_CONSTANTS } from './trigger.constants';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -46,6 +47,7 @@ export class TriggerService {
     private readonly phasesService: PhasesService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
+    private readonly sseService: SseService,
   ) {}
 
   async create(payload: CreateTriggerPayloadDto) {
@@ -189,6 +191,7 @@ export class TriggerService {
         description: dto.description ?? trigger.description,
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
         source: dto.source || trigger.source,
+        leadTime: dto.leadTime ?? trigger.leadTime,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -208,6 +211,8 @@ export class TriggerService {
       // this.logger.log(`
       //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
       //   `);
+      await this.sseService.publishEvent('phase.updated', updatedTrigger);
+
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
@@ -316,6 +321,8 @@ export class TriggerService {
         },
       });
 
+      await this.sseService.publishEvent('trigger.created', trigger);
+
       return trigger;
     } catch (error: any) {
       this.logger.error(error);
@@ -388,6 +395,7 @@ export class TriggerService {
           isDeleted: true,
         },
       });
+      await this.sseService.publishEvent('trigger.updated', updatedTrigger);
 
       return updatedTrigger;
     } catch (error: any) {
@@ -573,6 +581,7 @@ export class TriggerService {
           phase: true,
         },
       });
+      await this.sseService.publishEvent('phase.updated', updatedTrigger);
 
       // const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
@@ -932,7 +941,8 @@ export class TriggerService {
               'transactionHash', t."transactionHash",
               'triggeredAt', t."triggeredAt"::timestamptz,
               'createdAt', t."createdAt"::timestamptz,
-              'updatedAt', t."updatedAt"::timestamptz
+              'updatedAt', t."updatedAt"::timestamptz,
+              'leadTime', t."leadTime"
             )
           ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t

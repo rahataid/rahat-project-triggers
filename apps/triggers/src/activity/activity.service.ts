@@ -18,6 +18,7 @@ import {
 import { paginateResult } from 'src/utils/pagination';
 import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
 import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -30,6 +31,7 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     @Inject('COMMS_CLIENT')
     private commsClient: CommsClient,
+    private readonly sseService: SseService,
   ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
@@ -83,6 +85,7 @@ export class ActivityService {
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
+      await this.sseService.publishEvent('activity.created', newActivity);
 
       return newActivity;
     } catch (error: any) {
@@ -147,7 +150,8 @@ export class ActivityService {
         },
         activityCommunication:
           createActivityCommunicationPayload as unknown as Prisma.InputJsonValue,
-        activityPayout: createActivityPayoutPayload as unknown as Prisma.InputJsonValue,
+        activityPayout:
+          createActivityPayoutPayload as unknown as Prisma.InputJsonValue,
         activityDocuments: docs as unknown as Prisma.InputJsonValue,
         app: appId,
       },
@@ -221,7 +225,9 @@ export class ActivityService {
 
       const key = dupKey({ ...activity, managerId: activity.manager?.id });
       if (existingKeys.has(key) || seenInBatch.has(key)) {
-        rowErrors.push('Duplicate error: this activity already exists in the project');
+        rowErrors.push(
+          'Duplicate error: this activity already exists in the project',
+        );
       }
       seenInBatch.add(key);
 
@@ -282,16 +288,16 @@ export class ActivityService {
               }),
               category: { connect: { uuid: categoryId } },
               phase: { connect: { uuid: phaseId } },
-              activityCommunication: (
-                activityCommunication?.map((comms: any) => ({
+              activityCommunication: (activityCommunication?.map(
+                (comms: any) => ({
                   ...comms,
                   communicationId: randomUUID(),
-                })) || []
-              ) as unknown as Prisma.InputJsonValue,
-              activityPayout:
-                (activityPayout || []) as unknown as Prisma.InputJsonValue,
-              activityDocuments:
-                (activityDocuments || []) as unknown as Prisma.InputJsonValue,
+                }),
+              ) || []) as unknown as Prisma.InputJsonValue,
+              activityPayout: (activityPayout ||
+                []) as unknown as Prisma.InputJsonValue,
+              activityDocuments: (activityDocuments ||
+                []) as unknown as Prisma.InputJsonValue,
               app: appId,
             },
             include: { manager: true },
@@ -303,6 +309,9 @@ export class ActivityService {
       payload.forEach((p) =>
         this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: p.appId }),
       );
+      await this.sseService.publishEvent('activity.created', {
+        count: createdActivities.length,
+      });
 
       return {
         totalCreated: createdActivities.length,
@@ -313,7 +322,6 @@ export class ActivityService {
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
-
 
   // async getOne(payload: { uuid: string; appId: string }) {
   //   const { uuid, appId } = payload;
@@ -1067,6 +1075,7 @@ export class ActivityService {
       });
 
       this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
+      await this.sseService.publishEvent('activity.updated', deletedActivity);
 
       return deletedActivity;
     } catch (error: any) {
@@ -1124,6 +1133,7 @@ export class ActivityService {
           phase: true,
         },
       });
+      await this.sseService.publishEvent('activity.updated', updatedActivity);
 
       if (
         updatedActivity?.status === 'COMPLETED' &&
@@ -1200,7 +1210,7 @@ export class ActivityService {
         }
       }
 
-      return await this.prisma.activity.update({
+      const updatedActivity = await this.prisma.activity.update({
         where: {
           uuid: uuid,
         },
@@ -1212,14 +1222,16 @@ export class ActivityService {
           isAutomated: isAutomated,
           ...(manager && {
             manager: {
-              connect: {
-                id: manager.id,
-              },
-              create: {
-                id: manager.id,
-                name: manager.name,
-                email: manager.email,
-                phone: manager.phone,
+              connectOrCreate: {
+                where: {
+                  id: manager.id,
+                },
+                create: {
+                  id: manager.id,
+                  name: manager.name,
+                  email: manager.email,
+                  phone: manager.phone,
+                },
               },
             },
           }),
@@ -1238,6 +1250,8 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+      await this.sseService.publishEvent('activity.updated', updatedActivity);
+      return updatedActivity;
     } catch (error: any) {
       this.logger.error('Error while updating activity', error);
       throw new RpcException(error?.message || 'Something went wrong');
@@ -1617,7 +1631,7 @@ export class ActivityService {
       return c;
     });
 
-    await this.prisma.activity.update({
+    const updatedActivity = await this.prisma.activity.update({
       where: {
         uuid: payload.activityId,
       },
@@ -1625,6 +1639,7 @@ export class ActivityService {
         activityCommunication: updatedCommunicationsData,
       },
     });
+    await this.sseService.publishEvent('activity.updated', updatedActivity);
 
     return sessionData;
   }
@@ -1700,15 +1715,22 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStatsByGroup(appId: string) {
+  async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-
+    const { appId, startDate, endDate, filters = {} } = payload;
     try {
       // Step 1: Fetch all activities with their related communications
+      const where: any = { app: appId };
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt.gte = new Date(startDate);
+        if (endDate) where.createdAt.lte = new Date(endDate);
+      }
+      if (filters.phase) {
+        where.phase = { name: filters.phase };
+      }
       const activities = await this.prisma.activity.findMany({
-        where: {
-          app: appId,
-        },
+        where,
         select: {
           activityCommunication: true,
         },
