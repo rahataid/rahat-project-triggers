@@ -32,7 +32,7 @@ export class ActivityService {
     @Inject('COMMS_CLIENT')
     private commsClient: CommsClient,
     private readonly sseService: SseService,
-  ) { }
+  ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
@@ -1222,14 +1222,16 @@ export class ActivityService {
           isAutomated: isAutomated,
           ...(manager && {
             manager: {
-              connect: {
-                id: manager.id,
-              },
-              create: {
-                id: manager.id,
-                name: manager.name,
-                email: manager.email,
-                phone: manager.phone,
+              connectOrCreate: {
+                where: {
+                  id: manager.id,
+                },
+                create: {
+                  id: manager.id,
+                  name: manager.name,
+                  email: manager.email,
+                  phone: manager.phone,
+                },
               },
             },
           }),
@@ -1345,11 +1347,11 @@ export class ActivityService {
       ) as Array<{
         groupId: string;
         message:
-        | string
-        | {
-          mediaURL: string;
-          fileName: string;
-        };
+          | string
+          | {
+              mediaURL: string;
+              fileName: string;
+            };
         groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
         transportId: string;
         communicationId: string;
@@ -1546,11 +1548,11 @@ export class ActivityService {
     ) as Array<{
       groupId: string;
       message:
-      | string
-      | {
-        mediaURL: string;
-        fileName: string;
-      };
+        | string
+        | {
+            mediaURL: string;
+            fileName: string;
+          };
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;

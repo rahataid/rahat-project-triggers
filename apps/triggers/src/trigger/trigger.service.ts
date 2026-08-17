@@ -191,6 +191,7 @@ export class TriggerService {
         description: dto.description ?? trigger.description,
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
         source: dto.source || trigger.source,
+        leadTime: dto.leadTime ?? trigger.leadTime,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -940,7 +941,8 @@ export class TriggerService {
               'transactionHash', t."transactionHash",
               'triggeredAt', t."triggeredAt"::timestamptz,
               'createdAt', t."createdAt"::timestamptz,
-              'updatedAt', t."updatedAt"::timestamptz
+              'updatedAt', t."updatedAt"::timestamptz,
+              'leadTime', t."leadTime"
             )
           ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t

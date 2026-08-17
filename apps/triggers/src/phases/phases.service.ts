@@ -737,6 +737,7 @@ export class PhasesService {
             isMandatory: trigger.isMandatory,
             phaseId: trigger.phaseId,
             source: trigger.source,
+            leadTime: trigger.leadTime,
           },
           trigger.createdBy,
         );
@@ -752,6 +753,7 @@ export class PhasesService {
             isMandatory: trigger.isMandatory,
             phaseId: trigger.phaseId,
             source: trigger.source,
+            leadTime: trigger.leadTime,
           },
           trigger.createdBy,
         );
