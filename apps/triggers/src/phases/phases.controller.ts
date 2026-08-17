@@ -75,7 +75,10 @@ export class PhasesController {
       return await this.phasesService.activatePhase(dto.phaseUuid);
     }
 
-    throw new RpcException('Not allowed in production environment');
+    throw new RpcException({
+      message: 'Not allowed in production environment',
+      code: 'NOT_ALLOWED_PRODUCTION',
+    });
   }
 
   @MessagePattern({
