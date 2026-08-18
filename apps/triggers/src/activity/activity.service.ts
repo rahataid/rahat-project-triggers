@@ -1452,10 +1452,16 @@ export class ActivityService {
         );
         groupName = group.name;
       } else {
-        throw new Error('Invalid group type');
+        throw new RpcException({
+          message: 'Invalid group type',
+          code: 'INVALID_GROUP_TYPE',
+        });
       }
       if (!group) {
-        throw new Error('No response from microservice');
+        throw new RpcException({
+          message: 'No response from microservice',
+          code: 'NO_RESPONSE_FROM_MICROSERVICE',
+        });
       }
 
       return { group, groupName };
