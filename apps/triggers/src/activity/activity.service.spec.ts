@@ -6,6 +6,7 @@ import { PrismaService } from '@lib/database';
 import { of, throwError } from 'rxjs';
 import { ActivityService } from './activity.service';
 import { MS_TRIGGER_CLIENTS } from 'src/constant';
+import { CommsService } from 'src/comms/comms.service';
 import {
   CreateActivityDto,
   GetActivityDto,
@@ -101,8 +102,10 @@ describe('ActivityService', () => {
           useValue: mockClientProxyImplementation,
         },
         {
-          provide: 'COMMS_CLIENT',
-          useValue: mockCommsClientImplementation,
+          provide: CommsService,
+          useValue: {
+            getCurrentClient: () => mockCommsClientImplementation,
+          },
         },
       ],
     }).compile();
@@ -111,7 +114,7 @@ describe('ActivityService', () => {
     mockPrismaService = module.get(PrismaService);
     mockEventEmitter = module.get(EventEmitter2);
     mockClientProxy = module.get(MS_TRIGGER_CLIENTS.RAHAT);
-    mockCommsClient = module.get('COMMS_CLIENT');
+    mockCommsClient = mockCommsClientImplementation;
   });
 
   afterEach(() => {

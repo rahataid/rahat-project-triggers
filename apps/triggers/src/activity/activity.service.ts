@@ -6,7 +6,7 @@ import { paginator, PaginatorTypes } from '@lib/database';
 import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import type { CommsClient } from 'src/comms/comms.service';
+import { CommsService, type CommsClient } from 'src/comms/comms.service';
 import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import {
@@ -29,10 +29,13 @@ export class ActivityService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
-    @Inject('COMMS_CLIENT')
-    private commsClient: CommsClient,
+    private readonly commsService: CommsService,
     private readonly sseService: SseService,
   ) { }
+
+  private get commsClient(): CommsClient {
+    return this.commsService.getCurrentClient();
+  }
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
