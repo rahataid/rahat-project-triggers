@@ -6,7 +6,7 @@ import { paginator, PaginatorTypes } from '@lib/database';
 import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import type { CommsClient } from 'src/comms/comms.service';
+import { CommsService, type CommsClient } from 'src/comms/comms.service';
 import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import {
@@ -29,10 +29,13 @@ export class ActivityService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
-    @Inject('COMMS_CLIENT')
-    private commsClient: CommsClient,
+    private readonly commsService: CommsService,
     private readonly sseService: SseService,
-  ) {}
+  ) { }
+
+  private get commsClient(): CommsClient {
+    return this.commsService.getCurrentClient();
+  }
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
@@ -444,6 +447,13 @@ export class ActivityService {
       appId = appId ?? (activityData?.app || null);
 
       if (Array.isArray(aComm) && aComm.length) {
+        const commsClient = await this.commsService.getClient();
+        if (!commsClient) {
+          throw new Error(
+            'Comms client is not available. Please try again shortly.',
+          );
+        }
+
         for (const comm of aComm) {
           const communication = JSON.parse(
             JSON.stringify(comm),
@@ -455,17 +465,14 @@ export class ActivityService {
           let sessionStatus = SessionStatus.NEW;
           let completedAt = null;
           if (communication.sessionId) {
-            const sessionDetails = await this.commsClient.session.get(
+            const sessionDetails = await commsClient.session.get(
               communication.sessionId,
             );
             sessionStatus = sessionDetails.data.status;
             completedAt = sessionDetails.data.updatedAt;
           }
-          // const transport = await this.commsClient.transport.get(
-          //   communication.transportId,
-          // );
 
-          const transport = await this.commsClient.transport.get(
+          const transport = await commsClient.transport.get(
             communication.transportId,
           );
           const transportName = transport.data.name;

@@ -99,4 +99,8 @@ export class CommsService {
     }
     return this.client;
   }
+
+  getCurrentClient(): CommsClient {
+    return this.client;
+  }
 }
