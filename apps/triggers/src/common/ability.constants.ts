@@ -4,6 +4,7 @@ export const ACTIONS = {
   UPDATE: 'update',
   DELETE: 'delete',
   ACTIVATE: 'activate',
+  REVERT: 'revert',
 };
 
 export const SUBJECTS = {
