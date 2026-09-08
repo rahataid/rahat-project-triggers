@@ -30,16 +30,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (exception instanceof RpcException) {
       const error = exception.getError();
-      message = typeof error === 'string' ? error : JSON.stringify(error);
-      errorDetails = typeof error === 'object' ? error : { message: error };
+      if (typeof error === 'string') {
+        message = error;
+        errorDetails = { message: error };
+      } else if (error && typeof error === 'object') {
+        // object form: new RpcException({ message, code, params })
+        message = (error as any).message ?? JSON.stringify(error);
+        errorDetails = error;
+      } else {
+        message = JSON.stringify(error);
+        errorDetails = { message };
+      }
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      message =
-        typeof exceptionResponse === 'string'
-          ? exceptionResponse
-          : (exceptionResponse as any).message || message;
-      errorDetails = { statusCode: status, message };
+      if (typeof exceptionResponse === 'string') {
+        message = exceptionResponse;
+        errorDetails = { statusCode: status, message };
+      } else {
+        message = (exceptionResponse as any).message || message;
+        // preserve any extra fields (e.g. code, params) set via
+        // new BadRequestException({ message, code, params })
+        errorDetails = { statusCode: status, ...(exceptionResponse as any) };
+      }
     } else if (exception instanceof Error) {
       message = exception.message;
       errorDetails = {
@@ -58,6 +71,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       message,
+      code: (errorDetails as any)?.code,
+      params: (errorDetails as any)?.params,
       error: errorDetails,
     }));
   }
@@ -69,14 +84,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
+    let code: string | undefined;
+    let params: Record<string, unknown> | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      message =
-        typeof exceptionResponse === 'string'
-          ? exceptionResponse
-          : (exceptionResponse as any).message || message;
+      if (typeof exceptionResponse === 'string') {
+        message = exceptionResponse;
+      } else {
+        message = (exceptionResponse as any).message || message;
+        code = (exceptionResponse as any).code;
+        params = (exceptionResponse as any).params;
+      }
     } else if (exception instanceof Error) {
       message = exception.message;
     }
@@ -91,6 +111,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       message,
+      code,
+      params,
     });
   }
 }
