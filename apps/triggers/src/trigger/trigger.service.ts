@@ -34,6 +34,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { triggerPayloadSchema } from './validation/trigger.schema';
 import { TRIGGER_CONSTANTS } from './trigger.constants';
 import { SseService } from 'src/sse/sse.service';
+import { TriggerCallbackService } from 'src/trigger-callback/trigger-callback.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -48,6 +49,7 @@ export class TriggerService {
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
     private readonly sseService: SseService,
+    private readonly triggerCallbackService: TriggerCallbackService,
   ) {}
 
   async create(payload: CreateTriggerPayloadDto) {
@@ -281,6 +283,10 @@ export class TriggerService {
               source: true,
             },
           },
+          callbacks: {
+            where: { isDeleted: false },
+            orderBy: { order: 'asc' },
+          },
         },
       });
     } catch (error: any) {
@@ -496,6 +502,16 @@ export class TriggerService {
 
       this.triggerQueue.addBulk(jobs);
 
+      for (const trigger of triggers) {
+        try {
+          await this.triggerCallbackService.enqueueForTrigger(trigger.uuid);
+        } catch (error: any) {
+          this.logger.error(
+            `Failed to enqueue callbacks for trigger ${trigger.uuid}: ${error.message}`,
+          );
+        }
+      }
+
       // TODO: Need to think about onchain queue update
 
       for (const phaseId in phases) {
@@ -624,6 +640,17 @@ export class TriggerService {
       this.logger.log(`
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
         `);
+
+      try {
+        await this.triggerCallbackService.enqueueForTrigger(
+          trigger.uuid,
+          appId,
+        );
+      } catch (error: any) {
+        this.logger.error(
+          `Failed to enqueue callbacks for trigger ${trigger.uuid}: ${error.message}`,
+        );
+      }
 
       const phaseId = updatedTrigger.phaseId;
       const appIds = await this.prisma.activity.findFirst({

@@ -34,6 +34,7 @@ import {
 } from './dto';
 import { activities } from '../utils/activities';
 import { SseService } from 'src/sse/sse.service';
+import { TriggerCallbackService } from 'src/trigger-callback/trigger-callback.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -51,6 +52,7 @@ export class PhasesService {
     private readonly communicationQueue: Queue,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     private readonly sseService: SseService,
+    private readonly triggerCallbackService: TriggerCallbackService,
   ) {}
 
   async create(payload: CreatePhaseDto) {
@@ -728,8 +730,9 @@ export class PhasesService {
 
     for (const trigger of phase.Trigger) {
       const { repeatKey } = trigger;
+      let newTrigger;
       if (trigger.source === DataSource.MANUAL) {
-        await this.triggerService.createTrigger(
+        newTrigger = await this.triggerService.createTrigger(
           appId,
           {
             title: trigger.title,
@@ -742,7 +745,7 @@ export class PhasesService {
           trigger.createdBy,
         );
       } else {
-        await this.triggerService.createTrigger(
+        newTrigger = await this.triggerService.createTrigger(
           appId,
           {
             title: trigger.title,
@@ -758,6 +761,12 @@ export class PhasesService {
           trigger.createdBy,
         );
       }
+
+      // Carry callbacks over to the re-created trigger so they're re-armed for the next fire.
+      await this.triggerCallbackService.cloneForNewTrigger(
+        trigger.uuid,
+        newTrigger.uuid,
+      );
 
       await this.triggerService.archive(repeatKey);
     }
