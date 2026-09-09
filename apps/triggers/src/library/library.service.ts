@@ -77,9 +77,10 @@ export class LibraryService {
         'Failed to fetch activity templates from library',
         error,
       );
-      throw new RpcException(
-        error?.message || 'Failed to fetch activity templates',
-      );
+      throw new RpcException({
+        message: error?.message || 'Failed to fetch activity templates',
+        code: 'LIBRARY_TEMPLATES_FETCH_FAILED',
+      });
     }
   }
 
@@ -112,7 +113,10 @@ export class LibraryService {
       });
 
       if (!dbTemplate) {
-        throw new RpcException('Activity template not found');
+        throw new RpcException({
+          message: 'Activity template not found',
+          code: 'ACTIVITY_TEMPLATE_NOT_FOUND',
+        });
       }
 
       return dbTemplate;
