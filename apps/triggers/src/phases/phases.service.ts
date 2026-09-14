@@ -17,6 +17,7 @@ import {
   PrismaService,
   ActivityStatus,
   DataSource,
+  TriggerCallbackType,
 } from '@lib/database';
 import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
@@ -431,8 +432,28 @@ export class PhasesService {
     return appIds;
   }
 
+  private async getTriggerLinkedActivityUuids(): Promise<string[]> {
+    const callbacks = await this.prisma.triggerCallback.findMany({
+      where: {
+        type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        isDeleted: false,
+      },
+      select: { config: true },
+    });
+
+    return callbacks
+      .map(
+        (callback) =>
+          (callback.config as { activityUuid?: string })?.activityUuid,
+      )
+      .filter((activityUuid): activityUuid is string => Boolean(activityUuid));
+  }
+
   async activatePhase(uuid: string) {
     try {
+      const triggerLinkedActivityUuids =
+        await this.getTriggerLinkedActivityUuids();
+
       const phaseDetails = await this.prisma.phase.findUnique({
         where: {
           uuid: uuid,
@@ -446,6 +467,9 @@ export class PhasesService {
                 not: ActivityStatus.COMPLETED,
               },
               isDeleted: false,
+              ...(triggerLinkedActivityUuids.length && {
+                uuid: { notIn: triggerLinkedActivityUuids },
+              }),
             },
           },
         },

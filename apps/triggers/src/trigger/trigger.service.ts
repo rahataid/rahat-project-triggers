@@ -21,6 +21,7 @@ import {
   PrismaService,
   DataSource,
   Prisma,
+  TriggerCallbackType,
 } from '@lib/database';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
@@ -273,7 +274,7 @@ export class TriggerService {
     const { uuid } = payload;
     this.logger.log(`Getting trigger with uuid: ${uuid}`);
     try {
-      return await this.prisma.trigger.findUnique({
+      const trigger = await this.prisma.trigger.findUnique({
         where: {
           uuid,
         },
@@ -289,10 +290,44 @@ export class TriggerService {
           },
         },
       });
+
+      if (!trigger) {
+        return trigger;
+      }
+
+      const activities = await this.getRelatedActivities(trigger.callbacks);
+
+      return { ...trigger, activities };
     } catch (error: any) {
       this.logger.error(error.message);
       throw new RpcException(error.message);
     }
+  }
+
+  private async getRelatedActivities(
+    callbacks: { type: TriggerCallbackType; config: Prisma.JsonValue }[],
+  ) {
+    const activityUuids = [
+      ...new Set(
+        callbacks
+          .filter(
+            (cb) => cb.type === TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          )
+          .map((cb) => (cb.config as { activityUuid?: string })?.activityUuid)
+          .filter((activityUuid): activityUuid is string =>
+            Boolean(activityUuid),
+          ),
+      ),
+    ];
+
+    if (!activityUuids.length) {
+      return [];
+    }
+
+    return this.prisma.activity.findMany({
+      where: { uuid: { in: activityUuids } },
+      select: { uuid: true, title: true },
+    });
   }
 
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {

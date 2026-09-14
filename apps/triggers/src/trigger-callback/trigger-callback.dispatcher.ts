@@ -6,7 +6,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
 import { createHmac } from 'crypto';
-import { PrismaService, TriggerCallbackStatus, TriggerCallbackType } from '@lib/database';
+import {
+  ActivityStatus,
+  PrismaService,
+  TriggerCallbackStatus,
+  TriggerCallbackType,
+} from '@lib/database';
 import { BQUEUE, CORE_MODULE, JOBS } from 'src/constant';
 import { parseCallbackConfig } from './validation/callback-config.schema';
 import type {
@@ -121,6 +126,10 @@ export class TriggerCallbackDispatcher {
     config: ActivityCommunicationConfig,
     job: CallbackDispatchJobData,
   ) {
+    this.logger.debug(
+      `Dispatching activity communication for activity ${config.activityUuid} (appId: ${config.appId ?? job.appId})`,
+    );
+
     const activity = await this.prisma.activity.findUnique({
       where: { uuid: config.activityUuid },
     });
@@ -161,6 +170,20 @@ export class TriggerCallbackDispatcher {
           backoff: { type: 'exponential', delay: 1000 },
         },
       );
+    }
+
+    if (!config.communicationIds?.length) {
+      this.logger.debug(
+        `Enqueued all ${selected.length} communications for activity ${config.activityUuid} (appId: ${appId})`,
+      );
+      await this.prisma.activity.update({
+        where: {
+          uuid: activity.uuid,
+        },
+        data: {
+          status: ActivityStatus.COMPLETED,
+        },
+      });
     }
 
     return {
