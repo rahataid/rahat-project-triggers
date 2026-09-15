@@ -29,4 +29,12 @@ export class AppController {
   getSettings(dto: { name: string }) {
     return this.appService.getSettings(dto);
   }
+
+  // Triggers version via Redis — no uuid, cached readFile.
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.VERSION.GET,
+  })
+  getVersion() {
+    return this.appService.getVersion();
+  }
 }
