@@ -75,12 +75,18 @@ export class PhasesService {
 
     if (!name || !source || !river_basin) {
       this.logger.error('Missing required fields in payload');
-      throw new RpcException('Name, source and river basin are required');
+      throw new RpcException({
+        message: 'Name, source and river basin are required',
+        code: 'PHASE_REQUIRED_FIELDS',
+      });
     }
 
     if (!activeYear) {
       this.logger.error('Missing active year in payload');
-      throw new RpcException('Active year is required');
+      throw new RpcException({
+        message: 'Active year is required',
+        code: 'ACTIVE_YEAR_REQUIRED',
+      });
     }
 
     const existingPhase = await this.prisma.phase.findFirst({
@@ -97,15 +103,18 @@ export class PhasesService {
       this.logger.warn(
         `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
       );
-      throw new RpcException(
-        `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
-      );
+      throw new RpcException({
+        message: `Phase with name ${name}, activeYear ${activeYear} and riverBasin ${river_basin} already exists`,
+        code: 'PHASE_ALREADY_EXISTS',
+        params: { name, activeYear, river_basin },
+      });
     }
 
     if (canTriggerPayout && !disbursementMethods?.length) {
-      throw new RpcException(
-        'disbursementMethods is required when canTriggerPayout is true',
-      );
+      throw new RpcException({
+        message: 'disbursementMethods is required when canTriggerPayout is true',
+        code: 'DISBURSEMENT_METHODS_REQUIRED_FOR_PAYOUT',
+      });
     }
 
     if (disbursementMethods?.length) {
@@ -148,6 +157,7 @@ export class PhasesService {
       return phase;
     } catch (error: any) {
       this.logger.error('Error while creating new Phase', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -222,13 +232,17 @@ export class PhasesService {
     const phase = await this.findOrThrow(uuid);
 
     if (phase.isActive) {
-      throw new RpcException('Cannot update an active phase');
+      throw new RpcException({
+        message: 'Cannot update an active phase',
+        code: 'CANNOT_UPDATE_ACTIVE_PHASE',
+      });
     }
 
     if (rest.canTriggerPayout && !rest.disbursementMethods?.length) {
-      throw new RpcException(
-        'disbursementMethods is required when canTriggerPayout is true',
-      );
+      throw new RpcException({
+        message: 'disbursementMethods is required when canTriggerPayout is true',
+        code: 'DISBURSEMENT_METHODS_REQUIRED_FOR_PAYOUT',
+      });
     }
 
     if (rest.disbursementMethods?.length) {
@@ -272,6 +286,7 @@ export class PhasesService {
       return phase;
     } catch (error: any) {
       this.logger.error('Error while updating phase', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -304,6 +319,7 @@ export class PhasesService {
       return { ...phase, triggerRequirements };
     } catch (error: any) {
       this.logger.error('Error while fetching phase', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -317,7 +333,10 @@ export class PhasesService {
     if (!uuid) {
       if (!activeYear || !riverBasin) {
         this.logger.warn('Active year and river basin are required');
-        throw new RpcException('Active year and river basin are required');
+        throw new RpcException({
+          message: 'Active year and river basin are required',
+          code: 'ACTIVE_YEAR_AND_RIVER_BASIN_REQUIRED',
+        });
       }
 
       phaseDetails = await this.prisma.phase.findFirst({
@@ -354,7 +373,11 @@ export class PhasesService {
 
     if (!phaseDetails) {
       this.logger.warn(`Phase with uuid ${uuid} not found`);
-      throw new RpcException(`Phase with uuid ${uuid} not found`);
+      throw new RpcException({
+        message: `Phase with uuid ${uuid} not found`,
+        code: 'PHASE_NOT_FOUND',
+        params: { uuid },
+      });
     }
 
     const triggerStash =
@@ -394,6 +417,7 @@ export class PhasesService {
       });
     } catch (error: any) {
       this.logger.error('Error while fetching phase by source', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -632,14 +656,19 @@ export class PhasesService {
 
       if (!phase) {
         this.logger.warn(`Phase with uuid ${uuid} not found`);
-        throw new RpcException(`Phase with uuid ${uuid} not found`);
+        throw new RpcException({
+          message: `Phase with uuid ${uuid} not found`,
+          code: 'PHASE_NOT_FOUND',
+          params: { uuid },
+        });
       }
 
       if (phase.isActive) {
         this.logger.warn('Cannot add triggers to an active phase.');
-        throw new BadRequestException(
-          'Cannot add triggers to an active phase.',
-        );
+        throw new BadRequestException({
+          message: 'Cannot add triggers to an active phase.',
+          code: 'CANNOT_ADD_TRIGGERS_ACTIVE_PHASE',
+        });
       }
 
       for (const trigger of triggers) {
@@ -669,6 +698,7 @@ export class PhasesService {
       return updatedPhase;
     } catch (error: any) {
       this.logger.error('Error while adding triggers to phase', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -718,12 +748,20 @@ export class PhasesService {
 
     if (!phase) {
       this.logger.log(`Phase with uuid ${phaseId} not found`);
-      throw new RpcException('Phase not found.');
+      throw new RpcException({
+        message: 'Phase not found.',
+        code: 'PHASE_NOT_FOUND',
+        params: { uuid: phaseId },
+      });
     }
 
     if (!phase.Trigger.length || !phase.isActive || !phase.canRevert) {
       this.logger.log(`Phase with uuid ${phaseId} cannot be reverted`);
-      throw new RpcException('Phase cannot be reverted.');
+      throw new RpcException({
+        message: 'Phase cannot be reverted.',
+        code: 'PHASE_CANNOT_BE_REVERTED',
+        params: { phaseUuid: phaseId },
+      });
     }
 
     for (const trigger of phase.Trigger) {
@@ -804,6 +842,7 @@ export class PhasesService {
       });
     } catch (error: any) {
       this.logger.error('Error while fetching phase by location', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -830,7 +869,11 @@ export class PhasesService {
 
     if (!phase) {
       this.logger.warn(`Phase with uuid ${uuid} not found`);
-      throw new RpcException(`Phase with uuid ${uuid} not found`);
+      throw new RpcException({
+        message: `Phase with uuid ${uuid} not found`,
+        code: 'PHASE_NOT_FOUND',
+        params: { uuid },
+      });
     }
 
     return phase;
@@ -860,9 +903,16 @@ export class PhasesService {
         this.logger.warn(
           `Disbursement method "${method}" already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}`,
         );
-        throw new RpcException(
-          `Disbursement method "${method}" is already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}. Each method can only be used by one phase per project.`,
-        );
+        throw new RpcException({
+          message: `Disbursement method "${method}" is already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}. Each method can only be used by one phase per project.`,
+          code: 'DISBURSEMENT_METHOD_ALREADY_ASSIGNED_TO_PHASE',
+          params: {
+            method,
+            phaseName: conflict.name,
+            activeYear: conflict.activeYear,
+            riverBasin,
+          },
+        });
       }
     }
   }
@@ -874,7 +924,10 @@ export class PhasesService {
 
     if (phase.isActive) {
       this.logger.warn(`Cannot delete an active phase: ${uuid}`);
-      throw new RpcException('Cannot delete an active phase');
+      throw new RpcException({
+        message: 'Cannot delete an active phase',
+        code: 'CANNOT_DELETE_ACTIVE_PHASE',
+      });
     }
 
     const [triggerCount, activityCount] = await Promise.all([
@@ -896,18 +949,22 @@ export class PhasesService {
       this.logger.warn(
         `Cannot delete phase ${uuid}: ${triggerCount} trigger(s) are associated with this phase`,
       );
-      throw new RpcException(
-        `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${triggerCount} trigger(s) are associated with it. Please remove them first.`,
-      );
+      throw new RpcException({
+        message: `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${triggerCount} trigger(s) are associated with it. Please remove them first.`,
+        code: 'CANNOT_DELETE_PHASE_WITH_TRIGGERS',
+        params: { name: phase.name, activeYear: phase.activeYear, count: triggerCount },
+      });
     }
 
     if (activityCount > 0) {
       this.logger.warn(
         `Cannot delete phase ${uuid}: ${activityCount} activity(s) are associated with this phase`,
       );
-      throw new RpcException(
-        `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${activityCount} activity(s) are associated with it. Please remove them first.`,
-      );
+      throw new RpcException({
+        message: `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${activityCount} activity(s) are associated with it. Please remove them first.`,
+        code: 'CANNOT_DELETE_PHASE_WITH_ACTIVITIES',
+        params: { name: phase.name, activeYear: phase.activeYear, count: activityCount },
+      });
     }
 
     try {
@@ -918,6 +975,7 @@ export class PhasesService {
       return deleted;
     } catch (error: any) {
       this.logger.error('Error while deleting phase', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -930,12 +988,18 @@ export class PhasesService {
     const { activeYear, riverBasin, disbursementMethod } = payload;
     if (!activeYear || !riverBasin) {
       this.logger.warn('activeYear and riverBasin are required');
-      throw new RpcException('activeYear and riverBasin are required');
+      throw new RpcException({
+        message: 'activeYear and riverBasin are required',
+        code: 'ACTIVE_YEAR_AND_RIVER_BASIN_REQUIRED',
+      });
     }
 
     if (!disbursementMethod) {
       this.logger.warn('disbursementMethod is required');
-      throw new RpcException('disbursementMethod is required');
+      throw new RpcException({
+        message: 'disbursementMethod is required',
+        code: 'DISBURSEMENT_METHOD_REQUIRED',
+      });
     }
 
     const phases = await this.prisma.phase.findMany({
@@ -980,9 +1044,10 @@ export class PhasesService {
       this.logger.warn(
         `Cannot set extended trigger logic for active phase ${uuid}`,
       );
-      throw new RpcException(
-        'Cannot update extended trigger logic on an active phase',
-      );
+      throw new RpcException({
+        message: 'Cannot update extended trigger logic on an active phase',
+        code: 'CANNOT_UPDATE_EXTENDED_TRIGGER_LOGIC_ACTIVE_PHASE',
+      });
     }
 
     this.logger.debug(`Persisting extended trigger logic for phase ${uuid}`);
@@ -1011,9 +1076,10 @@ export class PhasesService {
       this.logger.warn(
         `Cannot remove extended trigger logic for active phase ${uuid}`,
       );
-      throw new RpcException(
-        'Cannot remove extended trigger logic from an active phase',
-      );
+      throw new RpcException({
+        message: 'Cannot remove extended trigger logic from an active phase',
+        code: 'CANNOT_REMOVE_EXTENDED_TRIGGER_LOGIC_ACTIVE_PHASE',
+      });
     }
 
     return this.prisma.phase.update({

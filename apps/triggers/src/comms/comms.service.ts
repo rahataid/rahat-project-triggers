@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { lastValueFrom, timeout } from 'rxjs';
 import { getClient } from '@rumsan/connect/src/clients';
 
@@ -43,7 +43,10 @@ export class CommsService {
       );
 
       if (!communicationSettings) {
-        throw new Error('Communication settings not found in response');
+        throw new RpcException({
+          message: 'Communication settings not found in response',
+          code: 'COMMUNICATION_SETTINGS_NOT_FOUND',
+        });
       }
 
       this.client = getClient({
