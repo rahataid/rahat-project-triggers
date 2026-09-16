@@ -15,7 +15,7 @@ on:
       tag_prefix:
         description: "Tag prefix"
         required: true
-        default: "release-v5.0.0-mcn"
+        default: "release-v5.1.0-mcn"
         type: string
 
 env:
