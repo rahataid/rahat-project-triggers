@@ -30,7 +30,7 @@ export class AppController {
     return this.appService.getSettings(dto);
   }
 
-  // Triggers version via Redis — no uuid, cached readFile.
+  // Returns the Triggers service version.
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.VERSION.GET,
   })
