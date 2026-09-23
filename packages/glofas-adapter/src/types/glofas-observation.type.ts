@@ -1,13 +1,13 @@
-import { Prisma } from '@lib/database';
-import axios from 'axios';
-
 export interface GlofasObservation {
   data: any;
   location: string;
 }
-
-export interface GlofasFetchResponse extends Omit<GlofasObservation, 'data'> {
-  data: axios.AxiosResponse<any, any, {}>;
+export interface GlofasFetchResponse {
+  dischargeContent: string;
+  returnLevelContent: string;
+  forecastDate: string;
+  location: string;
+  stationId: string;
 }
 
 type PointForecast = {
@@ -42,29 +42,28 @@ export interface GlofasDataObject {
 
 export interface GlofasInfoObject {
   pointForecastData: {
-    forecastDate: PointForecast;
     maxProbability: PointForecast;
     alertLevel: PointForecast;
     maxProbabilityStep: PointForecast;
-    dischargeTendencyImage: PointForecast;
     peakForecasted: PointForecast;
+    dischargeTendencyImage: PointForecast;
   };
-  hydrographImageUrl: string;
   returnPeriodTable2yr: {
-    returnPeriodData: any[];
+    returnPeriodData: string[][];
     returnPeriodHeaders: string[];
   };
   returnPeriodTable5yr: {
-    returnPeriodData: any[];
+    returnPeriodData: string[][];
     returnPeriodHeaders: string[];
   };
   returnPeriodTable20yr: {
-    returnPeriodData: any[];
+    returnPeriodData: string[][];
     returnPeriodHeaders: string[];
   };
   forecastDate: string;
+  dischargeSeries: { date: string; min: number; mean: number; max: number }[];
 }
 
-export type GfofasInfo = {
+export type GlofasInfo = {
   location: { basinId: string };
 };

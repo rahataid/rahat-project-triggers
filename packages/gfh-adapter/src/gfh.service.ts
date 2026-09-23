@@ -1,6 +1,6 @@
 import { DataSource, Prisma, PrismaService, SourceType } from "@lib/database";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { GfhInfo } from "types";
+import { GfhInfoNew } from "types";
 
 @Injectable()
 export class GfhService {
@@ -103,14 +103,16 @@ export class GfhService {
         },
       });
 
-      return sourceData.map((value) => {
-        const info = value.info as GfhInfo;
-        return {
-          seriesId: info["info"].riverGaugeId,
-          stationName: info["info"].stationName,
+   return sourceData.map((value) => {
+       const info = value.info as unknown as GfhInfoNew;
+       return {
+          seriesId: info.riverGaugeId,
+          stationName: info.stationName,
         };
+       
       });
     } catch (error: any) {
+
       this.logger.error("Error while fetching source data", error);
       throw error;
     }

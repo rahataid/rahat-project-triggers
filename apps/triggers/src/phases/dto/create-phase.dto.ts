@@ -7,6 +7,8 @@ import {
   IsOptional,
   IsEnum,
   IsString,
+  IsObject,
+  IsArray,
 } from 'class-validator';
 import { Phases, DataSource } from '@lib/database';
 
@@ -69,6 +71,22 @@ export class CreatePhaseDto {
   canTriggerPayout?: boolean;
 
   @ApiProperty({
+    description:
+      'Extended trigger logic configuration for grouped AND/OR evaluation',
+    required: false,
+    example: {
+      groups: [
+        { operator: 'AND', triggers: ['logicKeyA', 'logicKeyB'] },
+        { operator: 'AND', triggers: ['logicKeyC'] },
+      ],
+      joinOperator: 'OR',
+    },
+  })
+  @IsObject()
+  @IsOptional()
+  extendedTriggerLogic?: Record<string, any>;
+
+  @ApiProperty({
     type: String,
   })
   @IsString()
@@ -80,4 +98,27 @@ export class CreatePhaseDto {
   @IsEnum(DataSource)
   @IsString()
   source: DataSource;
+
+  @ApiProperty({
+    example: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isRequiredLeadTime?: boolean;
+
+  @ApiProperty({
+    example: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isAutomatedActivity?: boolean;
+
+  @ApiProperty({
+    description: 'Disbursement methods for the phase',
+    required: false,
+    example: ['TOKEN', 'INKIND', 'GROUP_TOKEN'],
+  })
+  @IsArray()
+  @IsOptional()
+  disbursementMethods?: string[];
 }

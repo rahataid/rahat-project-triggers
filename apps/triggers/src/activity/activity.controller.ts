@@ -1,6 +1,10 @@
-import { Controller } from '@nestjs/common';
+import { Controller, UseGuards } from '@nestjs/common';
 import { ActivityService } from './activity.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import {
+  MicroserviceAuthGuard,
+  RequireAbility,
+} from '@rumsan/user/ability/ms-rpc-auth';
 import {
   CreateActivityDto,
   GetActivityDto,
@@ -9,15 +13,47 @@ import {
 } from './dto';
 import { ActivityStatus } from '@lib/database';
 import { MS_TRIGGERS_JOBS } from 'src/constant';
+import { ACTIONS, SUBJECTS } from 'src/common/ability.constants';
+import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
 
 @Controller('activity')
+@UseGuards(MicroserviceAuthGuard)
 export class ActivityController {
-  constructor(private readonly activityService: ActivityService) {}
+  constructor(private readonly activityService: ActivityService) { }
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.ADD,
   })
+  @RequireAbility(ACTIONS.CREATE, SUBJECTS.ACTIVITY)
   async add(@Payload() payload: CreateActivityDto) {
     return this.activityService.add(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.BULK_ADD,
+  })
+  @RequireAbility(ACTIONS.CREATE, SUBJECTS.ACTIVITY)
+  async bulkAdd(
+    @Payload() payload: { data: CreateActivityDto[]; appId: string },
+  ) {
+    const data = payload.data.map((item) => ({
+      ...item,
+      appId: payload.appId,
+    }));
+    return this.activityService.bulkAdd(data);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.VALIDATE_BULK_ADD,
+  })
+  @RequireAbility(ACTIONS.CREATE, SUBJECTS.ACTIVITY)
+  async validateBulkAdd(
+    @Payload() payload: { data: CreateActivityDto[]; appId: string },
+  ) {
+    const data = payload.data.map((item) => ({
+      ...item,
+      appId: payload.appId,
+    }));
+    return this.activityService.validateBulkAdd(data);
   }
 
   @MessagePattern({
@@ -59,6 +95,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.REMOVE,
   })
+  @RequireAbility(ACTIONS.DELETE, SUBJECTS.ACTIVITY)
   async remove(@Payload() payload: { uuid: string }) {
     return this.activityService.remove(payload);
   }
@@ -66,6 +103,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.TRIGGER,
   })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.ACTIVITY)
   async triggerCommunication(payload: {
     communicationId: string;
     activityId: string;
@@ -102,6 +140,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.UPDATE_STATUS,
   })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.ACTIVITY)
   async updateStatus(
     @Payload()
     payload: {
@@ -118,6 +157,7 @@ export class ActivityController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.UPDATE,
   })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.ACTIVITY)
   async update(@Payload() payload: UpdateActivityDto) {
     return this.activityService.update(payload);
   }
@@ -130,9 +170,30 @@ export class ActivityController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_TRANSPORT_SESSION_STATS,
+  })
+  async getTransportSessionStats(payload) {
+    return this.activityService.getTransportSessionStats(payload.appId);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.ACTIVITIES.COMMUNICATION.GET_STATS_GROUP,
   })
-  async getTransportSessionStatsByGroup(payload: { appId: string }) {
-    return this.activityService.getTransportSessionStatsByGroup(payload.appId);
+  async getTransportSessionStatsByGroup(payload: {
+    appId: string;
+    startDate?: string;
+    endDate?: string;
+    filters?: {
+      phase?: string;
+    }
+  }) {
+    return this.activityService.getTransportSessionStatsByGroup(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.ACTIVITIES.GET_BY_STAKEHOLDER_UUID,
+  })
+  async getByStakeholderUuid(payload: GetActivityByStakeholderUuidDto) {
+    return this.activityService.getByStakeholderUuid(payload);
   }
 }

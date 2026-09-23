@@ -61,6 +61,14 @@ export class CreateActivityDto {
   title: string;
 
   @ApiProperty({
+    example: 'station-123',
+    description: 'The person responsible for the activity',
+  })
+  @IsString()
+  @IsOptional()
+  responsibleStation?: string;
+
+  @ApiProperty({
     example: '2023-01-01',
     description: 'The lead time for the activity in YYYY-MM-DD format',
   })

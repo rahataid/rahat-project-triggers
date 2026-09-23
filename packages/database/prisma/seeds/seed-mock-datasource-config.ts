@@ -12,9 +12,14 @@ const config: DataSourceConfigType = {
       [SourceType.WATER_LEVEL]: {
         URL: 'http://localhost:3005/v1/forecast/river',
       },
+      [SourceType.TEMPERATURE]: {
+        URL: 'http://localhost:3005/v1/forecast/river',
+      },
     },
     [DataSource.GLOFAS]: {
-      URL: 'http://localhost:3005/v1/forecast/glofas',
+      URL: 'aux.ecmwf.int',
+      USER: '',
+      PASSWORD: '',
     },
     [DataSource.GFH]: {
       URL: 'http://localhost:3005/v1/forecast/gauges:queryGaugeForecasts',

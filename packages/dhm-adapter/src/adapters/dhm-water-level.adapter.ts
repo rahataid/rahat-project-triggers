@@ -8,10 +8,9 @@ import {
   DhmSourceDataTypeEnum,
   DhmFetchResponse,
   DhmStationResponse,
-  RiverStationData,
-  RainfallStationItem,
-  RiverStationItem,
   SeriesFetchParams,
+  DhmStationItem,
+  RiverStationItem,
 } from "../types/dhm-observation.type";
 import {
   Indicator,
@@ -24,6 +23,7 @@ import {
   DataSourceEventPayload,
   HealthMonitoringService,
   AdapterHealthConfig,
+  ItemError,
 } from "@lib/core";
 import { buildQueryParams, scrapeDataFromHtml } from "../../utils";
 import {
@@ -45,7 +45,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     @Inject(SettingsService) settingsService: SettingsService,
     @Optional()
     @Inject(EventEmitter2)
-    private readonly eventEmitter?: EventEmitter2
+    private readonly eventEmitter?: EventEmitter2,
   ) {
     super(httpService, settingsService, {
       dataSource: DataSource.DHM,
@@ -74,10 +74,10 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
   }
 
   async getStationsDetailsBySeriesId(
-    seriesId: number
-  ): Promise<RiverStationData> {
+    seriesId: number,
+  ): Promise<RiverStationItem> {
     const baseUrl = `https://dhm.gov.np/home/getAPIData/3`;
-    const defaultStation: RiverStationData = {
+    const defaultStation: RiverStationItem = {
       name: "",
       id: 0,
       stationIndex: "",
@@ -108,7 +108,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
         await this.httpService.axiosRef.get<DhmStationResponse>(baseUrl);
       const riverWatch = response.data.river_watch;
       const station = riverWatch.find(
-        (station) => station.series_id === seriesId
+        (station) => station.series_id === seriesId,
       );
 
       if (!station) {
@@ -120,15 +120,13 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     } catch (error: any) {
       this.logger.error(
         `Failed to get stations details for seriesId ${seriesId}`,
-        error
+        error,
       );
       return defaultStation;
     }
   }
 
-  private getLatestWaterLevelValue(
-    stationDetail: RiverStationItem | RainfallStationItem
-  ): number {
+  private getLatestWaterLevelValue(stationDetail: DhmStationItem): number {
     if ("waterLevel" in stationDetail) {
       return stationDetail.waterLevel?.value ?? 0;
     }
@@ -152,7 +150,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
   }
 
   private async fetchSeries(
-    params: SeriesFetchParams
+    params: SeriesFetchParams,
   ): Promise<DhmFetchResponse> {
     const { baseUrl, seriesId, period, location, date = new Date() } = params;
     const queryParams = buildQueryParams(seriesId, new Date(date!));
@@ -174,7 +172,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
    * Fetch raw HTML/data from DHM website
    */
   async fetch(): Promise<Result<DhmFetchResponse[]>> {
-    const itemErrors: any[] = [];
+    const itemErrors: ItemError[] = [];
     const successfulResults: DhmFetchResponse[] = [];
 
     try {
@@ -193,8 +191,8 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
             seriesId,
             period: DhmSourceDataTypeEnum.POINT,
             location: cfg.LOCATION,
-          })
-        )
+          }),
+        ),
       );
 
       const results = await Promise.allSettled(promises);
@@ -211,12 +209,12 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
           itemErrors.push({
             itemId: seriesId.toString(),
             stage: "fetch" as const,
-            errorCode: "FETCH_FAILED",
+            code: "FETCH_FAILED",
             message: result.reason?.message || "Unknown error",
             timestamp: new Date().toISOString(),
           });
           this.logger.warn(
-            `Failed to fetch data for seriesId ${seriesId}: ${result.reason?.message}`
+            `Failed to fetch data for seriesId ${seriesId}: ${result.reason?.message}`,
           );
         }
       });
@@ -272,7 +270,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
         }
 
         const normalizedData = this.normalizeDhmRiverAndRainfallWatchData(
-          data as DhmInputItem[]
+          data as DhmInputItem[],
         );
 
         observations.push({
@@ -299,32 +297,25 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
       const observations = aggregatedData as DhmObservation[];
 
       const indicators: Indicator[] = observations.flatMap((obs) => {
-        const baseIndicator = {
-          kind: "OBSERVATION" as const,
-          issuedAt: new Date().toISOString(),
-          location: {
-            type: "BASIN" as const,
-            seriesId: obs.seriesId,
-            basinId: obs.location!,
+        return [
+          {
+            kind: "OBSERVATION" as const,
+            issuedAt: new Date().toISOString(),
+            location: {
+              type: "BASIN",
+              seriesId: obs.seriesId!,
+              basinId: obs.location!,
+            },
+            source: {
+              key: "DHM",
+              metadata: { originalUnit: "m" },
+            },
+            info: { ...obs.stationDetail, history: obs.data },
+            indicator: "water_level_m",
+            units: "m",
+            value: this.getLatestWaterLevelValue(obs.stationDetail),
           },
-          source: {
-            key: "DHM",
-            metadata: { originalUnit: "m" },
-          },
-          info: { ...obs.stationDetail, history: obs.data },
-        };
-
-        const results: Indicator[] = [];
-
-        // Water level indicator
-        results.push({
-          ...baseIndicator,
-          indicator: "water_level_m",
-          units: "m",
-          value: this.getLatestWaterLevelValue(obs.stationDetail),
-        });
-
-        return results;
+        ];
       });
 
       this.logger.log(`Transformed to ${indicators.length} indicators`);
@@ -360,15 +351,15 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
   > {
     return chainAsync(this.fetch(), (rawData: DhmFetchResponse[]) =>
       chainAsync(this.aggregate(rawData), (observations: DhmObservation[]) =>
-        this.transform(observations)
-      )
+        this.transform(observations),
+      ),
     );
   }
 
   async fetchByPeriod(
     date: Date,
     seriesId: number,
-    period: DhmSourceDataTypeEnum
+    period: DhmSourceDataTypeEnum,
   ): Promise<Result<DhmFetchResponse[]>> {
     try {
       this.logger.log(`Fetching DHM data for SeriesId: ${seriesId}`);
@@ -393,7 +384,7 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
     } catch (error: any) {
       this.logger.error(
         `Failed to fetch DHM  data for SeriesId ${seriesId}`,
-        error
+        error,
       );
       return Err(`Failed to fetch DHM data for SeriesId ${seriesId}`, error);
     }
@@ -402,16 +393,16 @@ export class DhmWaterLevelAdapter extends ObservationAdapter<DhmFetchParams> {
   async executeByPeriod(
     date: Date,
     seriesId: number,
-    period: DhmSourceDataTypeEnum
+    period: DhmSourceDataTypeEnum,
   ): Promise<Result<DhmObservation[]>> {
     return chainAsync(
       this.fetchByPeriod(date, seriesId, period),
-      (rawData: DhmFetchResponse[]) => this.aggregate(rawData)
+      (rawData: DhmFetchResponse[]) => this.aggregate(rawData),
     );
   }
 
   private normalizeDhmRiverAndRainfallWatchData(
-    dataArray: DhmInputItem[]
+    dataArray: DhmInputItem[],
   ): DhmNormalizedItem[] {
     return dataArray.map((item) => {
       const base = {

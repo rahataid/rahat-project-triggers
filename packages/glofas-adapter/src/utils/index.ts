@@ -1,10 +1,10 @@
-import * as cheerio from 'cheerio';
+import { createGunzip } from 'zlib';
+import { Readable } from 'stream';
+import * as tar from 'tar-stream';
 
 export const getFormattedDate = (date: Date = new Date()) => {
-  // const date = new Date();
-  // date.setDate(date.getDate() - 1); // Set date to previous day
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // getMonth() returns 0-based month, hence add 1
+  const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
 
   const dateTimeString = `${year}-${month}-${day}T00:00:00`;
@@ -13,128 +13,93 @@ export const getFormattedDate = (date: Date = new Date()) => {
   return { dateString, dateTimeString };
 };
 
-function parseReturnPeriodTable(
-  rpTable: cheerio.Cheerio<any>,
-  $: cheerio.CheerioAPI,
-) {
-  // first header row, consists of column names
-  const headerRow = rpTable.find('tr').first();
-  // get column names (th elements in tr)
-  const returnPeriodHeaders = headerRow
-    .find('th')
-    .map((_, element) => $(element).text().trim())
-    .toArray();
-
-  // first 10 data row (excluding the header) , data from latest day
-  const dataRow = rpTable.find('tr').slice(1, 11);
-  const returnPeriodData = [];
-
-  for (const row of dataRow) {
-    const dataValues = $(row)
-      .find('td')
-      .map((_, element) => $(element).text().trim())
-      .toArray();
-
-    returnPeriodData.push(dataValues);
-  }
-
-  return { returnPeriodData, returnPeriodHeaders };
+export function extractDateFromFilename(filename: string): string {
+  // glofas_pointdata_ICIMOD_2026060800.tar.gz → "2026-06-08"
+  const match = filename.match(/(\d{8})\d{2}\.tar\.gz$/);
+  if (!match || !match[1]) throw new Error(`Cannot extract date from filename: ${filename}`);
+  const raw = match[1];
+  return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
 }
 
-function parsePointForecast(
-  pfTable: cheerio.Cheerio<any>,
-  $: cheerio.CheerioAPI,
-) {
-  const headerRow = pfTable.find('tr').first();
-  const columnNames = headerRow
-    .find('th')
-    .map((i, element) => $(element).text().trim())
-    .toArray();
+export async function extractTarGz(buffer: Buffer): Promise<Map<string, string>> {
+  return new Promise((resolve, reject) => {
+    const files = new Map<string, string>();
+    const extract = tar.extract();
 
-  const dataRow = pfTable.find('tr').eq(1);
+    extract.on('entry', (header: tar.Headers, stream: NodeJS.ReadableStream & { resume(): void }, next: () => void) => {
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', () => {
+        files.set(header.name, Buffer.concat(chunks).toString('utf-8'));
+        next();
+      });
+      stream.resume();
+    });
 
-  const forecastDate = dataRow.find('td:nth-child(1)').text().trim(); // Using nth-child selector
-  const maxProbability = dataRow.find('td:nth-child(2)').text().trim();
-  const alertLevel = dataRow.find('td:nth-child(3)').text().trim();
-  const maxProbabilityStep = dataRow.find('td:nth-child(4)').text().trim();
-  const dischargeTendencyImage = dataRow
-    .find('td:nth-child(5) img')
-    .attr('src'); // Extract image src
-  const peakForecasted = dataRow.find('td:nth-child(6)').text().trim();
+    extract.on('finish', () => resolve(files));
+    extract.on('error', reject);
 
-  return {
-    forecastDate: {
-      header: columnNames[0],
-      data: forecastDate,
-    },
-    maxProbability: {
-      header: columnNames[1],
-      data: maxProbability,
-    },
-    alertLevel: {
-      header: columnNames[2],
-      data: alertLevel,
-    },
-    maxProbabilityStep: {
-      header: columnNames[3],
-      data: maxProbabilityStep,
-    },
-    dischargeTendencyImage: {
-      header: columnNames[4],
-      data: dischargeTendencyImage,
-    },
-    peakForecasted: {
-      header: columnNames[5],
-      data: peakForecasted,
-    },
-  };
+    Readable.from(buffer).pipe(createGunzip()).pipe(extract);
+  });
 }
 
-export function parseGlofasData(content: string) {
-  const $ = cheerio.load(content);
+export type DischargeRecord = {
+  name: string;
+  time: string;
+  member: number;
+  dis: number;
+};
 
-  // 2 yr return period table
-  const rpTable2yr = $(
-    'table[class="table-forecast-result table-forecast-result-global"][summary="IFS ENS > 2 yr RP"]',
-  );
+export function parseDischargeSeries(content: string): DischargeRecord[] {
+  const lines = content.split('\n');
+  const records: DischargeRecord[] = [];
 
-  // 5 yr return period table
-  const rpTable5yr = $(
-    'table[class="table-forecast-result table-forecast-result-global"][summary="IFS ENS > 5 yr RP"]',
-  );
-
-  // 20 yr return period table
-  const rpTable20yr = $(
-    'table[class="table-forecast-result table-forecast-result-global"][summary="IFS ENS > 20 yr RP"]',
-  );
-
-  // point forecast table
-  const pfTable = $('table.tbl_info_point[summary="Point Forecast"]');
-
-  const hydrographElement = $('.forecast_images').find(
-    'img[alt="Discharge Hydrograph (IFS ENS)"]',
-  );
-
-  if (
-    rpTable2yr.length === 0 ||
-    rpTable5yr.length === 0 ||
-    rpTable20yr.length === 0 ||
-    pfTable.length === 0 ||
-    hydrographElement.length === 0
-  ) {
-    return;
+  for (const line of lines.slice(1)) {
+    const parts = line.trim().split(/\s+/);
+    // format: rowIndex  name  time  member  dis
+    if (parts.length < 5) continue;
+    const [, name, time, memberStr, disStr] = parts;
+    if (!name || !time || !memberStr || !disStr) continue;
+    records.push({
+      name,
+      time,
+      member: parseInt(memberStr, 10),
+      dis: parseFloat(disStr),
+    });
   }
 
-  const returnPeriodTable2yr = parseReturnPeriodTable(rpTable2yr, $);
-  const returnPeriodTable5yr = parseReturnPeriodTable(rpTable5yr, $);
-  const returnPeriodTable20yr = parseReturnPeriodTable(rpTable20yr, $);
-  const pointForecastData = parsePointForecast(pfTable, $);
-  const hydrographImageUrl = hydrographElement.attr('src');
-  return {
-    returnPeriodTable2yr,
-    returnPeriodTable5yr,
-    returnPeriodTable20yr,
-    pointForecastData,
-    hydrographImageUrl,
-  };
+  return records;
+}
+
+export type ReturnLevelRecord = {
+  stationId: string;
+  name: string;
+  level2yr: number;
+  level5yr: number;
+  level20yr: number;
+};
+
+export function parseReturnLevels(content: string): ReturnLevelRecord[] {
+  const lines = content.split('\n');
+  const records: ReturnLevelRecord[] = [];
+
+  for (const line of lines.slice(1)) {
+    const parts = line.trim().split(/\s+/);
+    // Name lat lon 2y 5y 20y ...
+    if (parts.length < 6) continue;
+    const [rawName, , , level2yr, level5yr, level20yr] = parts;
+    if (!rawName || !level2yr || !level5yr || !level20yr) continue;
+    const sep = rawName.indexOf('_');
+    const stationId = sep > -1 ? rawName.slice(0, sep) : rawName;
+    const name = sep > -1 ? rawName.slice(sep + 1) : rawName;
+    records.push({
+      stationId,
+      name,
+      level2yr: parseFloat(level2yr),
+      level5yr: parseFloat(level5yr),
+      level20yr: parseFloat(level20yr),
+    });
+  }
+
+  return records;
 }

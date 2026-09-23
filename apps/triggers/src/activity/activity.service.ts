@@ -17,6 +17,8 @@ import {
 } from './dto';
 import { paginateResult } from 'src/utils/pagination';
 import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
+import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -29,6 +31,7 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     @Inject('COMMS_CLIENT')
     private commsClient: CommsClient,
+    private readonly sseService: SseService,
   ) {}
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
@@ -77,86 +80,253 @@ export class ActivityService {
   async add(payload: CreateActivityDto) {
     this.logger.log('Adding new activity');
     try {
-      const {
-        activityCommunication,
-        title,
-        isAutomated,
-        isTemplate,
-        leadTime,
-        categoryId,
-        description,
-        phaseId,
-        manager, // < ----- We need responsibility object like name, email from rahat platfrom
-        activityDocuments,
-        appId,
-        activityPayout,
-      } = payload;
-
-      const createActivityCommunicationPayload = [];
-      const createActivityPayoutPayload = activityPayout || [];
-      const docs = activityDocuments || [];
-
-      if (activityCommunication?.length) {
-        for (const comms of activityCommunication as any) {
-          const communicationId = randomUUID();
-
-          createActivityCommunicationPayload.push({
-            ...comms,
-            communicationId,
-          });
-        }
-      }
-
-      const newActivity = await this.prisma.activity.create({
-        data: {
-          title,
-          description,
-          leadTime,
-          isAutomated,
-          isTemplate,
-          ...(manager && {
-            manager: {
-              connectOrCreate: {
-                where: {
-                  id: manager.id,
-                },
-                create: {
-                  id: manager.id,
-                  name: manager.name,
-                  email: manager.email,
-                  phone: manager.phone,
-                },
-              },
-            },
-          }),
-          category: {
-            connect: { uuid: categoryId },
-          },
-          phase: {
-            connect: { uuid: phaseId },
-          },
-          activityCommunication: JSON.parse(
-            JSON.stringify(createActivityCommunicationPayload),
-          ),
-          activityPayout: JSON.parse(
-            JSON.stringify(createActivityPayoutPayload),
-          ),
-
-          activityDocuments: JSON.parse(JSON.stringify(docs)),
-          app: appId,
-        },
-        include: {
-          manager: true,
-        },
-      });
+      const newActivity = await this.createActivityRecord(payload);
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: appId });
+      this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
+      await this.sseService.publishEvent('activity.created', newActivity);
 
       return newActivity;
     } catch (error: any) {
       this.logger.error('Something went wrong while adding activity', error);
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
+  private async createActivityRecord(payload: CreateActivityDto) {
+    const {
+      activityCommunication,
+      title,
+      responsibleStation,
+      isAutomated,
+      isTemplate,
+      leadTime,
+      categoryId,
+      description,
+      phaseId,
+      manager, // < ----- We need responsibility object like name, email from rahat platfrom
+      activityDocuments,
+      appId,
+      activityPayout,
+    } = payload;
+
+    const createActivityCommunicationPayload =
+      activityCommunication?.map((comms: any) => ({
+        ...comms,
+        communicationId: randomUUID(),
+      })) || [];
+    const createActivityPayoutPayload = activityPayout || [];
+    const docs = activityDocuments || [];
+
+    return this.prisma.activity.create({
+      data: {
+        title,
+        responsibleStation,
+        description,
+        leadTime,
+        isAutomated,
+        isTemplate,
+        ...(manager && {
+          manager: {
+            connectOrCreate: {
+              where: {
+                id: manager.id,
+              },
+              create: {
+                id: manager.id,
+                name: manager.name,
+                email: manager.email,
+                phone: manager.phone,
+              },
+            },
+          },
+        }),
+        category: {
+          connect: { uuid: categoryId },
+        },
+        phase: {
+          connect: { uuid: phaseId },
+        },
+        activityCommunication:
+          createActivityCommunicationPayload as unknown as Prisma.InputJsonValue,
+        activityPayout:
+          createActivityPayoutPayload as unknown as Prisma.InputJsonValue,
+        activityDocuments: docs as unknown as Prisma.InputJsonValue,
+        app: appId,
+      },
+      include: {
+        manager: true,
+      },
+    });
+  }
+
+  async validateBulkAdd(payload: CreateActivityDto[]) {
+    if (!payload?.length) {
+      throw new RpcException({
+        message: 'No activities provided',
+        code: 'NO_ACTIVITIES_PROVIDED',
+      });
+    }
+
+    const appId = payload[0]?.appId;
+
+    const [phases, categories, existingActivities] = await Promise.all([
+      this.prisma.phase.findMany({ select: { uuid: true } }),
+      this.prisma.activityCategory.findMany({
+        where: { app: appId },
+        select: { uuid: true },
+      }),
+      this.prisma.activity.findMany({
+        where: { app: appId },
+        select: {
+          title: true,
+          responsibleStation: true,
+          categoryId: true,
+          phaseId: true,
+          managerId: true,
+        },
+      }),
+    ]);
+
+    const phaseIds = new Set(phases.map((p) => p.uuid));
+    const categoryIds = new Set(categories.map((c) => c.uuid));
+
+    const dupKey = (a: {
+      appId?: string;
+      title?: string;
+      responsibleStation?: string;
+      categoryId?: string;
+      phaseId?: string;
+      managerId?: string | null;
+    }) =>
+      JSON.stringify([
+        a.appId,
+        a.title,
+        a.responsibleStation,
+        a.categoryId,
+        a.phaseId,
+        a.managerId || null,
+      ]);
+
+    const existingKeys = new Set(
+      existingActivities.map((a) => dupKey({ ...a, appId })),
+    );
+    const seenInBatch = new Set<string>();
+
+    const errors: Array<CreateActivityDto & { error: string }> = [];
+
+    for (const activity of payload) {
+      const rowErrors: string[] = [];
+
+      if (!activity.phaseId || !phaseIds.has(activity.phaseId)) {
+        rowErrors.push('Invalid phaseId');
+      }
+      if (!activity.categoryId || !categoryIds.has(activity.categoryId)) {
+        rowErrors.push('Invalid categoryId');
+      }
+
+      const key = dupKey({ ...activity, managerId: activity.manager?.id });
+      if (existingKeys.has(key) || seenInBatch.has(key)) {
+        rowErrors.push(
+          'Duplicate error: this activity already exists in the project',
+        );
+      }
+      seenInBatch.add(key);
+
+      if (rowErrors.length) {
+        errors.push({ ...activity, error: rowErrors.join(', ') });
+      }
+    }
+
+    return { valid: errors.length === 0, total: payload.length, errors };
+  }
+
+  async bulkAdd(payload: CreateActivityDto[]) {
+    this.logger.log(`Bulk adding ${payload?.length || 0} activities`);
+
+    try {
+      if (!payload?.length) {
+        throw new RpcException({
+          message: 'No activities provided',
+          code: 'NO_ACTIVITIES_PROVIDED',
+        });
+      }
+
+      const createdActivities = await this.prisma.$transaction(
+        payload.map((p) => {
+          const {
+            activityCommunication,
+            title,
+            responsibleStation,
+            isAutomated,
+            isTemplate,
+            leadTime,
+            categoryId,
+            description,
+            phaseId,
+            manager,
+            activityDocuments,
+            appId,
+            activityPayout,
+          } = p;
+
+          return this.prisma.activity.create({
+            data: {
+              title,
+              responsibleStation,
+              description,
+              leadTime,
+              isAutomated,
+              isTemplate,
+              ...(manager && {
+                manager: {
+                  connectOrCreate: {
+                    where: { id: manager.id },
+                    create: {
+                      id: manager.id,
+                      name: manager.name,
+                      email: manager.email,
+                      phone: manager.phone,
+                    },
+                  },
+                },
+              }),
+              category: { connect: { uuid: categoryId } },
+              phase: { connect: { uuid: phaseId } },
+              activityCommunication: (activityCommunication?.map(
+                (comms: any) => ({
+                  ...comms,
+                  communicationId: randomUUID(),
+                }),
+              ) || []) as unknown as Prisma.InputJsonValue,
+              activityPayout: (activityPayout ||
+                []) as unknown as Prisma.InputJsonValue,
+              activityDocuments: (activityDocuments ||
+                []) as unknown as Prisma.InputJsonValue,
+              app: appId,
+            },
+            include: { manager: true },
+          });
+        }),
+      );
+
+      this.logger.log(`Created ${createdActivities.length} activities`);
+      payload.forEach((p) =>
+        this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: p.appId }),
+      );
+      await this.sseService.publishEvent('activity.created', {
+        count: createdActivities.length,
+      });
+
+      return {
+        totalCreated: createdActivities.length,
+        activities: createdActivities,
+      };
+    } catch (error: any) {
+      this.logger.error('Something went wrong while adding activities', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -292,12 +462,16 @@ export class ActivityService {
 
           let sessionStatus = SessionStatus.NEW;
           let completedAt = null;
+          let startedAt = null;
+          let updatedAt = null;
           if (communication.sessionId) {
             const sessionDetails = await this.commsClient.session.get(
               communication.sessionId,
             );
             sessionStatus = sessionDetails.data.status;
             completedAt = sessionDetails.data.updatedAt;
+            startedAt = sessionDetails.data.createdAt;
+            updatedAt = sessionDetails.data.updatedAt;
           }
           // const transport = await this.commsClient.transport.get(
           //   communication.transportId,
@@ -326,6 +500,8 @@ export class ActivityService {
             transportName: transportName,
             sessionStatus,
             completedAt,
+            startedAt,
+            updatedAt,
             ...(communication.sessionId && {
               sessionId: communication.sessionId,
             }),
@@ -340,6 +516,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while fetching activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -416,6 +593,7 @@ export class ActivityService {
         'Something went wrong while fetching activities',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -478,6 +656,7 @@ export class ActivityService {
         'Something went wrong while fetching activities',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -488,7 +667,10 @@ export class ActivityService {
       const { page, perPage, appId, filters = {} } = payload;
 
       if (!filters.transportName) {
-        throw new RpcException('Transport name not found ');
+        throw new RpcException({
+          message: 'Transport name not found ',
+          code: 'TRANSPORT_NAME_NOT_FOUND',
+        });
       }
 
       // Get base communication data
@@ -540,6 +722,7 @@ export class ActivityService {
         'Something went wrong while fetching activities having communications',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -896,6 +1079,7 @@ export class ActivityService {
         error,
       );
 
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -913,10 +1097,12 @@ export class ActivityService {
       });
 
       this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
+      await this.sseService.publishEvent('activity.updated', deletedActivity);
 
       return deletedActivity;
     } catch (error: any) {
       this.logger.error('Error while deleting activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -940,7 +1126,11 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn(`Activity not found: ${uuid}`);
-        throw new RpcException(`Activity not found: ${uuid}`);
+        throw new RpcException({
+          message: `Activity not found: ${uuid}`,
+          code: 'ACTIVITY_NOT_FOUND',
+          params: { uuid },
+        });
       }
 
       const docs = activityDocuments
@@ -970,6 +1160,7 @@ export class ActivityService {
           phase: true,
         },
       });
+      await this.sseService.publishEvent('activity.updated', updatedActivity);
 
       if (
         updatedActivity?.status === 'COMPLETED' &&
@@ -995,6 +1186,7 @@ export class ActivityService {
       return updatedActivity;
     } catch (error: any) {
       this.logger.log('Error while updating activity status', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1007,6 +1199,7 @@ export class ActivityService {
         activityCommunication,
         isAutomated,
         title,
+        responsibleStation,
         phaseId,
         leadTime,
         description,
@@ -1023,7 +1216,10 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn('Activity not found');
-        throw new RpcException('Activity not found.');
+        throw new RpcException({
+          message: 'Activity not found.',
+          code: 'ACTIVITY_NOT_FOUND',
+        });
       }
 
       const updateActivityCommunicationPayload = [];
@@ -1045,25 +1241,28 @@ export class ActivityService {
         }
       }
 
-      return await this.prisma.activity.update({
+      const updatedActivity = await this.prisma.activity.update({
         where: {
           uuid: uuid,
         },
         data: {
           title: title || activity.title,
+          responsibleStation: responsibleStation || activity.responsibleStation,
           description: description || activity.description,
           leadTime: leadTime || activity.leadTime,
           isAutomated: isAutomated,
           ...(manager && {
             manager: {
-              connect: {
-                id: manager.id,
-              },
-              create: {
-                id: manager.id,
-                name: manager.name,
-                email: manager.email,
-                phone: manager.phone,
+              connectOrCreate: {
+                where: {
+                  id: manager.id,
+                },
+                create: {
+                  id: manager.id,
+                  name: manager.name,
+                  email: manager.email,
+                  phone: manager.phone,
+                },
               },
             },
           }),
@@ -1082,8 +1281,11 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+      await this.sseService.publishEvent('activity.updated', updatedActivity);
+      return updatedActivity;
     } catch (error: any) {
       this.logger.error('Error while updating activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1102,7 +1304,7 @@ export class ActivityService {
       const { selectedCommunication } =
         await this.getActivityCommunicationDetails(communicationId, activityId);
 
-      const { groupName } = await this.getGroupDetails(
+      const { group } = await this.getGroupDetails(
         selectedCommunication.groupType,
         selectedCommunication.groupId,
         payload.appId,
@@ -1114,7 +1316,11 @@ export class ActivityService {
 
       if (!data) {
         this.logger.warn('Session not found');
-        throw new RpcException('Session not found.');
+        return {
+          sessionDetails: null,
+          communicationDetail: selectedCommunication,
+          group,
+        };
       }
 
       const { addresses, ...rest } = data;
@@ -1122,10 +1328,11 @@ export class ActivityService {
       return {
         sessionDetails: rest,
         communicationDetail: selectedCommunication,
-        groupName,
+        group,
       };
     } catch (error: any) {
       this.logger.error('Error while fetching session logs', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1163,7 +1370,10 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn('Activity Communication not found');
-        throw new RpcException('Activity communication not found.');
+        throw new RpcException({
+          message: 'Activity communication not found.',
+          code: 'ACTIVITY_COMMUNICATION_NOT_FOUND',
+        });
       }
 
       const { activityCommunication } = activity;
@@ -1192,13 +1402,17 @@ export class ActivityService {
         this.logger.warn(
           "Selected Communication doesn't exist in current activity",
         );
-        throw new RpcException(
-          "Selected Communication doesn't exist in current activity",
-        );
+        throw new RpcException({
+          message: "Selected Communication doesn't exist in current activity",
+          code: 'SELECTED_COMMUNICATION_NOT_IN_ACTIVITY',
+        });
       }
 
       if (!Object.keys(selectedCommunication).length) {
-        throw new RpcException('Selected communication not found.');
+        throw new RpcException({
+          message: 'Selected communication not found.',
+          code: 'SELECTED_COMMUNICATION_NOT_FOUND',
+        });
       }
 
       return { selectedCommunication, activity };
@@ -1207,6 +1421,7 @@ export class ActivityService {
         'Error while fetching activity communication details',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1243,15 +1458,22 @@ export class ActivityService {
         );
         groupName = group.name;
       } else {
-        throw new Error('Invalid group type');
+        throw new RpcException({
+          message: 'Invalid group type',
+          code: 'INVALID_GROUP_TYPE',
+        });
       }
       if (!group) {
-        throw new Error('No response from microservice');
+        throw new RpcException({
+          message: 'No response from microservice',
+          code: 'NO_RESPONSE_FROM_MICROSERVICE',
+        });
       }
 
       return { group, groupName };
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1292,6 +1514,65 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Error while fetching communication stats', error);
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error?.message || 'Something went wrong');
+    }
+  }
+
+  async getTransportSessionStats(appId: string) {
+    this.logger.log('Fetching transport session stats');
+
+    if (!appId) {
+      this.logger.warn('App ID is missing');
+      throw new RpcException({
+        message: 'App ID is missing',
+        code: 'APP_ID_MISSING',
+      });
+    }
+
+    try {
+      // Step 1: Build transport cache (transportId -> transportName)
+      const transportCache = await this.buildTransportCache();
+
+      // Step 2: Get all transportIds with their counts in a single SQL query
+      const rows = await this.prisma.$queryRaw<
+        { transportId: string; total: number }[]
+      >`
+      SELECT
+        comm_elem->>'transportId' AS "transportId",
+        COUNT(*)::int             AS total
+      FROM
+        public.tbl_activities a
+      CROSS JOIN LATERAL
+        jsonb_array_elements(a."activityCommunication"::jsonb) AS comm_elem
+      WHERE
+        a."isDeleted" = false
+        AND a."app" = ${appId}
+        AND a."activityCommunication" IS NOT NULL
+        AND a."activityCommunication"::jsonb != '[]'::jsonb
+        AND comm_elem->>'transportId' IS NOT NULL
+        AND comm_elem->>'sessionId' IS NOT NULL
+        AND comm_elem->>'sessionId' != ''
+      GROUP BY
+        comm_elem->>'transportId'
+    `;
+
+      if (!rows?.length) {
+        this.logger.warn('No communication data found');
+        return [];
+      }
+
+      // Step 3: Map transportId to transportName using cache
+      const result = rows.map((row) => ({
+        transportId: row.transportId,
+        transportName: transportCache.get(row.transportId) || 'Unknown',
+        total: row.total,
+      }));
+
+      return result;
+    } catch (error: any) {
+      this.logger.error('Error while fetching transport session stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1303,7 +1584,10 @@ export class ActivityService {
   }) {
     if (!payload?.communicationId || !payload?.activityId) {
       this.logger.warn('Communication ID or Activity ID is missing');
-      throw new RpcException('Communication ID or Activity ID is missing');
+      throw new RpcException({
+        message: 'Communication ID or Activity ID is missing',
+        code: 'COMM_OR_ACTIVITY_ID_MISSING',
+      });
     }
 
     this.logger.log(`Triggering communication for ${payload.activityId}`);
@@ -1312,7 +1596,11 @@ export class ActivityService {
         uuid: payload.activityId,
       },
     });
-    if (!activity) throw new RpcException('Activity communication not found.');
+    if (!activity)
+      throw new RpcException({
+        message: 'Activity communication not found.',
+        code: 'ACTIVITY_COMMUNICATION_NOT_FOUND',
+      });
     const { activityCommunication } = activity;
 
     const parsedCommunications = JSON.parse(
@@ -1336,7 +1624,10 @@ export class ActivityService {
     );
 
     if (!Object.keys(selectedCommunication).length)
-      throw new RpcException('Selected communication not found.');
+      throw new RpcException({
+        message: 'Selected communication not found.',
+        code: 'SELECTED_COMMUNICATION_NOT_FOUND',
+      });
 
     const transportDetails = await this.commsClient.transport.get(
       selectedCommunication.transportId,
@@ -1344,7 +1635,10 @@ export class ActivityService {
 
     if (!transportDetails.data) {
       this.logger.warn('Selected transport not found');
-      throw new RpcException('Selected transport not found.');
+      throw new RpcException({
+        message: 'Selected transport not found.',
+        code: 'SELECTED_TRANSPORT_NOT_FOUND',
+      });
     }
 
     const addresses = await this.getAddresses(
@@ -1390,7 +1684,10 @@ export class ActivityService {
 
     if (!sessionData) {
       this.logger.warn('Session not found');
-      throw new RpcException('Session not found.');
+      throw new RpcException({
+        message: 'Session not found.',
+        code: 'SESSION_NOT_FOUND',
+      });
     }
 
     const updatedCommunicationsData = parsedCommunications.map((c) => {
@@ -1403,7 +1700,7 @@ export class ActivityService {
       return c;
     });
 
-    await this.prisma.activity.update({
+    const updatedActivity = await this.prisma.activity.update({
       where: {
         uuid: payload.activityId,
       },
@@ -1411,6 +1708,7 @@ export class ActivityService {
         activityCommunication: updatedCommunicationsData,
       },
     });
+    await this.sseService.publishEvent('activity.updated', updatedActivity);
 
     return sessionData;
   }
@@ -1426,7 +1724,11 @@ export class ActivityService {
 
     switch (groupType) {
       case 'STAKEHOLDERS':
-        if (!group) throw new RpcException('Stakeholders group not found.');
+        if (!group)
+          throw new RpcException({
+            message: 'Stakeholders group not found.',
+            code: 'STAKEHOLDERS_GROUP_NOT_FOUND',
+          });
         //  Extract and validate contact addresses for stakeholders
         return group.stakeholders
           .map((stakeholder) => {
@@ -1452,7 +1754,11 @@ export class ActivityService {
           })
           .filter(Boolean);
       case 'BENEFICIARY':
-        if (!group) throw new RpcException('Beneficiary group not found.');
+        if (!group)
+          throw new RpcException({
+            message: 'Beneficiary group not found.',
+            code: 'BENEFICIARY_GROUP_NOT_FOUND',
+          });
 
         const groupedBeneficiaries = group.groupedBeneficiaries;
         //  Extract and validate contact addresses for beneficiaries
@@ -1486,15 +1792,22 @@ export class ActivityService {
     }
   }
 
-  async getTransportSessionStatsByGroup(appId: string) {
+  async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-
+    const { appId, startDate, endDate, filters = {} } = payload;
     try {
       // Step 1: Fetch all activities with their related communications
+      const where: any = { app: appId };
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt.gte = new Date(startDate);
+        if (endDate) where.createdAt.lte = new Date(endDate);
+      }
+      if (filters.phase) {
+        where.phase = { name: filters.phase };
+      }
       const activities = await this.prisma.activity.findMany({
-        where: {
-          app: appId,
-        },
+        where,
         select: {
           activityCommunication: true,
         },
@@ -1582,7 +1895,40 @@ export class ActivityService {
       return result;
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
+    }
+  }
+
+  async getByStakeholderUuid(payload: GetActivityByStakeholderUuidDto) {
+    const { stakeholderGroupUuid } = payload;
+    this.logger.log(
+      `Fetching activities for stakeholder ${stakeholderGroupUuid}`,
+    );
+
+    try {
+      // Use raw SQL query to search through JSONB array for matching groupId
+      const activities = await this.prisma.$queryRaw<any[]>`
+        SELECT * FROM "tbl_activities"
+        WHERE 
+          "isDeleted" = false
+          AND "activityCommunication" IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements("activityCommunication"::jsonb) AS elem
+            WHERE elem->>'groupId' = ${stakeholderGroupUuid}
+              AND elem->>'groupType' = 'STAKEHOLDERS'
+          )
+        ORDER BY "updatedAt" DESC
+      `;
+
+      return activities;
+    } catch (error: any) {
+      this.logger.error(
+        `Error while fetching activities for stakeholder ${stakeholderGroupUuid}`,
+        error,
+      );
+      if (error instanceof RpcException) throw error;
+      throw new RpcException(error?.message || 'Something went wrong');
     }
   }
 }

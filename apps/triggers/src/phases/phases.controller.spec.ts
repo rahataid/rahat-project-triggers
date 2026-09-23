@@ -118,4 +118,60 @@ describe('PhasesController', () => {
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
+
+  describe('update', () => {
+    it('should call phasesService.update with payload', async () => {
+      const payload = {
+        uuid: 'phase-uuid',
+        name: 'ACTIVATION' as any,
+        canRevert: true,
+        canTriggerPayout: false,
+      };
+      const mockResult = { ...payload, isActive: false };
+      jest
+        .spyOn(controller['phasesService'], 'update')
+        .mockResolvedValue(mockResult as any);
+
+      const result = await controller.update(payload);
+
+      expect(controller['phasesService'].update).toHaveBeenCalledWith(payload);
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should propagate RpcException from phasesService.update', async () => {
+      jest
+        .spyOn(controller['phasesService'], 'update')
+        .mockRejectedValue(new Error('Phase not found'));
+
+      await expect(
+        controller.update({ uuid: 'bad-uuid' }),
+      ).rejects.toThrow('Phase not found');
+    });
+  });
+
+  describe('delete', () => {
+    it('should call phasesService.delete with uuid', async () => {
+      const mockResult = { uuid: 'phase-uuid', name: 'Test Phase' };
+      jest
+        .spyOn(controller['phasesService'], 'delete')
+        .mockResolvedValue(mockResult as any);
+
+      const result = await controller.delete({ uuid: 'phase-uuid' });
+
+      expect(controller['phasesService'].delete).toHaveBeenCalledWith(
+        'phase-uuid',
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should propagate RpcException from phasesService.delete', async () => {
+      jest
+        .spyOn(controller['phasesService'], 'delete')
+        .mockRejectedValue(new Error('Cannot delete an active phase'));
+
+      await expect(
+        controller.delete({ uuid: 'phase-uuid' }),
+      ).rejects.toThrow('Cannot delete an active phase');
+    });
+  });
 });

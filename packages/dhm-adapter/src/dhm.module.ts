@@ -1,13 +1,21 @@
 import { Module, DynamicModule } from "@nestjs/common";
 import { HttpModule } from "@nestjs/axios";
-import { DhmWaterLevelAdapter, DhmRainfallAdapter } from "./adapters";
+import {
+  DhmWaterLevelAdapter,
+  DhmRainfallAdapter,
+  DhmTemperatureAdapter,
+} from "./adapters";
 import {
   HealthMonitoringService,
   SettingsModule,
   SettingsService,
 } from "@lib/core";
 
-const adapters = [DhmRainfallAdapter, DhmWaterLevelAdapter];
+const adapters = [
+  DhmRainfallAdapter,
+  DhmWaterLevelAdapter,
+  DhmTemperatureAdapter,
+];
 
 @Module({})
 export class DhmModule {

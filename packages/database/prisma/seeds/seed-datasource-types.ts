@@ -21,6 +21,14 @@ const config: DataSourceTypesSetting = {
       type: 'water_level_m',
       subtypes: ['warning_level', 'danger_level'],
     },
+    ['DHM:HUMIDITY']: {
+      type: 'prob_humidity',
+      subtypes: ['hourly'],
+    },
+    ['DHM:TEMPERATURE']: {
+      type: 'temperature_c',
+      subtypes: ['hourly', 'daily'],
+    },
   },
   isPrivate: false,
 };

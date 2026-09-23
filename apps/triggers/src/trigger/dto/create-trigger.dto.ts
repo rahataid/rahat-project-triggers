@@ -97,6 +97,10 @@ export class CreateTriggerDto {
   @IsOptional()
   isTriggered?: boolean;
 
+  @IsString()
+  @IsOptional()
+  leadTime: string;
+
   @ApiProperty({
     example: false,
     description: 'Indicates if the trigger is deleted',

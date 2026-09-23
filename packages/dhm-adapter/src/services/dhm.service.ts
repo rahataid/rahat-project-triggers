@@ -6,11 +6,7 @@ import {
   SourceType,
 } from "@lib/database";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import {
-  DhmInfo,
-  RainfallStationData,
-  RiverStationData,
-} from "types/dhm-observation.type";
+import { DhmInfo, DhmStationItem } from "types/dhm-observation.type";
 
 @Injectable()
 export class DhmService {
@@ -19,9 +15,15 @@ export class DhmService {
   async saveDataInDhm(
     type: SourceType,
     riverBasin: string,
-    payload: RiverStationData | RainfallStationData
+    payload: DhmStationItem,
   ): Promise<any> {
     try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const startOfTomorrow = new Date(startOfToday);
+      startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
       return await this.prisma.$transaction(async (tx) => {
         const existingRecord = await tx.sourcesData.findFirst({
           where: {
@@ -29,6 +31,10 @@ export class DhmService {
             dataSource: DataSource.DHM,
             source: {
               riverBasin,
+            },
+            updatedAt: {
+              gte: startOfToday,
+              lt: startOfTomorrow,
             },
             info: {
               path: ["series_id"],
@@ -58,11 +64,11 @@ export class DhmService {
           }
 
           this.logger.log(
-            `Series mismatch. Creating new for: ${payloadData.name}`
+            `Series mismatch. Creating new for: ${payloadData.name}`,
           );
         } else {
           this.logger.log(
-            `No record found. Creating new for: ${payloadData.name}`
+            `No record found. Creating new for: ${payloadData.name}`,
           );
         }
 
@@ -84,14 +90,18 @@ export class DhmService {
         });
       });
     } catch (error: any) {
-      this.logger.error(`Error saving data for ${riverBasin}:`, error);
+      this.logger.error(
+        `Error saving data for ${riverBasin}:`,
+        error?.stack || error,
+      );
       throw error;
     }
   }
 
   async getSourceData(
     type: SourceType,
-    riverBasin: string
+    riverBasin: string,
+    levelType: "hourly" | "daily" | null = null,
   ): Promise<Array<{ seriesId: string; stationName: string }>> {
     try {
       const sourceData = await this.prisma.sourcesData.findMany({
@@ -100,6 +110,12 @@ export class DhmService {
           source: {
             riverBasin,
           },
+          ...(levelType && {
+            info: {
+              path: ["parameter_code"],
+              equals: this.getLevelType(type, levelType),
+            },
+          }),
           type,
         },
         select: {
@@ -107,16 +123,46 @@ export class DhmService {
         },
       });
 
-      return sourceData.map((value) => {
+      const result = sourceData.map((value) => {
         const info = value.info as DhmInfo;
         return {
           seriesId: info["series_id"],
           stationName: info["name"],
         };
       });
+      // only return unique seriesId and stationName pairs
+      const uniqueResult = Array.from(
+        new Map(result.map((item) => [item.seriesId, item])).values(),
+      );
+
+      return uniqueResult;
     } catch (error: any) {
       this.logger.error("Error while fetching source data", error);
       throw error;
+    }
+  }
+
+  private getLevelType(
+    sourceType: SourceType,
+    levelType: string,
+  ): string | undefined {
+    if (sourceType === SourceType.TEMPERATURE) {
+      switch (levelType) {
+        case "hourly":
+          return "T_1H";
+        case "daily":
+          return "TX_1D";
+        default:
+          throw new Error(`Invalid levelType: ${levelType}`);
+      }
+    }
+    if (sourceType === SourceType.HUMIDITY) {
+      switch (levelType) {
+        case "hourly":
+          return "RH_1H";
+        default:
+          throw new Error(`Invalid levelType: ${levelType}`);
+      }
     }
   }
 }

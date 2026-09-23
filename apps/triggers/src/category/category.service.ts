@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { paginator, PaginatorTypes } from '@lib/database';
 import { ListCategoryDto } from './dto';
 import { PrismaService } from '@lib/database';
-
-const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
 export class CategoryService {
@@ -21,25 +18,21 @@ export class CategoryService {
   }
 
   findAll(payload: ListCategoryDto) {
-    const { appId, name, page, perPage } = payload;
+    const { appId, name } = payload;
 
     const query = {
       where: {
         app: appId,
         isDeleted: false,
-        ...(name && { name: { contains: name, mode: 'insensitive' } }),
+        ...(name && { name: { contains: name, mode: 'insensitive' as const } }),
       },
       orderBy: {
         // [sort]: order,
       },
     };
 
-    return paginate(this.prisma.activityCategory, query, {
-      page,
-      perPage,
-    });
+    return this.prisma.activityCategory.findMany(query);
   }
-
   findOne(uuid: string) {
     return this.prisma.activityCategory.findUnique({
       where: {

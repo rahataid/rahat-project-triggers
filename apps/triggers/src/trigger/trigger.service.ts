@@ -33,6 +33,7 @@ import { catchError, lastValueFrom, of, timeout } from 'rxjs';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { triggerPayloadSchema } from './validation/trigger.schema';
 import { TRIGGER_CONSTANTS } from './trigger.constants';
+import { SseService } from 'src/sse/sse.service';
 
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
@@ -46,13 +47,17 @@ export class TriggerService {
     private readonly phasesService: PhasesService,
     @InjectQueue(BQUEUE.TRIGGER) private readonly triggerQueue: Queue,
     private eventEmitter: EventEmitter2,
+    private readonly sseService: SseService,
   ) {}
 
   async create(payload: CreateTriggerPayloadDto) {
     const { user, appId, triggers } = payload;
 
     if (!appId) {
-      throw new BadRequestException('appId is required');
+      throw new BadRequestException({
+        message: 'appId is required',
+        code: 'APP_ID_REQUIRED',
+      });
     }
 
     try {
@@ -60,18 +65,20 @@ export class TriggerService {
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
 
-      const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
-        this.buildAddTriggerJobDto(trigger),
-      );
+      // TODO: Need to think about onchain queue update
+      // const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
+      //   this.buildAddTriggerJobDto(trigger),
+      // );
 
-      const res = await this.sendAddTriggerToOnChain(appId, queueData);
+      // const res = await this.sendAddTriggerToOnChain(appId, queueData);
 
-      this.logger.log(`
-        Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
+      //   `);
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -97,6 +104,8 @@ export class TriggerService {
       );
       throw new BadRequestException({
         message: `Invalid trigger payload: ${JSON.stringify(result.error.flatten())}`,
+        code: 'INVALID_TRIGGER_PAYLOAD',
+        params: { zodErrors: JSON.stringify(result.error.flatten()) },
       });
     }
 
@@ -118,7 +127,10 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn('Trigger not found.');
-        throw new RpcException('Trigger not found.');
+        throw new RpcException({
+          message: 'Trigger not found.',
+          code: 'TRIGGER_NOT_FOUND',
+        });
       }
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -136,6 +148,7 @@ export class TriggerService {
         `Error in updating trigger transaction hash on trigger with uuid: ${uuid}:`,
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -146,10 +159,16 @@ export class TriggerService {
     this.logger.log(`Updating trigger with uuid: ${uuid}`);
 
     if (!uuid) {
-      throw new BadRequestException('uuid is required');
+      throw new BadRequestException({
+        message: 'uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
     if (!appId) {
-      throw new BadRequestException('appId is required');
+      throw new BadRequestException({
+        message: 'appId is required',
+        code: 'APP_ID_REQUIRED',
+      });
     }
 
     try {
@@ -161,14 +180,32 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn('Trigger not found.');
-        throw new RpcException('Trigger not found.');
+        throw new RpcException({
+          message: 'Trigger not found.',
+          code: 'TRIGGER_NOT_FOUND',
+        });
       }
 
       if (trigger.isTriggered) {
         this.logger.warn(
           'Trigger has already been activated. Cannot update an activated trigger.',
         );
-        throw new RpcException('Trigger has already been activated.');
+        throw new RpcException({
+          message: 'Trigger has already been activated.',
+          code: 'TRIGGER_ALREADY_ACTIVATED',
+        });
+      }
+
+      // Validate source only if it's provided
+      if (dto.source && !Object.values(DataSource).includes(dto.source)) {
+        this.logger.warn(
+          `Invalid source value: ${dto.source}. Must be one of: ${Object.values(DataSource).join(', ')}`,
+        );
+        throw new BadRequestException({
+          message: `Invalid source value. Must be one of: ${Object.values(DataSource).join(', ')}`,
+          code: 'INVALID_SOURCE_VALUE',
+          params: { list: Object.values(DataSource).join(', ') },
+        });
       }
 
       const fields = {
@@ -177,6 +214,8 @@ export class TriggerService {
         notes: dto.notes ?? trigger.notes,
         description: dto.description ?? trigger.description,
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
+        source: dto.source || trigger.source,
+        leadTime: dto.leadTime ?? trigger.leadTime,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -188,16 +227,20 @@ export class TriggerService {
         },
       });
 
-      const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+      // TODO: Need to think about onchain queue update
+      // const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
-      const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
+      // const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
+      //   `);
+      await this.sseService.publishEvent('phase.updated', updatedTrigger);
+
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -245,6 +288,7 @@ export class TriggerService {
       );
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -267,6 +311,7 @@ export class TriggerService {
       });
     } catch (error: any) {
       this.logger.error(error.message);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -279,7 +324,11 @@ export class TriggerService {
 
       if (!phase) {
         this.logger.error(`Phase with id: ${phaseId} not found.`);
-        throw new RpcException(`Phase with id: ${phaseId} not found.`);
+        throw new RpcException({
+          message: `Phase with id: ${phaseId} not found.`,
+          code: 'PHASE_NOT_FOUND',
+          params: { phaseId },
+        });
       }
 
       const payload = {
@@ -293,6 +342,7 @@ export class TriggerService {
         isDeleted: false,
         repeatKey: randomUUID(),
         createdBy,
+        logicKey: this.generateLogicKey(dto),
       };
 
       const trigger = await this.prisma.trigger.create({
@@ -302,9 +352,12 @@ export class TriggerService {
         },
       });
 
+      await this.sseService.publishEvent('trigger.created', trigger);
+
       return trigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -315,7 +368,10 @@ export class TriggerService {
     this.logger.log(`Removing trigger with uuid: ${uuid}`);
 
     if (!uuid) {
-      throw new BadRequestException('Uuid is required');
+      throw new BadRequestException({
+        message: 'Uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
 
     try {
@@ -329,21 +385,31 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.error(`Trigger with id: ${uuid} not found.`);
-        throw new RpcException(`Trigger with id: ${uuid} not found.`);
+        throw new RpcException({
+          message: `Trigger with id: ${uuid} not found.`,
+          code: 'TRIGGER_NOT_FOUND',
+          params: { uuid },
+        });
       }
 
       if (trigger.isTriggered) {
         this.logger.error(
           `Trigger with id: ${uuid} is activated. Cannot remove an activated trigger.`,
         );
-        throw new RpcException(`Cannot remove an activated trigger.`);
+        throw new RpcException({
+          message: 'Cannot remove an activated trigger.',
+          code: 'CANNOT_REMOVE_ACTIVATED_TRIGGER',
+        });
       }
 
       if (trigger.phase.isActive) {
         this.logger.error(
           `Trigger with id: ${uuid} is in an active phase. Cannot remove triggers from an active phase.`,
         );
-        throw new RpcException(`Cannot remove triggers from an active phase.`);
+        throw new RpcException({
+          message: 'Cannot remove triggers from an active phase.',
+          code: 'CANNOT_REMOVE_ACTIVE_PHASE_TRIGGERS',
+        });
       }
 
       const phaseDetail = await this.phasesService.findOne(trigger.phaseId);
@@ -355,7 +421,10 @@ export class TriggerService {
             phaseDetail.triggerRequirements.optionalTriggers.totalTriggers,
           ) - 1;
         if (totalTriggersAfterDeleting < phaseDetail.requiredOptionalTriggers) {
-          throw new RpcException(`Trigger criterias disrupted.`);
+          throw new RpcException({
+            message: 'Trigger criterias disrupted.',
+            code: 'TRIGGER_CRITERIA_DISRUPTED',
+          });
         }
       }
 
@@ -374,10 +443,12 @@ export class TriggerService {
           isDeleted: true,
         },
       });
+      await this.sseService.publishEvent('trigger.updated', updatedTrigger);
 
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -494,6 +565,7 @@ export class TriggerService {
       }
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -503,7 +575,10 @@ export class TriggerService {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
 
     if (!uuid) {
-      throw new BadRequestException('uuid is required');
+      throw new BadRequestException({
+        message: 'uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
 
     try {
@@ -527,17 +602,26 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn('Trigger not found.');
-        throw new RpcException('Trigger not found.');
+        throw new RpcException({
+          message: 'Trigger not found.',
+          code: 'TRIGGER_NOT_FOUND',
+        });
       }
 
       if (trigger.isTriggered) {
         this.logger.warn('Trigger has already been activated.');
-        throw new RpcException('Trigger has already been activated.');
+        throw new RpcException({
+          message: 'Trigger has already been activated.',
+          code: 'TRIGGER_ALREADY_ACTIVATED',
+        });
       }
 
       if (trigger.source !== DataSource.MANUAL) {
         this.logger.warn('Cannot activate an automated trigger.');
-        throw new RpcException('Cannot activate an automated trigger.');
+        throw new RpcException({
+          message: 'Cannot activate an automated trigger.',
+          code: 'CANNOT_ACTIVATE_AUTOMATED_TRIGGER',
+        });
       }
 
       const triggerDocs = triggerDocuments?.length
@@ -559,8 +643,9 @@ export class TriggerService {
           phase: true,
         },
       });
+      await this.sseService.publishEvent('phase.updated', updatedTrigger);
 
-      const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+      // const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
       if (trigger.isMandatory) {
         await this.prisma.phase.update({
@@ -617,14 +702,15 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-      const res = await this.sendUpdateTriggerToOnChain(
-        appId ? appId : appIds?.app,
-        jobDetails,
-      );
+      // TODO: make this function dynamic based on chain type
+      // const res = await this.sendUpdateTriggerToOnChain(
+      //   appId ? appId : appIds?.app,
+      //   jobDetails,
+      // );
 
-      this.logger.log(`
-        Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-        `);
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
+      //   `);
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
@@ -638,6 +724,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -654,9 +741,11 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn(`Active trigger with id: ${repeatKey} not found.`);
-        throw new RpcException(
-          `Active trigger with id: ${repeatKey} not found.`,
-        );
+        throw new RpcException({
+          message: `Active trigger with id: ${repeatKey} not found.`,
+          code: 'ACTIVE_TRIGGER_NOT_FOUND',
+          params: { repeatKey },
+        });
       }
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -671,6 +760,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -721,6 +811,7 @@ export class TriggerService {
       // });
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -840,6 +931,51 @@ export class TriggerService {
     });
   }
 
+  private generateLogicKey(dto: CreateTriggerDto): string {
+    const operatorMap: Record<string, string> = {
+      '>': 'gt',
+      '>=': 'gte',
+      '<': 'lt',
+      '<=': 'lte',
+      '=': 'eq',
+    };
+
+    const parts: string[] = [];
+
+    if (dto.source) {
+      parts.push(dto.source.toLowerCase().replace(/_/g, '-'));
+    }
+
+    const stmt = dto.triggerStatement as Record<string, any> | undefined;
+    if (stmt) {
+      if (stmt['sourceSubType']) {
+        parts.push(
+          String(stmt['sourceSubType']).toLowerCase().replace(/_/g, '-'),
+        );
+      }
+      if (stmt['operator']) {
+        parts.push(operatorMap[stmt['operator']] ?? stmt['operator']);
+      }
+      if (stmt['value'] !== undefined) {
+        parts.push(String(stmt['value']).replace('.', '-'));
+      }
+    } else if (dto.title) {
+      parts.push(
+        dto.title
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '')
+          .slice(0, 24),
+      );
+    }
+
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 6);
+    parts.push(suffix);
+
+    return parts.join('-') || `trigger-${suffix}`;
+  }
+
   async generateTriggersStatsForPhase(phaseId: string) {
     try {
       const [stats] = await this.prisma.$queryRawUnsafe<any[]>(
@@ -850,7 +986,32 @@ export class TriggerService {
           COUNT(*) FILTER (WHERE "isMandatory" = true AND "isTriggered" = true AND "isDeleted" = false)::INT AS "totalMandatoryTriggersTriggered",
           COUNT(*) FILTER (WHERE "isMandatory" = false AND "isDeleted" = false)::INT AS "totalOptionalTriggers",
           COUNT(*) FILTER (WHERE "isMandatory" = false AND "isTriggered" = true AND "isDeleted" = false)::INT AS "totalOptionalTriggersTriggered",
-          COALESCE(json_agg(t.*) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
+          COALESCE(json_agg(
+            json_build_object(
+              'id', t.id,
+              'uuid', t.uuid,
+              'repeatKey', t."repeatKey",
+              'title', t.title,
+              'description', t.description,
+              'triggerStatement', t."triggerStatement",
+              'triggerDocuments', t."triggerDocuments",
+              'notes', t.notes,
+              'phaseId', t."phaseId",
+              'source', t.source,
+              'isMandatory', t."isMandatory",
+              'isTriggered', t."isTriggered",
+              'isDeleted', t."isDeleted",
+              'isDailyMonitored', t."isDailyMonitored",
+              'logicKey', t."logicKey",
+              'createdBy', t."createdBy",
+              'triggeredBy', t."triggeredBy",
+              'transactionHash', t."transactionHash",
+              'triggeredAt', t."triggeredAt"::timestamptz,
+              'createdAt', t."createdAt"::timestamptz,
+              'updatedAt', t."updatedAt"::timestamptz,
+              'leadTime', t."leadTime"
+            )
+          ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t
         WHERE "phaseId" = $1
       `,
@@ -862,6 +1023,7 @@ export class TriggerService {
       };
     } catch (error: any) {
       this.logger.warn('Error while generating phase triggers stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }

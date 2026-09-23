@@ -48,7 +48,19 @@ src/
 │   └── forecast.module.ts         # Forecast module
 ├── types/                         # TypeScript type definitions
 └── utils/                         # Utility functions
+docs/
+├── local-setup.md                 # Local development setup guide
+└── deployment.md                  # Deployment and CI/CD guide
 ```
+
+## 📖 Documentation
+
+Detailed documentation is available in the `docs/` directory:
+
+| Document                           | Description                                              |
+| ---------------------------------- | -------------------------------------------------------- |
+| [Local Setup](docs/local-setup.md) | Step-by-step guide for local development                 |
+| [Deployment](docs/deployment.md)   | CI/CD pipeline, Docker images, and production deployment |
 
 ## 🛠️ Environment Configuration
 

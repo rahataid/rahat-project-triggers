@@ -68,6 +68,12 @@ export const JOBS = {
   NOTIFICATION: {
     CREATE: 'rahat.jobs.notification.create',
   },
+  AUTH: {
+    CHECK_ABILITY: 'auth.check_ability',
+  },
+  GROUP_CASH_TRANSFER: {
+    DISBURSE: 'aa.jobs.groupCashTransfer.disburse',
+  },
 };
 
 export const MS_TRIGGERS_JOBS = {
@@ -93,6 +99,12 @@ export const MS_TRIGGERS_JOBS = {
     REVERT_PHASE: 'ms.jobs.phases.revertPhase',
     GET_BY_LOCATION: 'ms.jobs.phases.getByLocation',
     CONFIGURE_THRESHOLD: 'ms.jobs.phase.configureThreshold',
+    UPDATE: 'ms.jobs.phases.update',
+    DELETE: 'ms.jobs.phases.delete',
+    GET_PHASE_PAYOUT_STATUS: 'ms.jobs.phase.getPhasePayoutStatus',
+    CONFIGURE_EXTENDED_LOGIC: 'ms.jobs.phases.configureExtendedLogic',
+    GET_EXTENDED_LOGIC: 'ms.jobs.phases.getExtendedLogic',
+    REMOVE_EXTENDED_LOGIC: 'ms.jobs.phases.removeExtendedLogic',
   },
   WATER_LEVELS: {
     GET_DHM: 'ms.jobs.waterLevels.getDhm',
@@ -102,6 +114,15 @@ export const MS_TRIGGERS_JOBS = {
   },
   RAINFALL_LEVELS: {
     GET_DHM: 'ms.jobs.rainfallLevels.getDhm',
+  },
+  SYNC_FORECAST_DATA: 'ms.jobs.sources-data.syncForecastData',
+  HUMIDITY: {
+    GET_DHM: 'ms.jobs.humidity.getDhm',
+    GET_DHM_SINGLE_SERIES: 'ms.jobs.humidity.getDhmSingleSeries',
+  },
+  TEMPERATURE: {
+    GET_DHM: 'ms.jobs.temperature.getDhm',
+    GET_DHM_SINGLE_SERIES: 'ms.jobs.temperature.getDhmSingleSeries',
   },
   PROB_FLOOD: {
     GET_ALL_GLOFAS: 'ms.jobs.probFlood.getAllGlofas',
@@ -121,15 +142,20 @@ export const MS_TRIGGERS_JOBS = {
     GET_HAVING_COMMS: 'ms.jobs.activities.getHavingComms',
     GET_COMMS: 'ms.jobs.activities.getComms',
     ADD: 'ms.jobs.activities.add',
+    BULK_ADD: 'ms.jobs.activities.bulkAdd',
+    VALIDATE_BULK_ADD: 'ms.jobs.activities.validateBulkAdd',
     REMOVE: 'ms.jobs.activities.remove',
     UPDATE: 'ms.jobs.activities.update',
     UPDATE_STATUS: 'ms.jobs.activities.updateStatus',
     LIST_PROJECT_SPECIFIC: 'ms.jobs.activities.listProjectSpecific',
+    GET_BY_STAKEHOLDER_UUID: 'ms.jobs.activities.getByStakeholderUuid',
     COMMUNICATION: {
       TRIGGER: 'ms.jobs.activity.communication.trigger',
       SESSION_LOGS: 'ms.jobs.activities.communication.sessionLogs',
       // RETRY_FAILED: 'ms.jobs.activities.communication.retryFailed',
       GET_STATS: 'ms.jobs.activities.communication.getStats',
+      GET_TRANSPORT_SESSION_STATS:
+        'ms.jobs.activities.communication.getTransportSessionStats',
       GET_STATS_GROUP: 'ms.jobs.triggers.getTransportSessionStatsByGroup',
     },
   },
@@ -186,4 +212,13 @@ export const EVENTS = {
 
 export const MS_TRIGGER_CLIENTS = {
   RAHAT: 'RAHAT_TRIGGER_CLIENT',
+  AUTH_SERVICE: 'AUTH_SERVICE',
+};
+
+export const SSE_EVENTS = {
+  PUBLISHER: 'REDIS_EVENTS_PUBLISHER',
+};
+
+export const REDIS_CHANNELS = {
+  SSE_LISTENER: 'sse:listener',
 };

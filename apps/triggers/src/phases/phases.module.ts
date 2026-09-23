@@ -6,6 +6,7 @@ import { PhasesService } from './phases.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TriggerModule } from 'src/trigger/trigger.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SseModule } from 'src/sse/sse.module';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ]),
   ],
   controllers: [PhasesController],
-  providers: [PhasesService],
+  providers: [PhasesService, SseModule],
   exports: [PhasesService],
 })
 export class PhasesModule {}

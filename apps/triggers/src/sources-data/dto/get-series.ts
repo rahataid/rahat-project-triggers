@@ -29,4 +29,7 @@ export class GetSeriesDto {
   @IsOptional()
   @IsString()
   stationName?: string;
+
+  @IsOptional()
+  levelType?: 'hourly' | 'daily';
 }
