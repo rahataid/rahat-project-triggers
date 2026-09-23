@@ -23,6 +23,7 @@ import { StatsModule } from './stats/stat.module';
 import { HttpModule } from '@nestjs/axios';
 import { SettingsModule } from '@lib/core';
 import { LibraryModule } from './library/library.module';
+import { CommunicationModule } from './communication/communication.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { LibraryModule } from './library/library.module';
     TriggerHistoryModule,
     StatsModule,
     LibraryModule,
+    CommunicationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,36 @@
+enum CommunicationGroupType {
+    STAKEHOLDERS
+    BENEFICIARY
+
+    @@schema("public")
+}
+
+model Communication {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+
+    xrefId String?
+
+    title   String
+    message String?
+    subject String?
+
+    audioURL Json? @db.JsonB()
+
+    sessionId   String?
+    transportId String?
+
+    groupId   String
+    groupType CommunicationGroupType
+
+    isDeleted Boolean @default(false)
+    createdBy String?
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    @@index([xrefId])
+    @@index([groupId])
+    @@map("tbl_communications")
+    @@schema("public")
+}
