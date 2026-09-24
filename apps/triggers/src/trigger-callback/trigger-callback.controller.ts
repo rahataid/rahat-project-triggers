@@ -13,7 +13,7 @@ import {
   GetTriggerCallbacksDto,
   RemoveTriggerCallbackDto,
   ReplayTriggerCallbackDto,
-  UpdateTriggerCallbackDto,
+  // UpdateTriggerCallbackDto, // update is disabled for now
 } from './dto';
 import { TriggerCallbackService } from './trigger-callback.service';
 
@@ -48,13 +48,15 @@ export class TriggerCallbackController {
     return this.triggerCallbackService.findOne(payload.uuid);
   }
 
-  @MessagePattern({
-    cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE,
-  })
-  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
-  update(payload: UpdateTriggerCallbackDto) {
-    return this.triggerCallbackService.update(payload);
-  }
+  // Update is disabled for now — only create/remove are supported while the
+  // xref -> Activity.hasTriggerCallback sync story is being worked out.
+  // @MessagePattern({
+  //   cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE,
+  // })
+  // @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
+  // update(payload: UpdateTriggerCallbackDto) {
+  //   return this.triggerCallbackService.update(payload);
+  // }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.REMOVE,

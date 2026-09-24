@@ -16,7 +16,12 @@ import {
   UpdateActivityDto,
 } from './dto';
 import { paginateResult } from 'src/utils/pagination';
-import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
+import {
+  PrismaService,
+  Prisma,
+  ActivityStatus,
+  TriggerCallbackType,
+} from '@lib/database';
 import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
 import { SseService } from 'src/sse/sse.service';
 
@@ -429,11 +434,11 @@ export class ActivityService {
         },
         include: {
           category: true,
-          phase: {
-            include: {
-              source: true,
-            },
-          },
+          // phase: {
+          //   include: {
+          //     source: true,
+          //   },
+          // },
           manager: true,
         },
       });
@@ -495,15 +500,41 @@ export class ActivityService {
         }
       }
 
+      const triggers = await this.getRelatedTriggers(uuid);
+
       return {
         ...activityData,
         activityCommunication,
         activityPayout,
+        triggers,
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while fetching activity', error);
       throw new RpcException(error?.message || 'Something went wrong');
     }
+  }
+
+  private async getRelatedTriggers(activityUuid: string) {
+    const callbacks = await this.prisma.triggerCallback.findMany({
+      where: {
+        type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        isDeleted: false,
+        xref: activityUuid,
+      },
+      select: { trigger: { select: { uuid: true, title: true } } },
+    });
+
+    const triggerUuids = new Set<string>();
+    const triggers: { uuid: string; title: string | null }[] = [];
+
+    for (const callback of callbacks) {
+      if (!triggerUuids.has(callback.trigger.uuid)) {
+        triggerUuids.add(callback.trigger.uuid);
+        triggers.push(callback.trigger);
+      }
+    }
+
+    return triggers;
   }
 
   async getAll(payload: GetActivityDto) {

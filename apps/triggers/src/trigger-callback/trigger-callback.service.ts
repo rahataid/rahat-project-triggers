@@ -2,13 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { RpcException } from '@nestjs/microservices';
-import { PrismaService } from '@lib/database';
+import { PrismaService, TriggerCallbackType } from '@lib/database';
 import { BQUEUE, JOBS } from 'src/constant';
 import {
   CreateTriggerCallbackDto,
   GetTriggerCallbackLogsDto,
   RemoveTriggerCallbackDto,
-  UpdateTriggerCallbackDto,
+  // UpdateTriggerCallbackDto, // update is disabled for now
 } from './dto';
 import { parseCallbackConfig } from './validation/callback-config.schema';
 import type { CallbackDispatchJobData, TriggerCallbackContext } from './types';
@@ -25,6 +25,15 @@ export class TriggerCallbackService {
 
   async create(dto: CreateTriggerCallbackDto) {
     try {
+      if (
+        dto.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+        !dto.xref
+      ) {
+        throw new Error(
+          'xref (activity uuid) is required for ACTIVITY_COMMUNICATION callbacks',
+        );
+      }
+
       parseCallbackConfig(dto.type, dto.config);
 
       const trigger = await this.prisma.trigger.findUnique({
@@ -34,16 +43,31 @@ export class TriggerCallbackService {
         throw new RpcException('Trigger not found.');
       }
 
-      return await this.prisma.triggerCallback.create({
-        data: {
-          triggerId: dto.triggerId,
-          type: dto.type,
-          name: dto.name,
-          config: dto.config,
-          isActive: dto.isActive ?? true,
-          order: dto.order ?? 0,
-          createdBy: dto.createdBy,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const callback = await tx.triggerCallback.create({
+          data: {
+            triggerId: dto.triggerId,
+            type: dto.type,
+            name: dto.name,
+            config: dto.config,
+            xref: dto.xref,
+            isActive: dto.isActive ?? true,
+            order: dto.order ?? 0,
+            createdBy: dto.createdBy,
+          },
+        });
+
+        if (
+          dto.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+          dto.xref
+        ) {
+          await tx.activity.update({
+            where: { uuid: dto.xref },
+            data: { hasTriggerCallback: true },
+          });
+        }
+
+        return callback;
       });
     } catch (error: any) {
       this.logger.error(error);
@@ -68,35 +92,63 @@ export class TriggerCallbackService {
     return callback;
   }
 
-  async update(dto: UpdateTriggerCallbackDto) {
-    try {
-      const existing = await this.findOne(dto.uuid);
+  // Update is disabled for now — only create/remove are supported while the
+  // xref -> Activity.hasTriggerCallback sync story is being worked out.
+  // async update(dto: UpdateTriggerCallbackDto) {
+  //   try {
+  //     const existing = await this.findOne(dto.uuid);
 
-      const type = dto.type ?? existing.type;
-      const config = dto.config ?? existing.config;
-      parseCallbackConfig(type, config);
+  //     const type = dto.type ?? existing.type;
+  //     const config = dto.config ?? existing.config;
+  //     parseCallbackConfig(type, config);
 
-      return await this.prisma.triggerCallback.update({
-        where: { uuid: dto.uuid },
-        data: {
-          type: dto.type,
-          name: dto.name,
-          config: dto.config,
-          isActive: dto.isActive,
-          order: dto.order,
-        },
-      });
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new RpcException(error.message);
-    }
-  }
+  //     return await this.prisma.triggerCallback.update({
+  //       where: { uuid: dto.uuid },
+  //       data: {
+  //         type: dto.type,
+  //         name: dto.name,
+  //         config: dto.config,
+  //         isActive: dto.isActive,
+  //         order: dto.order,
+  //       },
+  //     });
+  //   } catch (error: any) {
+  //     this.logger.error(error);
+  //     throw new RpcException(error.message);
+  //   }
+  // }
 
   async remove(dto: RemoveTriggerCallbackDto) {
-    await this.findOne(dto.uuid);
-    return this.prisma.triggerCallback.update({
-      where: { uuid: dto.uuid },
-      data: { isDeleted: true },
+    const existing = await this.findOne(dto.uuid);
+
+    return this.prisma.$transaction(async (tx) => {
+      const callback = await tx.triggerCallback.update({
+        where: { uuid: dto.uuid },
+        data: { isDeleted: true },
+      });
+
+      if (
+        existing.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+        existing.xref
+      ) {
+        const linkedCount = await tx.triggerCallback.count({
+          where: {
+            xref: existing.xref,
+            type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+            isActive: true,
+            isDeleted: false,
+          },
+        });
+
+        if (linkedCount === 0) {
+          await tx.activity.update({
+            where: { uuid: existing.xref },
+            data: { hasTriggerCallback: false },
+          });
+        }
+      }
+
+      return callback;
     });
   }
 
