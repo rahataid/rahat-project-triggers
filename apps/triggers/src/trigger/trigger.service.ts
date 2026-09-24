@@ -305,18 +305,17 @@ export class TriggerService {
   }
 
   private async getRelatedActivities(
-    callbacks: { type: TriggerCallbackType; config: Prisma.JsonValue }[],
+    callbacks: { type: TriggerCallbackType; xref: string | null }[],
   ) {
     const activityUuids = [
       ...new Set(
         callbacks
           .filter(
-            (cb) => cb.type === TriggerCallbackType.ACTIVITY_COMMUNICATION,
+            (cb) =>
+              cb.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+              cb.xref,
           )
-          .map((cb) => (cb.config as { activityUuid?: string })?.activityUuid)
-          .filter((activityUuid): activityUuid is string =>
-            Boolean(activityUuid),
-          ),
+          .map((cb) => cb.xref as string),
       ),
     ];
 

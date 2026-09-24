@@ -60,7 +60,12 @@ export class TriggerCallbackDispatcher {
     const startedAt = Date.now();
 
     try {
-      const response = await this.run(callback.type, callback.config, job);
+      const response = await this.run(
+        callback.type,
+        callback.config,
+        callback.xref,
+        job,
+      );
 
       await this.prisma.triggerCallbackLog.update({
         where: { uuid: log.uuid },
@@ -94,11 +99,18 @@ export class TriggerCallbackDispatcher {
   private async run(
     type: TriggerCallbackType,
     config: unknown,
+    xref: string | null,
     job: CallbackDispatchJobData,
   ): Promise<Record<string, any>> {
     switch (type) {
       case TriggerCallbackType.ACTIVITY_COMMUNICATION:
+        if (!xref) {
+          throw new Error(
+            'ACTIVITY_COMMUNICATION callback is missing xref (activity uuid)',
+          );
+        }
         return this.runActivityCommunication(
+          xref,
           parseCallbackConfig(type, config) as ActivityCommunicationConfig,
           job,
         );
@@ -123,19 +135,20 @@ export class TriggerCallbackDispatcher {
   }
 
   private async runActivityCommunication(
+    activityUuid: string,
     config: ActivityCommunicationConfig,
     job: CallbackDispatchJobData,
   ) {
     this.logger.debug(
-      `Dispatching activity communication for activity ${config.activityUuid} (appId: ${config.appId ?? job.appId})`,
+      `Dispatching activity communication for activity ${activityUuid} (appId: ${config.appId ?? job.appId})`,
     );
 
     const activity = await this.prisma.activity.findUnique({
-      where: { uuid: config.activityUuid },
+      where: { uuid: activityUuid },
     });
 
     if (!activity) {
-      throw new Error(`Activity ${config.activityUuid} not found`);
+      throw new Error(`Activity ${activityUuid} not found`);
     }
 
     const allComms = JSON.parse(
@@ -150,7 +163,7 @@ export class TriggerCallbackDispatcher {
 
     if (!selected.length) {
       throw new Error(
-        `No matching communications found on activity ${config.activityUuid}`,
+        `No matching communications found on activity ${activityUuid}`,
       );
     }
 
@@ -174,7 +187,7 @@ export class TriggerCallbackDispatcher {
 
     if (!config.communicationIds?.length) {
       this.logger.debug(
-        `Enqueued all ${selected.length} communications for activity ${config.activityUuid} (appId: ${appId})`,
+        `Enqueued all ${selected.length} communications for activity ${activityUuid} (appId: ${appId})`,
       );
       await this.prisma.activity.update({
         where: {

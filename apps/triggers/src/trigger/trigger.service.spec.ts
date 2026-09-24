@@ -421,6 +421,7 @@ describe('TriggerService', () => {
       const mockTrigger = {
         uuid: 'trigger-uuid',
         title: 'Test Trigger',
+        callbacks: [],
       };
 
       mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
@@ -443,7 +444,7 @@ describe('TriggerService', () => {
           },
         },
       });
-      expect(result).toEqual(mockTrigger);
+      expect(result).toEqual({ ...mockTrigger, activities: [] });
     });
   });
 

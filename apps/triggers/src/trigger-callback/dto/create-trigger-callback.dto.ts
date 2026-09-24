@@ -40,6 +40,15 @@ export class CreateTriggerCallbackDto {
   @IsObject()
   config: Record<string, any>;
 
+  @ApiProperty({
+    required: false,
+    description:
+      'Opaque reference to an entity in another service (e.g. Activity uuid for ACTIVITY_COMMUNICATION callbacks)',
+  })
+  @IsOptional()
+  @IsString()
+  xref?: string;
+
   @ApiProperty({ required: false, default: true })
   @IsOptional()
   @IsBoolean()

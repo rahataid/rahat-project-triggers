@@ -519,10 +519,7 @@ export class ActivityService {
       where: {
         type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
         isDeleted: false,
-        config: {
-          path: ['activityUuid'],
-          equals: activityUuid,
-        },
+        xref: activityUuid,
       },
       select: { trigger: { select: { uuid: true, title: true } } },
     });

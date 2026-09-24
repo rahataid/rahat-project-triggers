@@ -19,10 +19,15 @@ describe('TriggerCallbackService', () => {
       update: jest.fn(),
       updateMany: jest.fn(),
       createMany: jest.fn(),
+      count: jest.fn(),
     },
     triggerCallbackLog: {
       findMany: jest.fn(),
     },
+    activity: {
+      update: jest.fn(),
+    },
+    $transaction: jest.fn((callback: any) => callback(mockPrismaService)),
   };
 
   const mockCallbackQueue: jest.Mocked<Partial<Queue>> = {
