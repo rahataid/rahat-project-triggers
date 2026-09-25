@@ -25,6 +25,7 @@ import { SettingsModule } from '@lib/core';
 import { LibraryModule } from './library/library.module';
 import { AuthModule } from './auth/auth.module';
 import { SseModule } from './sse/sse.module';
+import { TriggerCallbackModule } from './trigger-callback/trigger-callback.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { SseModule } from './sse/sse.module';
     CategoryModule,
     PhasesModule,
     TriggerModule,
+    TriggerCallbackModule,
     ActivityModule,
     SourcesDataModule,
     DailyMonitoringModule,
