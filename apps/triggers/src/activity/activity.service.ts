@@ -90,6 +90,7 @@ export class ActivityService {
       return newActivity;
     } catch (error: any) {
       this.logger.error('Something went wrong while adding activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -163,7 +164,10 @@ export class ActivityService {
 
   async validateBulkAdd(payload: CreateActivityDto[]) {
     if (!payload?.length) {
-      throw new RpcException('No activities provided');
+      throw new RpcException({
+        message: 'No activities provided',
+        code: 'NO_ACTIVITIES_PROVIDED',
+      });
     }
 
     const appId = payload[0]?.appId;
@@ -244,7 +248,10 @@ export class ActivityService {
 
     try {
       if (!payload?.length) {
-        throw new RpcException('No activities provided');
+        throw new RpcException({
+          message: 'No activities provided',
+          code: 'NO_ACTIVITIES_PROVIDED',
+        });
       }
 
       const createdActivities = await this.prisma.$transaction(
@@ -319,6 +326,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while adding activities', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -454,12 +462,16 @@ export class ActivityService {
 
           let sessionStatus = SessionStatus.NEW;
           let completedAt = null;
+          let startedAt = null;
+          let updatedAt = null;
           if (communication.sessionId) {
             const sessionDetails = await this.commsClient.session.get(
               communication.sessionId,
             );
             sessionStatus = sessionDetails.data.status;
             completedAt = sessionDetails.data.updatedAt;
+            startedAt = sessionDetails.data.createdAt;
+            updatedAt = sessionDetails.data.updatedAt;
           }
           // const transport = await this.commsClient.transport.get(
           //   communication.transportId,
@@ -488,6 +500,8 @@ export class ActivityService {
             transportName: transportName,
             sessionStatus,
             completedAt,
+            startedAt,
+            updatedAt,
             ...(communication.sessionId && {
               sessionId: communication.sessionId,
             }),
@@ -502,6 +516,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while fetching activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -578,6 +593,7 @@ export class ActivityService {
         'Something went wrong while fetching activities',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -640,6 +656,7 @@ export class ActivityService {
         'Something went wrong while fetching activities',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -650,7 +667,10 @@ export class ActivityService {
       const { page, perPage, appId, filters = {} } = payload;
 
       if (!filters.transportName) {
-        throw new RpcException('Transport name not found ');
+        throw new RpcException({
+          message: 'Transport name not found ',
+          code: 'TRANSPORT_NAME_NOT_FOUND',
+        });
       }
 
       // Get base communication data
@@ -702,6 +722,7 @@ export class ActivityService {
         'Something went wrong while fetching activities having communications',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1058,6 +1079,7 @@ export class ActivityService {
         error,
       );
 
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1080,6 +1102,7 @@ export class ActivityService {
       return deletedActivity;
     } catch (error: any) {
       this.logger.error('Error while deleting activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1103,7 +1126,11 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn(`Activity not found: ${uuid}`);
-        throw new RpcException(`Activity not found: ${uuid}`);
+        throw new RpcException({
+          message: `Activity not found: ${uuid}`,
+          code: 'ACTIVITY_NOT_FOUND',
+          params: { uuid },
+        });
       }
 
       const docs = activityDocuments
@@ -1159,6 +1186,7 @@ export class ActivityService {
       return updatedActivity;
     } catch (error: any) {
       this.logger.log('Error while updating activity status', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1188,7 +1216,10 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn('Activity not found');
-        throw new RpcException('Activity not found.');
+        throw new RpcException({
+          message: 'Activity not found.',
+          code: 'ACTIVITY_NOT_FOUND',
+        });
       }
 
       const updateActivityCommunicationPayload = [];
@@ -1254,6 +1285,7 @@ export class ActivityService {
       return updatedActivity;
     } catch (error: any) {
       this.logger.error('Error while updating activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1300,6 +1332,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Error while fetching session logs', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1337,7 +1370,10 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn('Activity Communication not found');
-        throw new RpcException('Activity communication not found.');
+        throw new RpcException({
+          message: 'Activity communication not found.',
+          code: 'ACTIVITY_COMMUNICATION_NOT_FOUND',
+        });
       }
 
       const { activityCommunication } = activity;
@@ -1366,13 +1402,17 @@ export class ActivityService {
         this.logger.warn(
           "Selected Communication doesn't exist in current activity",
         );
-        throw new RpcException(
-          "Selected Communication doesn't exist in current activity",
-        );
+        throw new RpcException({
+          message: "Selected Communication doesn't exist in current activity",
+          code: 'SELECTED_COMMUNICATION_NOT_IN_ACTIVITY',
+        });
       }
 
       if (!Object.keys(selectedCommunication).length) {
-        throw new RpcException('Selected communication not found.');
+        throw new RpcException({
+          message: 'Selected communication not found.',
+          code: 'SELECTED_COMMUNICATION_NOT_FOUND',
+        });
       }
 
       return { selectedCommunication, activity };
@@ -1381,6 +1421,7 @@ export class ActivityService {
         'Error while fetching activity communication details',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1417,15 +1458,22 @@ export class ActivityService {
         );
         groupName = group.name;
       } else {
-        throw new Error('Invalid group type');
+        throw new RpcException({
+          message: 'Invalid group type',
+          code: 'INVALID_GROUP_TYPE',
+        });
       }
       if (!group) {
-        throw new Error('No response from microservice');
+        throw new RpcException({
+          message: 'No response from microservice',
+          code: 'NO_RESPONSE_FROM_MICROSERVICE',
+        });
       }
 
       return { group, groupName };
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1466,6 +1514,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Error while fetching communication stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1475,7 +1524,10 @@ export class ActivityService {
 
     if (!appId) {
       this.logger.warn('App ID is missing');
-      throw new RpcException('App ID is missing');
+      throw new RpcException({
+        message: 'App ID is missing',
+        code: 'APP_ID_MISSING',
+      });
     }
 
     try {
@@ -1520,6 +1572,7 @@ export class ActivityService {
       return result;
     } catch (error: any) {
       this.logger.error('Error while fetching transport session stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1531,7 +1584,10 @@ export class ActivityService {
   }) {
     if (!payload?.communicationId || !payload?.activityId) {
       this.logger.warn('Communication ID or Activity ID is missing');
-      throw new RpcException('Communication ID or Activity ID is missing');
+      throw new RpcException({
+        message: 'Communication ID or Activity ID is missing',
+        code: 'COMM_OR_ACTIVITY_ID_MISSING',
+      });
     }
 
     this.logger.log(`Triggering communication for ${payload.activityId}`);
@@ -1540,7 +1596,11 @@ export class ActivityService {
         uuid: payload.activityId,
       },
     });
-    if (!activity) throw new RpcException('Activity communication not found.');
+    if (!activity)
+      throw new RpcException({
+        message: 'Activity communication not found.',
+        code: 'ACTIVITY_COMMUNICATION_NOT_FOUND',
+      });
     const { activityCommunication } = activity;
 
     const parsedCommunications = JSON.parse(
@@ -1564,7 +1624,10 @@ export class ActivityService {
     );
 
     if (!Object.keys(selectedCommunication).length)
-      throw new RpcException('Selected communication not found.');
+      throw new RpcException({
+        message: 'Selected communication not found.',
+        code: 'SELECTED_COMMUNICATION_NOT_FOUND',
+      });
 
     const transportDetails = await this.commsClient.transport.get(
       selectedCommunication.transportId,
@@ -1572,7 +1635,10 @@ export class ActivityService {
 
     if (!transportDetails.data) {
       this.logger.warn('Selected transport not found');
-      throw new RpcException('Selected transport not found.');
+      throw new RpcException({
+        message: 'Selected transport not found.',
+        code: 'SELECTED_TRANSPORT_NOT_FOUND',
+      });
     }
 
     const addresses = await this.getAddresses(
@@ -1618,7 +1684,10 @@ export class ActivityService {
 
     if (!sessionData) {
       this.logger.warn('Session not found');
-      throw new RpcException('Session not found.');
+      throw new RpcException({
+        message: 'Session not found.',
+        code: 'SESSION_NOT_FOUND',
+      });
     }
 
     const updatedCommunicationsData = parsedCommunications.map((c) => {
@@ -1655,7 +1724,11 @@ export class ActivityService {
 
     switch (groupType) {
       case 'STAKEHOLDERS':
-        if (!group) throw new RpcException('Stakeholders group not found.');
+        if (!group)
+          throw new RpcException({
+            message: 'Stakeholders group not found.',
+            code: 'STAKEHOLDERS_GROUP_NOT_FOUND',
+          });
         //  Extract and validate contact addresses for stakeholders
         return group.stakeholders
           .map((stakeholder) => {
@@ -1681,7 +1754,11 @@ export class ActivityService {
           })
           .filter(Boolean);
       case 'BENEFICIARY':
-        if (!group) throw new RpcException('Beneficiary group not found.');
+        if (!group)
+          throw new RpcException({
+            message: 'Beneficiary group not found.',
+            code: 'BENEFICIARY_GROUP_NOT_FOUND',
+          });
 
         const groupedBeneficiaries = group.groupedBeneficiaries;
         //  Extract and validate contact addresses for beneficiaries
@@ -1818,6 +1895,7 @@ export class ActivityService {
       return result;
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -1849,6 +1927,7 @@ export class ActivityService {
         `Error while fetching activities for stakeholder ${stakeholderGroupUuid}`,
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }

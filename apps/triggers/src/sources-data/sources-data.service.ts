@@ -68,6 +68,7 @@ export class SourcesDataService {
       });
     } catch (error: any) {
       this.logger.error('Error while creatiing new source data', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -90,6 +91,7 @@ export class SourcesDataService {
       );
     } catch (error: any) {
       this.logger.error('Error while fetching source data', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -129,6 +131,7 @@ export class SourcesDataService {
       }
     } catch (error: any) {
       this.logger.error('Error while fetching source data', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -146,6 +149,7 @@ export class SourcesDataService {
         `Error while fetching source data with id: ${id}`,
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -171,6 +175,7 @@ export class SourcesDataService {
       });
     } catch (error: any) {
       this.logger.error('Error while updating source data info', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -181,9 +186,11 @@ export class SourcesDataService {
       return await this.getLevels(payload, SourceType.WATER_LEVEL);
     } catch (error: any) {
       this.logger.error(`Error while getting water levels: ${error}`);
-      throw new RpcException(
-        `Failed to fetch water levels: '${error.message}'`,
-      );
+      throw new RpcException({
+        message: `Failed to fetch water levels: '${error.message}'`,
+        code: 'FAILED_FETCH_WATER_LEVELS',
+        params: { message: error.message },
+      });
     }
   }
 
@@ -196,9 +203,11 @@ export class SourcesDataService {
       return await this.getHeatwaveLevels(payload, sourceType);
     } catch (error: any) {
       this.logger.error(`Error while getting temperature data: ${error}`);
-      throw new RpcException(
-        `Failed to fetch temperature data: '${error.message}'`,
-      );
+      throw new RpcException({
+        message: `Failed to fetch temperature data: '${error.message}'`,
+        code: 'FAILED_FETCH_TEMPERATURE_DATA',
+        params: { message: error.message },
+      });
     }
   }
   async getRainfallLevels(payload: GetSouceDataDto) {
@@ -207,7 +216,10 @@ export class SourcesDataService {
       return await this.getLevels(payload, SourceType.RAINFALL);
     } catch (error: any) {
       this.logger.error(`Error while getting rainfall data: ${error}`);
-      throw new RpcException('Failed to fetch rainfall data');
+      throw new RpcException({
+        message: 'Failed to fetch rainfall data',
+        code: 'FAILED_FETCH_RAINFALL_DATA',
+      });
     }
   }
 
@@ -230,7 +242,10 @@ export class SourcesDataService {
 
     if (!riverBasin) {
       this.logger.warn('River basin is not passed in the payload');
-      throw new RpcException('River basin is required');
+      throw new RpcException({
+        message: 'River basin is required',
+        code: 'RIVER_BASIN_REQUIRED',
+      });
     }
 
     if (source === DataSource.GFH) {
@@ -243,7 +258,10 @@ export class SourcesDataService {
 
     if (!type) {
       this.logger.warn('Type is not passed in the payload');
-      throw new RpcException('Type is required');
+      throw new RpcException({
+        message: 'Type is required',
+        code: 'TYPE_REQUIRED',
+      });
     }
 
     const sourcesData = await this.prisma.sourcesData.findMany({
@@ -286,13 +304,17 @@ export class SourcesDataService {
 
     if (!riverBasin) {
       this.logger.warn('River basin is not passed in the payload');
-      throw new RpcException('River basin is required');
+      throw new RpcException({
+        message: 'River basin is required',
+        code: 'RIVER_BASIN_REQUIRED',
+      });
     }
 
     if (source !== DataSource.DHM) {
-      throw new RpcException(
-        'Temperature data is only available for DHM source',
-      );
+      throw new RpcException({
+        message: 'Temperature data is only available for DHM source',
+        code: 'TEMPERATURE_ONLY_DHM',
+      });
     }
 
     const temperatureSourcesData = await this.prisma.sourcesData.findMany({
@@ -321,9 +343,11 @@ export class SourcesDataService {
       this.logger.error(
         `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
       );
-      throw new RpcException(
-        `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
-      );
+      throw new RpcException({
+        message: `No temperatureSourcesData found for river basin: ${riverBasin}, type: ${type}, dataSource: ${source}`,
+        code: 'NO_TEMPERATURE_DATA_FOUND',
+        params: { riverBasin, type, source },
+      });
     }
 
     const infos = temperatureSourcesData?.map((item) => item.info);
@@ -481,7 +505,10 @@ export class SourcesDataService {
       !this.isDateWithinLast14Days(new Date(to))
     ) {
       this.logger.error('Dates must be within the last 14 days');
-      throw new RpcException('Dates must be within the last 14 days');
+      throw new RpcException({
+        message: 'Dates must be within the last 14 days',
+        code: 'DATES_WITHIN_14_DAYS',
+      });
     }
     const result = await this.scheduleSourcesDataService.getDhmWaterLevels(
       from,
@@ -530,9 +557,11 @@ export class SourcesDataService {
       this.logger.error(
         `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
       );
-      throw new RpcException(
-        `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
-      );
+      throw new RpcException({
+        message: `No heatwave data found for payload: ${Object.values(payload).join(',')}`,
+        code: 'NO_HEATWAVE_DATA_FOUND',
+        params: { payload: Object.values(payload).join(',') },
+      });
     }
 
     return record;

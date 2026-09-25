@@ -25,21 +25,27 @@ export class TriggerHistoryService {
       });
 
       if (!phase) {
-        throw new RpcException(
-          `Phase with uuid '${payload.phaseUuid}' not found`,
-        );
+        throw new RpcException({
+          message: `Phase with uuid '${payload.phaseUuid}' not found`,
+          code: 'PHASE_NOT_FOUND',
+          params: { phaseUuid: payload.phaseUuid },
+        });
       }
 
       if (!phase.canRevert) {
-        throw new RpcException(
-          `Phase with uuid '${payload.phaseUuid}' cannot be reverted`,
-        );
+        throw new RpcException({
+          message: `Phase with uuid '${payload.phaseUuid}' cannot be reverted`,
+          code: 'PHASE_CANNOT_BE_REVERTED',
+          params: { phaseUuid: payload.phaseUuid },
+        });
       }
 
       if (!phase.isActive) {
-        throw new RpcException(
-          `Phase with uuid '${payload.phaseUuid}' is not active`,
-        );
+        throw new RpcException({
+          message: `Phase with uuid '${payload.phaseUuid}' is not active`,
+          code: 'PHASE_NOT_ACTIVE',
+          params: { phaseUuid: payload.phaseUuid },
+        });
       }
 
       const currentVersion =
@@ -90,12 +96,14 @@ export class TriggerHistoryService {
 
         return {
           message: 'Phase reverted successfully',
+          code: 'PHASE_REVERTED_SUCCESS',
           phase: res,
           version: currentVersion + 1,
         };
       });
     } catch (error: any) {
       this.logger.error('Error creating trigger history', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -105,7 +113,10 @@ export class TriggerHistoryService {
       `Fetching trigger histories for phase: ${payload.phaseUuid}`,
     );
     if (!payload.phaseUuid) {
-      throw new RpcException('Phase uuid is required');
+      throw new RpcException({
+        message: 'Phase uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
     try {
       const triggerHistories = await this.prisma.triggerHistory.findMany({
@@ -164,6 +175,7 @@ export class TriggerHistoryService {
       };
     } catch (error: any) {
       this.logger.error('Error fetching trigger histories', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -183,6 +195,7 @@ export class TriggerHistoryService {
       return res?.version;
     } catch (error: any) {
       this.logger.error('Error fetching current version', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -205,6 +218,7 @@ export class TriggerHistoryService {
       });
     } catch (error: any) {
       this.logger.error(error.message);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
