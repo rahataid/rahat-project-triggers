@@ -1,8 +1,6 @@
-import { CommunicationGroupType } from '@lib/database';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -102,11 +100,11 @@ export class CreateCommunicationDto {
 
   @ApiProperty({
     example: 'BENEFICIARY',
-    enum: CommunicationGroupType,
     description: 'The kind of group the communication is addressed to',
   })
-  @IsEnum(CommunicationGroupType)
-  groupType: CommunicationGroupType;
+  @IsString()
+  @IsNotEmpty()
+  groupType: string;
 
   @ApiProperty({
     example: 'user-id',

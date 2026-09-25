@@ -1,6 +1,3 @@
--- CreateEnum
-CREATE TYPE "public"."CommunicationGroupType" AS ENUM ('STAKEHOLDERS', 'BENEFICIARY');
-
 -- CreateTable
 CREATE TABLE "public"."tbl_communications" (
     "id" SERIAL NOT NULL,
@@ -13,7 +10,7 @@ CREATE TABLE "public"."tbl_communications" (
     "sessionId" TEXT,
     "transportId" TEXT,
     "groupId" TEXT NOT NULL,
-    "groupType" "public"."CommunicationGroupType" NOT NULL,
+    "groupType" TEXT NOT NULL,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
     "createdBy" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

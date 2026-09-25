@@ -1,10 +1,3 @@
-enum CommunicationGroupType {
-    STAKEHOLDERS
-    BENEFICIARY
-
-    @@schema("public")
-}
-
 model Communication {
     id   Int    @id @default(autoincrement())
     uuid String @unique @default(uuid())
@@ -21,7 +14,7 @@ model Communication {
     transportId String?
 
     groupId   String
-    groupType CommunicationGroupType
+    groupType String
 
     isDeleted Boolean @default(false)
     createdBy String?

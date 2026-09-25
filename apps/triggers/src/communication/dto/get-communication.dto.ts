@@ -1,7 +1,6 @@
-import { CommunicationGroupType } from '@lib/database';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class GetCommunicationDto {
   @ApiProperty({
@@ -33,13 +32,12 @@ export class GetCommunicationDto {
 
   @ApiProperty({
     example: 'BENEFICIARY',
-    enum: CommunicationGroupType,
     description: 'Filter by the kind of addressed group',
     required: false,
   })
-  @IsEnum(CommunicationGroupType)
+  @IsString()
   @IsOptional()
-  groupType?: CommunicationGroupType;
+  groupType?: string;
 
   @ApiProperty({
     example: '9f8e7d6c-5b4a-3210-fedc-ba9876543210',

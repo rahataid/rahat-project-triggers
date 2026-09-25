@@ -1,6 +1,9 @@
 import { paginator, PaginatorTypes, PrismaService } from '@lib/database';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
+import { ActivityService } from 'src/activity/activity.service';
+import type { CommsClient } from 'src/comms/comms.service';
 import {
   CreateCommunicationDto,
   GetCommunicationDto,
@@ -29,7 +32,12 @@ const WRITABLE_FIELDS = [
 export class CommunicationService {
   private readonly logger = new Logger(CommunicationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('COMMS_CLIENT')
+    private readonly commsClient: CommsClient,
+    private readonly activityService: ActivityService,
+  ) {}
 
   /**
    * Picks only the columns this model owns. Callers reach us over the message
@@ -157,5 +165,78 @@ export class CommunicationService {
         error?.message || 'Failed to remove communication',
       );
     }
+  }
+
+  async trigger(uuid: string, appId: string) {
+    this.logger.log(`Triggering communication: ${uuid}`);
+    const communication = await this.findOne(uuid);
+
+    if (!communication.transportId) {
+      throw new RpcException({
+        message: 'Communication has no transport.',
+        code: 'COMMUNICATION_TRANSPORT_MISSING',
+      });
+    }
+
+    const { data: transport } = await this.commsClient.transport.get(
+      communication.transportId,
+    );
+
+    if (!transport) {
+      throw new RpcException({
+        message: 'Selected transport not found.',
+        code: 'SELECTED_TRANSPORT_NOT_FOUND',
+      });
+    }
+
+    const addresses = await this.activityService.getAddresses(
+      communication.groupType,
+      communication.groupId,
+      appId,
+      transport.validationAddress as ValidationAddress,
+    );
+
+    let content: string;
+    let subject = 'INFO';
+
+    if (transport.type === TransportType.VOICE) {
+      const audio = communication.audioURL as { mediaURL?: string } | null;
+      content = audio?.mediaURL;
+    } else {
+      content = communication.message;
+      if (transport.type === TransportType.SMTP) subject = communication.subject;
+    }
+
+    if (!content) {
+      throw new RpcException({
+        message: 'Communication has no content to send.',
+        code: 'COMMUNICATION_CONTENT_MISSING',
+      });
+    }
+
+    const { data: session } = await this.commsClient.broadcast.create({
+      addresses,
+      maxAttempts: 3,
+      message: {
+        content,
+        meta: { subject },
+      },
+      options: {},
+      transport: communication.transportId,
+      trigger: TriggerType.IMMEDIATE,
+      xref: appId,
+    });
+
+    if (!session) {
+      throw new RpcException({
+        message: 'Session not found.',
+        code: 'SESSION_NOT_FOUND',
+      });
+    }
+
+    return this.prisma.communication.update({
+      where: { uuid },
+      data: { sessionId: session.cuid },
+    });
   }
 }

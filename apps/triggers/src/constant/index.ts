@@ -170,6 +170,7 @@ export const MS_TRIGGERS_JOBS = {
     GET_ONE: 'ms.jobs.communications.getOne',
     UPDATE: 'ms.jobs.communications.update',
     REMOVE: 'ms.jobs.communications.remove',
+    TRIGGER: 'ms.jobs.communications.trigger',
   },
   DAILY_MONITORING: {
     ADD: 'ms.jobs.dailyMonitoring.add',
