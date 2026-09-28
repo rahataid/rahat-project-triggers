@@ -1,3 +1,4 @@
+//rahat-project-triggers/apps/triggers/src/trigger/trigger.service.ts
 import {
   BadRequestException,
   forwardRef,
@@ -560,8 +561,24 @@ export class TriggerService {
             description: `The trigger condition has been met for phase ${phase.name}, year ${phase.activeYear}, in the ${phase.riverBasin} river basin.`,
             group: 'Trigger Statement',
             notify: true,
+            push: {
+              data: {
+                phaseUuid: phase.uuid,
+                riverBasin: phase.riverBasin,
+                activeYear: phase.activeYear,
+              },
+            },
           },
         });
+
+        // this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+        //   payload: {
+        //     title: `Trigger Statement Met for ${phase.riverBasin}`,
+        //     description: `The trigger condition has been met for phase ${phase.name}, year ${phase.activeYear}, in the ${phase.riverBasin} river basin.`,
+        //     group: 'Trigger Statement',
+        //     notify: true,
+        //   },
+        // });
       }
     } catch (error: any) {
       this.logger.error(error);
@@ -718,8 +735,25 @@ export class TriggerService {
           description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
           group: 'Trigger Statement',
           notify: true,
+          push: {
+            data: {
+              triggerUuid: updatedTrigger.uuid,
+              phaseUuid: updatedTrigger.phaseId,
+              riverBasin: updatedTrigger.phase.riverBasin,
+              activeYear: updatedTrigger.phase.activeYear,
+            },
+          },
         },
       });
+
+      // this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+      //   payload: {
+      //     title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
+      //     description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
+      //     group: 'Trigger Statement',
+      //     notify: true,
+      //   },
+      // });
 
       return updatedTrigger;
     } catch (error: any) {
