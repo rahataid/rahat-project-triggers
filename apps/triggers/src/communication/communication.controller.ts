@@ -51,7 +51,13 @@ export class CommunicationController {
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.COMMUNICATIONS.TRIGGER,
   })
-  async trigger(@Payload() payload: { uuid: string; appId: string }) {
-    return this.communicationService.trigger(payload.uuid, payload.appId);
+  async trigger(
+    @Payload() payload: { uuid: string; appId: string; targetUuids?: string[] },
+  ) {
+    return this.communicationService.trigger(
+      payload.uuid,
+      payload.appId,
+      payload.targetUuids,
+    );
   }
 }

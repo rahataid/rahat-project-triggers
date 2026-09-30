@@ -1,11 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
+
+export const COMMUNICATION_GROUP_TYPES = [
+  'STAKEHOLDERS',
+  'BENEFICIARY',
+] as const;
+export type CommunicationGroupType = (typeof COMMUNICATION_GROUP_TYPES)[number];
 
 export class CommunicationAudioDto {
   @ApiProperty({
@@ -23,6 +32,24 @@ export class CommunicationAudioDto {
   @IsString()
   @IsNotEmpty()
   fileName: string;
+}
+
+export class CommunicationTargetDto {
+  @ApiProperty({
+    example: 'b1a2c3d4-5e6f-7081-92a3-b4c5d6e7f809',
+    description: 'The ID of the group the communication is addressed to',
+  })
+  @IsString()
+  @IsNotEmpty()
+  groupId: string;
+
+  @ApiProperty({
+    example: 'BENEFICIARY',
+    enum: COMMUNICATION_GROUP_TYPES,
+    description: 'The kind of group the communication is addressed to',
+  })
+  @IsIn(COMMUNICATION_GROUP_TYPES)
+  groupType: CommunicationGroupType;
 }
 
 export class CreateCommunicationDto {
@@ -73,17 +100,9 @@ export class CreateCommunicationDto {
   audioURL?: CommunicationAudioDto;
 
   @ApiProperty({
-    example: '5c3f1e2a-7b8c-4d9e-a0f1-2b3c4d5e6f70',
-    description: 'The ID of the communication session',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  sessionId?: string;
-
-  @ApiProperty({
     example: '9f8e7d6c-5b4a-3210-fedc-ba9876543210',
-    description: 'The ID of the transport used to deliver the communication',
+    description:
+      'The ID of the transport used to deliver the communication to every group',
     required: false,
   })
   @IsString()
@@ -91,20 +110,14 @@ export class CreateCommunicationDto {
   transportId?: string;
 
   @ApiProperty({
-    example: 'b1a2c3d4-5e6f-7081-92a3-b4c5d6e7f809',
-    description: 'The ID of the group the communication is addressed to',
+    description: 'The groups the communication is addressed to',
+    type: [CommunicationTargetDto],
   })
-  @IsString()
-  @IsNotEmpty()
-  groupId: string;
-
-  @ApiProperty({
-    example: 'BENEFICIARY',
-    description: 'The kind of group the communication is addressed to',
-  })
-  @IsString()
-  @IsNotEmpty()
-  groupType: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CommunicationTargetDto)
+  targets: CommunicationTargetDto[];
 
   @ApiProperty({
     example: 'user-id',

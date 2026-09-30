@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import { CommunicationTargetStatus } from '@lib/database';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class GetCommunicationDto {
   @ApiProperty({
@@ -23,7 +24,7 @@ export class GetCommunicationDto {
 
   @ApiProperty({
     example: 'b1a2c3d4-5e6f-7081-92a3-b4c5d6e7f809',
-    description: 'Filter by the addressed group',
+    description: 'Filter by any addressed group',
     required: false,
   })
   @IsString()
@@ -32,7 +33,7 @@ export class GetCommunicationDto {
 
   @ApiProperty({
     example: 'BENEFICIARY',
-    description: 'Filter by the kind of addressed group',
+    description: 'Filter by the kind of any addressed group',
     required: false,
   })
   @IsString()
@@ -50,12 +51,22 @@ export class GetCommunicationDto {
 
   @ApiProperty({
     example: '5c3f1e2a-7b8c-4d9e-a0f1-2b3c4d5e6f70',
-    description: 'Filter by session',
+    description: 'Filter by the session of any addressed group',
     required: false,
   })
   @IsString()
   @IsOptional()
   sessionId?: string;
+
+  @ApiProperty({
+    example: 'FAILED',
+    enum: CommunicationTargetStatus,
+    description: 'Filter by the delivery status of any addressed group',
+    required: false,
+  })
+  @IsEnum(CommunicationTargetStatus)
+  @IsOptional()
+  status?: CommunicationTargetStatus;
 
   @ApiProperty({
     example: 1,

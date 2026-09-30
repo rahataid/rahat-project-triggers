@@ -1,3 +1,13 @@
+enum CommunicationTargetStatus {
+    PENDING
+    PROCESSING
+    SENT
+    FAILED
+    CANCELLED
+
+    @@schema("public")
+}
+
 model Communication {
     id   Int    @id @default(autoincrement())
     uuid String @unique @default(uuid())
@@ -10,11 +20,8 @@ model Communication {
 
     audioURL Json? @db.JsonB()
 
-    sessionId   String?
+    // Shared across all group deliveries
     transportId String?
-
-    groupId   String
-    groupType String
 
     isDeleted Boolean @default(false)
     createdBy String?
@@ -22,8 +29,36 @@ model Communication {
     createdAt DateTime  @default(now())
     updatedAt DateTime? @updatedAt()
 
+    targets CommunicationGroupTarget[]
+
     @@index([xrefId])
-    @@index([groupId])
+    @@index([transportId])
     @@map("tbl_communications")
+    @@schema("public")
+}
+
+model CommunicationGroupTarget {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+
+    communicationId Int
+
+    groupId   String
+    groupType String
+
+    // Different for each group delivery
+    sessionId String?
+
+    status CommunicationTargetStatus @default(PENDING)
+    error  String?
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    communication Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+
+    @@unique([communicationId, groupType, groupId])
+    @@index([groupType, groupId])
+    @@map("tbl_communication_group_targets")
     @@schema("public")
 }

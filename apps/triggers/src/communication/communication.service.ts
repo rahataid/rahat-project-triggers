@@ -1,10 +1,17 @@
-import { paginator, PaginatorTypes, PrismaService } from '@lib/database';
+import {
+  CommunicationTargetStatus,
+  paginator,
+  PaginatorTypes,
+  PrismaService,
+} from '@lib/database';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
 import { ActivityService } from 'src/activity/activity.service';
 import type { CommsClient } from 'src/comms/comms.service';
 import {
+  CommunicationGroupType,
+  CommunicationTargetDto,
   CreateCommunicationDto,
   GetCommunicationDto,
   UpdateCommunicationDto,
@@ -21,12 +28,19 @@ const WRITABLE_FIELDS = [
   'message',
   'subject',
   'audioURL',
-  'sessionId',
   'transportId',
-  'groupId',
-  'groupType',
   'createdBy',
 ] as const;
+
+const INCLUDE_TARGETS = {
+  targets: { orderBy: { id: 'asc' } },
+} as const;
+
+// A target in any other state has already been handed to the comms service.
+const TRIGGERABLE_STATUSES: CommunicationTargetStatus[] = [
+  CommunicationTargetStatus.PENDING,
+  CommunicationTargetStatus.FAILED,
+];
 
 @Injectable()
 export class CommunicationService {
@@ -59,12 +73,41 @@ export class CommunicationService {
     return data;
   }
 
+  /**
+   * Keeps only the group identity of each target and drops repeats, which
+   * would otherwise violate the (communicationId, groupType, groupId) key.
+   */
+  private toTargetRows(targets: CommunicationTargetDto[] = []) {
+    const rows = new Map<string, { groupId: string; groupType: string }>();
+
+    for (const { groupId, groupType } of targets) {
+      rows.set(`${groupType}:${groupId}`, { groupId, groupType });
+    }
+
+    return [...rows.values()];
+  }
+
+  private getErrorMessage(error: any): string {
+    if (error instanceof RpcException) {
+      const rpcError: any = error.getError();
+      return typeof rpcError === 'string' ? rpcError : rpcError?.message;
+    }
+
+    return error?.message || String(error);
+  }
+
   async create(dto: CreateCommunicationDto) {
     this.logger.log(`Creating communication: ${dto.title}`);
 
     try {
       return await this.prisma.communication.create({
-        data: this.toWritableData(dto) as any,
+        data: {
+          ...(this.toWritableData(dto) as any),
+          targets: {
+            createMany: { data: this.toTargetRows(dto.targets) },
+          },
+        },
+        include: INCLUDE_TARGETS,
       });
     } catch (error: any) {
       this.logger.error('Failed to create communication', error);
@@ -82,6 +125,7 @@ export class CommunicationService {
       groupType,
       transportId,
       sessionId,
+      status,
       page = 1,
       perPage = 10,
       sort = DEFAULT_SORT_FIELD,
@@ -92,16 +136,24 @@ export class CommunicationService {
       ? sort
       : DEFAULT_SORT_FIELD;
 
+    const targetFilter = {
+      ...(groupId && { groupId }),
+      ...(groupType && { groupType }),
+      ...(sessionId && { sessionId }),
+      ...(status && { status }),
+    };
+
     const query = {
       where: {
         isDeleted: false,
         ...(title && { title: { contains: title, mode: 'insensitive' } }),
         ...(xrefId && { xrefId }),
-        ...(groupId && { groupId }),
-        ...(groupType && { groupType }),
         ...(transportId && { transportId }),
-        ...(sessionId && { sessionId }),
+        ...(Object.keys(targetFilter).length && {
+          targets: { some: targetFilter },
+        }),
       },
+      include: INCLUDE_TARGETS,
       orderBy: {
         [sortField]: order,
       },
@@ -124,6 +176,7 @@ export class CommunicationService {
         uuid,
         isDeleted: false,
       },
+      include: INCLUDE_TARGETS,
     });
 
     if (!communication) {
@@ -135,12 +188,35 @@ export class CommunicationService {
 
   async update(uuid: string, dto: UpdateCommunicationDto) {
     this.logger.log(`Updating communication: ${uuid}`);
-    await this.findOne(uuid);
+    const communication = await this.findOne(uuid);
+
+    const data: Record<string, any> = this.toWritableData(dto);
+
+    if (dto.targets !== undefined) {
+      const isUntouched = communication.targets.every(
+        (target) => target.status === CommunicationTargetStatus.PENDING,
+      );
+
+      if (!isUntouched) {
+        throw new RpcException({
+          message:
+            'Targets cannot be changed once the communication has been triggered.',
+          code: 'COMMUNICATION_ALREADY_TRIGGERED',
+        });
+      }
+
+      // Replaces the whole list, in the same statement as the other fields.
+      data.targets = {
+        deleteMany: {},
+        createMany: { data: this.toTargetRows(dto.targets) },
+      };
+    }
 
     try {
       return await this.prisma.communication.update({
         where: { uuid },
-        data: this.toWritableData(dto),
+        data,
+        include: INCLUDE_TARGETS,
       });
     } catch (error: any) {
       this.logger.error(`Failed to update communication ${uuid}`, error);
@@ -157,7 +233,16 @@ export class CommunicationService {
     try {
       return await this.prisma.communication.update({
         where: { uuid },
-        data: { isDeleted: true },
+        data: {
+          isDeleted: true,
+          targets: {
+            updateMany: {
+              where: { status: CommunicationTargetStatus.PENDING },
+              data: { status: CommunicationTargetStatus.CANCELLED },
+            },
+          },
+        },
+        include: INCLUDE_TARGETS,
       });
     } catch (error: any) {
       this.logger.error(`Failed to remove communication ${uuid}`, error);
@@ -167,7 +252,12 @@ export class CommunicationService {
     }
   }
 
-  async trigger(uuid: string, appId: string) {
+  /**
+   * Broadcasts the communication to each of its groups. Every group gets its
+   * own comms session, and a failure for one group is recorded on that target
+   * without stopping the others. Pass `targetUuids` to retry specific groups.
+   */
+  async trigger(uuid: string, appId: string, targetUuids?: string[]) {
     this.logger.log(`Triggering communication: ${uuid}`);
     const communication = await this.findOne(uuid);
 
@@ -189,13 +279,6 @@ export class CommunicationService {
       });
     }
 
-    const addresses = await this.activityService.getAddresses(
-      communication.groupType,
-      communication.groupId,
-      appId,
-      transport.validationAddress as ValidationAddress,
-    );
-
     let content: string;
     let subject = 'INFO';
 
@@ -204,7 +287,8 @@ export class CommunicationService {
       content = audio?.mediaURL;
     } else {
       content = communication.message;
-      if (transport.type === TransportType.SMTP) subject = communication.subject;
+      if (transport.type === TransportType.SMTP)
+        subject = communication.subject;
     }
 
     if (!content) {
@@ -214,29 +298,79 @@ export class CommunicationService {
       });
     }
 
-    const { data: session } = await this.commsClient.broadcast.create({
-      addresses,
-      maxAttempts: 3,
-      message: {
-        content,
-        meta: { subject },
-      },
-      options: {},
-      transport: communication.transportId,
-      trigger: TriggerType.IMMEDIATE,
-      xref: appId,
-    });
+    const targets = communication.targets.filter(
+      (target) =>
+        TRIGGERABLE_STATUSES.includes(target.status) &&
+        (!targetUuids?.length || targetUuids.includes(target.uuid)),
+    );
 
-    if (!session) {
+    if (!targets.length) {
       throw new RpcException({
-        message: 'Session not found.',
-        code: 'SESSION_NOT_FOUND',
+        message: 'Communication has no pending or failed groups to send to.',
+        code: 'COMMUNICATION_NO_TRIGGERABLE_TARGETS',
       });
     }
 
-    return this.prisma.communication.update({
-      where: { uuid },
-      data: { sessionId: session.cuid },
-    });
+    for (const target of targets) {
+      // Claims the target, so a concurrent trigger cannot send it twice.
+      const { count } = await this.prisma.communicationGroupTarget.updateMany({
+        where: { id: target.id, status: { in: TRIGGERABLE_STATUSES } },
+        data: { status: CommunicationTargetStatus.PROCESSING, error: null },
+      });
+
+      if (!count) continue;
+
+      try {
+        const addresses = await this.activityService.getAddresses(
+          target.groupType as CommunicationGroupType,
+          target.groupId,
+          appId,
+          transport.validationAddress as ValidationAddress,
+        );
+
+        const { data: session } = await this.commsClient.broadcast.create({
+          addresses,
+          maxAttempts: 3,
+          message: {
+            content,
+            meta: { subject },
+          },
+          options: {},
+          transport: communication.transportId,
+          trigger: TriggerType.IMMEDIATE,
+          xref: appId,
+        });
+
+        if (!session) {
+          throw new RpcException({
+            message: 'Session not found.',
+            code: 'SESSION_NOT_FOUND',
+          });
+        }
+
+        await this.prisma.communicationGroupTarget.update({
+          where: { id: target.id },
+          data: {
+            status: CommunicationTargetStatus.SENT,
+            sessionId: session.cuid,
+          },
+        });
+      } catch (error: any) {
+        this.logger.error(
+          `Failed to trigger communication ${uuid} for ${target.groupType} ${target.groupId}`,
+          error,
+        );
+
+        await this.prisma.communicationGroupTarget.update({
+          where: { id: target.id },
+          data: {
+            status: CommunicationTargetStatus.FAILED,
+            error: this.getErrorMessage(error),
+          },
+        });
+      }
+    }
+
+    return this.findOne(uuid);
   }
 }
