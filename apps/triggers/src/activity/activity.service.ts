@@ -447,6 +447,13 @@ export class ActivityService {
       appId = appId ?? (activityData?.app || null);
 
       if (Array.isArray(aComm) && aComm.length) {
+        const commsClient = await this.commsService.getClient();
+        if (!commsClient) {
+          throw new Error(
+            'Comms client is not available. Please try again shortly.',
+          );
+        }
+
         for (const comm of aComm) {
           const communication = JSON.parse(
             JSON.stringify(comm),
@@ -458,17 +465,14 @@ export class ActivityService {
           let sessionStatus = SessionStatus.NEW;
           let completedAt = null;
           if (communication.sessionId) {
-            const sessionDetails = await this.commsClient.session.get(
+            const sessionDetails = await commsClient.session.get(
               communication.sessionId,
             );
             sessionStatus = sessionDetails.data.status;
             completedAt = sessionDetails.data.updatedAt;
           }
-          // const transport = await this.commsClient.transport.get(
-          //   communication.transportId,
-          // );
 
-          const transport = await this.commsClient.transport.get(
+          const transport = await commsClient.transport.get(
             communication.transportId,
           );
           const transportName = transport.data.name;
