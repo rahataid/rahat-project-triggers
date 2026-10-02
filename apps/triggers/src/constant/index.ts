@@ -182,6 +182,9 @@ export const MS_TRIGGERS_JOBS = {
   SETTINGS: {
     GET: 'ms.jobs.settings.get',
   },
+  VERSION: {
+    GET: 'ms.jobs.version.get',
+  },
   LIBRARY: {
     GET_ACTIVITY_TEMPLATES: 'ms.jobs.library.getActivityTemplates',
     GET_ACTIVITY_TEMPLATE_BY_ID: 'ms.jobs.library.getActivityTemplateById',

@@ -31,6 +31,7 @@ export class SourceService {
       return paginatedData;
     } catch (error: any) {
       this.logger.error(`Error fetching sources: ${error}`, error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -47,7 +48,11 @@ export class SourceService {
 
       if (!source) {
         this.logger.warn(`Source with UUID: ${dto.uuid} not found`);
-        throw new RpcException(`Source with UUID: ${dto.uuid} not found`);
+        throw new RpcException({
+          message: `Source with UUID: ${dto.uuid} not found`,
+          code: 'SOURCE_NOT_FOUND',
+          params: { uuid: dto.uuid },
+        });
       }
 
       return source;
@@ -56,6 +61,7 @@ export class SourceService {
         `Error fetching source with UUID: ${dto.uuid}: ${error}`,
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }

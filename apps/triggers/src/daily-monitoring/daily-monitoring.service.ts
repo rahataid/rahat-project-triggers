@@ -24,7 +24,11 @@ export class DailyMonitoringService {
         where: { riverBasin },
       });
 
-      if (!source) throw new NotFoundException('Source not found');
+      if (!source)
+        throw new NotFoundException({
+          message: 'Source not found',
+          code: 'SOURCE_NOT_FOUND',
+        });
 
       return Promise.all(
         rest.data?.map((entry) =>
@@ -41,7 +45,10 @@ export class DailyMonitoringService {
       );
     } catch (error: any) {
       this.logger.error(error);
-      throw new RpcException('Failed to create daily monitoring data');
+      throw new RpcException({
+        message: 'Failed to create daily monitoring data',
+        code: 'DAILY_MONITORING_CREATE_FAILED',
+      });
     }
   }
 
@@ -96,7 +103,10 @@ export class DailyMonitoringService {
       return { results: transformedData };
     } catch (error: any) {
       this.logger.error(error);
-      throw new RpcException('Failed to fetch daily monitoring data');
+      throw new RpcException({
+        message: 'Failed to fetch daily monitoring data',
+        code: 'DAILY_MONITORING_FETCH_FAILED',
+      });
     }
   }
 
@@ -145,7 +155,10 @@ export class DailyMonitoringService {
       // };
     } catch (error: any) {
       this.logger.error(error);
-      throw new RpcException('Failed to fetch daily monitoring data');
+      throw new RpcException({
+        message: 'Failed to fetch daily monitoring data',
+        code: 'DAILY_MONITORING_FETCH_FAILED',
+      });
     }
   }
 
@@ -173,7 +186,10 @@ export class DailyMonitoringService {
       return groupedData;
     } catch (error: any) {
       this.logger.error('Error fetching gauge reading data:', error);
-      throw new RpcException('Failed to fetch gauge reading data');
+      throw new RpcException({
+        message: 'Failed to fetch gauge reading data',
+        code: 'GAUGE_READING_FETCH_FAILED',
+      });
     }
   }
 
@@ -315,7 +331,10 @@ export class DailyMonitoringService {
       });
     } catch (error: any) {
       this.logger.error('Error fetching gauge forecast data:', error.message);
-      throw new RpcException('Failed to fetch gauge forecast data');
+      throw new RpcException({
+        message: 'Failed to fetch gauge forecast data',
+        code: 'GAUGE_FORECAST_FETCH_FAILED',
+      });
     }
   }
 
@@ -392,7 +411,10 @@ export class DailyMonitoringService {
       });
     } catch (error: any) {
       this.logger.error(error);
-      throw new RpcException('Failed to delete daily monitoring data');
+      throw new RpcException({
+        message: 'Failed to delete daily monitoring data',
+        code: 'DAILY_MONITORING_DELETE_FAILED',
+      });
     }
   }
 
@@ -413,7 +435,10 @@ export class DailyMonitoringService {
       });
     } catch (error: any) {
       this.logger.error(error);
-      throw new RpcException('Failed to delete daily monitoring data');
+      throw new RpcException({
+        message: 'Failed to delete daily monitoring data',
+        code: 'DAILY_MONITORING_DELETE_FAILED',
+      });
     }
   }
   sameGroupeKeyMergeData(response) {

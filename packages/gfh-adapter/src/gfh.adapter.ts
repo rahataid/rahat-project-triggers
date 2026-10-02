@@ -309,9 +309,12 @@ export class GfhAdapter extends ObservationAdapter {
         };
 
         const history = (obs.stationData?.forecasts || []).map((forecast) => ({
-          value: (forecast as any).value || 0,
+          value: forecast.value || 0,
           datetime:
-            forecast.timeRange?.startTime || obs.stationData?.issuedTime || "",
+            forecast.forecastStartTime ||
+            forecast.forecastEndTime ||
+            obs.stationData?.issuedTime ||
+            "",
         }));
 
         const baseIndicator = {
@@ -337,7 +340,7 @@ export class GfhAdapter extends ObservationAdapter {
           ...baseIndicator,
           indicator: "discharge_m3s",
           units: "m³/s",
-          value: (obs.stationData?.forecasts?.[0] as any)?.value || 0,
+          value: obs.stationData?.forecasts?.[0]?.value || 0,
         });
 
         return results;
@@ -577,7 +580,10 @@ export class GfhAdapter extends ObservationAdapter {
 
         latestForecast = {
           issuedTime: latest.issuedTime,
-          forecastTimeRange: firstRange.timeRange || {},
+          forecastTimeRange: {
+            startTime: firstRange.forecastStartTime,
+            endTime: firstRange.forecastEndTime,
+          },
           forecastTrend: firstRange.trend || "UNKNOWN",
           severity: firstRange.severity || "UNKNOWN",
           forecastRanges: latest.forecastRanges || [],
