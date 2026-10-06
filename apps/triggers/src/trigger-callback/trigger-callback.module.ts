@@ -1,17 +1,16 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { TriggerService } from './trigger.service';
-import { TriggerController } from './trigger.controller';
+import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
-import { BQUEUE, CORE_MODULE } from 'src/constant';
-import { PhasesModule } from 'src/phases/phases.module';
 import { HttpModule } from '@nestjs/axios';
-import { SourcesDataModule } from 'src/sources-data/sources-data.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TriggerCallbackModule } from 'src/trigger-callback/trigger-callback.module';
+import { BQUEUE, CORE_MODULE } from 'src/constant';
+import { TriggerCallbackController } from './trigger-callback.controller';
+import { TriggerCallbackService } from './trigger-callback.service';
+import { TriggerCallbackDispatcher } from './trigger-callback.dispatcher';
 
 @Module({
   imports: [
+    HttpModule,
     ClientsModule.registerAsync([
       {
         name: CORE_MODULE,
@@ -27,21 +26,17 @@ import { TriggerCallbackModule } from 'src/trigger-callback/trigger-callback.mod
         inject: [ConfigService],
       },
     ]),
-    HttpModule,
     BullModule.registerQueue(
       {
-        name: BQUEUE.TRIGGER,
+        name: BQUEUE.TRIGGER_CALLBACK,
       },
       {
-        name: BQUEUE.STELLAR,
+        name: BQUEUE.COMMUNICATION,
       },
     ),
-    forwardRef(() => SourcesDataModule),
-    forwardRef(() => PhasesModule),
-    TriggerCallbackModule,
   ],
-  controllers: [TriggerController],
-  providers: [TriggerService],
-  exports: [TriggerService],
+  controllers: [TriggerCallbackController],
+  providers: [TriggerCallbackService, TriggerCallbackDispatcher],
+  exports: [TriggerCallbackService, TriggerCallbackDispatcher],
 })
-export class TriggerModule {}
+export class TriggerCallbackModule {}
