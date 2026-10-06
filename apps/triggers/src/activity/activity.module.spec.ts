@@ -7,6 +7,7 @@ import { ActivityModule } from './activity.module';
 import { ActivityController } from './activity.controller';
 import { ActivityService } from './activity.service';
 import { MS_TRIGGER_CLIENTS } from 'src/constant';
+import { CommsService } from 'src/comms/comms.service';
 
 describe('ActivityModule', () => {
   let module: TestingModule;
@@ -92,8 +93,10 @@ describe('ActivityModule', () => {
           useValue: mockClientProxy,
         },
         {
-          provide: 'COMMS_CLIENT',
-          useValue: mockCommsClient,
+          provide: CommsService,
+          useValue: {
+            getCurrentClient: () => mockCommsClient,
+          },
         },
       ],
     }).compile();

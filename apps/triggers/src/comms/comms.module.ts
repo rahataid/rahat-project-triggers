@@ -38,7 +38,7 @@ export class CommsModule {
           inject: [CommsService],
         },
       ],
-      exports: ['COMMS_CLIENT'],
+      exports: [CommsService, 'COMMS_CLIENT'],
     };
   }
 }
