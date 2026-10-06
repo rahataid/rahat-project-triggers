@@ -103,6 +103,35 @@ export class CommsService {
     return this.client;
   }
 
+  createLiveClient(): CommsClient {
+    const resolve = <K extends keyof CommsClient>(key: K) => ({
+      get: (): CommsClient[K] => this.requireClient()[key],
+    });
+
+    return Object.defineProperties({} as CommsClient, {
+      apiClient: resolve('apiClient'),
+      setAppId: resolve('setAppId'),
+      setAccessToken: resolve('setAccessToken'),
+      setHeaders: resolve('setHeaders'),
+      session: resolve('session'),
+      broadcast: resolve('broadcast'),
+      broadcastLog: resolve('broadcastLog'),
+      transport: resolve('transport'),
+    });
+  }
+
+  private requireClient(): CommsClient {
+    if (!this.client) {
+      // Initialization keeps retrying in the background until it succeeds.
+      throw new RpcException({
+        message:
+          'Communication service is not available yet. Please try again shortly.',
+        code: 'COMMS_SERVICE_UNAVAILABLE',
+      });
+    }
+    return this.client;
+  }
+
   getCurrentClient(): CommsClient {
     return this.client;
   }

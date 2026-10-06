@@ -30,14 +30,15 @@ export class CommsModule {
       providers: [
         CommsService,
         {
-          provide: 'COMMS_INIT',
+          provide: 'COMMS_CLIENT',
           useFactory: async (commsService: CommsService) => {
             await commsService.init();
+            return commsService.createLiveClient();
           },
           inject: [CommsService],
         },
       ],
-      exports: [CommsService],
+      exports: [CommsService, 'COMMS_CLIENT'],
     };
   }
 }
