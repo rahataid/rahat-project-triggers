@@ -1003,7 +1003,11 @@ export class TriggerService {
               'triggeredAt', t."triggeredAt"::timestamptz,
               'createdAt', t."createdAt"::timestamptz,
               'updatedAt', t."updatedAt"::timestamptz,
-              'leadTime', t."leadTime"
+              'leadTime', t."leadTime",
+              'hasTriggerCallback', EXISTS (
+                SELECT 1 FROM public.tbl_trigger_callbacks tc
+                WHERE tc."triggerId" = t.uuid AND tc."isDeleted" = false
+              )
             )
           ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t

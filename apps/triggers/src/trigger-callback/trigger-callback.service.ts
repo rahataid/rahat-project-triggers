@@ -8,6 +8,7 @@ import {
   CreateTriggerCallbackDto,
   GetTriggerCallbackLogsDto,
   RemoveTriggerCallbackDto,
+  UpdateTriggerCallbackDto,
   // UpdateTriggerCallbackDto, // update is disabled for now
 } from './dto';
 import { parseCallbackConfig } from './validation/callback-config.schema';
@@ -23,51 +24,68 @@ export class TriggerCallbackService {
     private readonly callbackQueue: Queue,
   ) {}
 
-  async create(dto: CreateTriggerCallbackDto) {
+  async create(dtos: CreateTriggerCallbackDto[]) {
     try {
-      if (
-        dto.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
-        !dto.xref
-      ) {
-        throw new Error(
-          'xref (activity uuid) is required for ACTIVITY_COMMUNICATION callbacks',
-        );
+      if (!dtos?.length) {
+        throw new Error('No callbacks provided');
       }
 
-      parseCallbackConfig(dto.type, dto.config);
+      for (const dto of dtos) {
+        if (
+          dto.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+          !dto.xref
+        ) {
+          throw new Error(
+            'xref (activity uuid) is required for ACTIVITY_COMMUNICATION callbacks',
+          );
+        }
+        parseCallbackConfig(dto.type, dto.config);
+      }
 
-      const trigger = await this.prisma.trigger.findUnique({
-        where: { uuid: dto.triggerId },
+      const triggerIds = [...new Set(dtos.map((dto) => dto.triggerId))];
+      const triggers = await this.prisma.trigger.findMany({
+        where: { uuid: { in: triggerIds } },
+        select: { uuid: true },
       });
-      if (!trigger) {
-        throw new RpcException('Trigger not found.');
+      const foundTriggerIds = new Set(triggers.map((t) => t.uuid));
+      const missingTriggerId = triggerIds.find(
+        (id) => !foundTriggerIds.has(id),
+      );
+      if (missingTriggerId) {
+        throw new RpcException(`Trigger not found: ${missingTriggerId}`);
       }
 
       return await this.prisma.$transaction(async (tx) => {
-        const callback = await tx.triggerCallback.create({
-          data: {
-            triggerId: dto.triggerId,
-            type: dto.type,
-            name: dto.name,
-            config: dto.config,
-            xref: dto.xref,
-            isActive: dto.isActive ?? true,
-            order: dto.order ?? 0,
-            createdBy: dto.createdBy,
-          },
-        });
+        const callbacks = [];
 
-        if (
-          dto.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
-          dto.xref
-        ) {
-          await tx.activity.update({
-            where: { uuid: dto.xref },
-            data: { hasTriggerCallback: true },
+        for (const dto of dtos) {
+          const callback = await tx.triggerCallback.create({
+            data: {
+              triggerId: dto.triggerId,
+              type: dto.type,
+              name: dto.name,
+              config: dto.config,
+              xref: dto.xref,
+              isActive: dto.isActive ?? true,
+              order: dto.order ?? 0,
+              createdBy: dto.createdBy,
+            },
           });
+
+          if (
+            dto.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+            dto.xref
+          ) {
+            await tx.activity.update({
+              where: { uuid: dto.xref },
+              data: { hasTriggerCallback: true },
+            });
+          }
+
+          callbacks.push(callback);
         }
 
-        return callback;
+        return callbacks;
       });
     } catch (error: any) {
       this.logger.error(error);
@@ -94,29 +112,29 @@ export class TriggerCallbackService {
 
   // Update is disabled for now — only create/remove are supported while the
   // xref -> Activity.hasTriggerCallback sync story is being worked out.
-  // async update(dto: UpdateTriggerCallbackDto) {
-  //   try {
-  //     const existing = await this.findOne(dto.uuid);
+  async update(dto: UpdateTriggerCallbackDto) {
+    try {
+      const existing = await this.findOne(dto.uuid);
 
-  //     const type = dto.type ?? existing.type;
-  //     const config = dto.config ?? existing.config;
-  //     parseCallbackConfig(type, config);
+      const type = dto.type ?? existing.type;
+      const config = dto.config ?? existing.config;
+      parseCallbackConfig(type, config);
 
-  //     return await this.prisma.triggerCallback.update({
-  //       where: { uuid: dto.uuid },
-  //       data: {
-  //         type: dto.type,
-  //         name: dto.name,
-  //         config: dto.config,
-  //         isActive: dto.isActive,
-  //         order: dto.order,
-  //       },
-  //     });
-  //   } catch (error: any) {
-  //     this.logger.error(error);
-  //     throw new RpcException(error.message);
-  //   }
-  // }
+      return await this.prisma.triggerCallback.update({
+        where: { uuid: dto.uuid },
+        data: {
+          type: dto.type,
+          name: dto.name,
+          config: dto.config,
+          isActive: dto.isActive,
+          order: dto.order,
+        },
+      });
+    } catch (error: any) {
+      this.logger.error(error);
+      throw new RpcException(error.message);
+    }
+  }
 
   async remove(dto: RemoveTriggerCallbackDto) {
     const existing = await this.findOne(dto.uuid);

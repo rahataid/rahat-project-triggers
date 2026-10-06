@@ -39,9 +39,9 @@ describe('TriggerCallbackController', () => {
   });
 
   it('create delegates to the service', () => {
-    const payload = { triggerId: 't-1' } as any;
-    controller.create(payload);
-    expect(mockService.create).toHaveBeenCalledWith(payload);
+    const triggerCallbackConfig = [{ triggerId: 't-1' }] as any;
+    controller.create({ triggerCallbackConfig });
+    expect(mockService.create).toHaveBeenCalledWith(triggerCallbackConfig);
   });
 
   it('findAll delegates to findAllForTrigger with the triggerId', () => {

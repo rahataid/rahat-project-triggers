@@ -500,13 +500,13 @@ export class ActivityService {
         }
       }
 
-      const triggers = await this.getRelatedTriggers(uuid);
+      const triggersCallback = await this.getRelatedTriggers(uuid);
 
       return {
         ...activityData,
         activityCommunication,
         activityPayout,
-        triggers,
+        triggersCallback,
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while fetching activity', error);
@@ -521,20 +521,23 @@ export class ActivityService {
         isDeleted: false,
         xref: activityUuid,
       },
-      select: { trigger: { select: { uuid: true, title: true } } },
+      select: {
+        config: true,
+        trigger: { select: { uuid: true, title: true } },
+      },
     });
 
-    const triggerUuids = new Set<string>();
-    const triggers: { uuid: string; title: string | null }[] = [];
+    // const triggerUuids = new Set<string>();
+    // const triggers: { uuid: string; title: string | null }[] = [];
 
-    for (const callback of callbacks) {
-      if (!triggerUuids.has(callback.trigger.uuid)) {
-        triggerUuids.add(callback.trigger.uuid);
-        triggers.push(callback.trigger);
-      }
-    }
+    // for (const callback of callbacks) {
+    //   if (!triggerUuids.has(callback.trigger.uuid)) {
+    //     triggerUuids.add(callback.trigger.uuid);
+    //     triggers.push(callback.trigger);
+    //   }
+    // }
 
-    return triggers;
+    return callbacks;
   }
 
   async getAll(payload: GetActivityDto) {

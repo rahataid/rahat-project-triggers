@@ -153,17 +153,19 @@ export class TriggerCallbackDispatcher {
 
     const allComms = JSON.parse(
       JSON.stringify(activity.activityCommunication ?? []),
-    ) as Array<{ communicationId: string }>;
+    ) as Array<{ communicationId: string; sessionId?: string }>;
+
+    const pending = allComms.filter((c) => !c.sessionId);
 
     const selected = config.communicationIds?.length
-      ? allComms.filter((c) =>
+      ? pending.filter((c) =>
           config.communicationIds.includes(c.communicationId),
         )
-      : allComms;
+      : pending;
 
     if (!selected.length) {
       throw new Error(
-        `No matching communications found on activity ${activityUuid}`,
+        `No pending communications found on activity ${activityUuid}`,
       );
     }
 

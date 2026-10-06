@@ -11,6 +11,7 @@ describe('TriggerCallbackService', () => {
   const mockPrismaService = {
     trigger: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     triggerCallback: {
       create: jest.fn(),
@@ -59,18 +60,20 @@ describe('TriggerCallbackService', () => {
 
   describe('create', () => {
     it('creates a callback when the trigger exists and config is valid', async () => {
-      mockPrismaService.trigger.findUnique.mockResolvedValue({
-        uuid: 'trigger-1',
-      });
+      mockPrismaService.trigger.findMany.mockResolvedValue([
+        { uuid: 'trigger-1' },
+      ]);
       mockPrismaService.triggerCallback.create.mockResolvedValue({
         uuid: 'cb-1',
       });
 
-      const result = await service.create({
-        triggerId: 'trigger-1',
-        type: TriggerCallbackType.WEBHOOK,
-        config: { url: 'https://example.com/hook' },
-      } as any);
+      const result = await service.create([
+        {
+          triggerId: 'trigger-1',
+          type: TriggerCallbackType.WEBHOOK,
+          config: { url: 'https://example.com/hook' },
+        } as any,
+      ]);
 
       expect(mockPrismaService.triggerCallback.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -80,30 +83,34 @@ describe('TriggerCallbackService', () => {
           order: 0,
         }),
       });
-      expect(result).toEqual({ uuid: 'cb-1' });
+      expect(result).toEqual([{ uuid: 'cb-1' }]);
     });
 
     it('rejects an invalid config for the given type', async () => {
       await expect(
-        service.create({
-          triggerId: 'trigger-1',
-          type: TriggerCallbackType.WEBHOOK,
-          config: { url: 'not-a-url' },
-        } as any),
+        service.create([
+          {
+            triggerId: 'trigger-1',
+            type: TriggerCallbackType.WEBHOOK,
+            config: { url: 'not-a-url' },
+          } as any,
+        ]),
       ).rejects.toThrow(RpcException);
 
       expect(mockPrismaService.triggerCallback.create).not.toHaveBeenCalled();
     });
 
     it('rejects when the trigger does not exist', async () => {
-      mockPrismaService.trigger.findUnique.mockResolvedValue(null);
+      mockPrismaService.trigger.findMany.mockResolvedValue([]);
 
       await expect(
-        service.create({
-          triggerId: 'missing-trigger',
-          type: TriggerCallbackType.INTERNAL_EVENT,
-          config: { event: 'events.notification.create' },
-        } as any),
+        service.create([
+          {
+            triggerId: 'missing-trigger',
+            type: TriggerCallbackType.INTERNAL_EVENT,
+            config: { event: 'events.notification.create' },
+          } as any,
+        ]),
       ).rejects.toThrow(RpcException);
     });
   });

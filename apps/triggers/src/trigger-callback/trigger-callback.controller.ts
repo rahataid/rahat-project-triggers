@@ -7,7 +7,7 @@ import {
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { ACTIONS, SUBJECTS } from 'src/common/ability.constants';
 import {
-  CreateTriggerCallbackDto,
+  CreateTriggerCallbacksDto,
   GetTriggerCallbackDto,
   GetTriggerCallbackLogsDto,
   GetTriggerCallbacksDto,
@@ -30,8 +30,8 @@ export class TriggerCallbackController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.ADD,
   })
   @RequireAbility(ACTIONS.CREATE, SUBJECTS.TRIGGER)
-  create(payload: CreateTriggerCallbackDto) {
-    return this.triggerCallbackService.create(payload);
+  create(payload: CreateTriggerCallbacksDto) {
+    return this.triggerCallbackService.create(payload.triggerCallbackConfig);
   }
 
   @MessagePattern({

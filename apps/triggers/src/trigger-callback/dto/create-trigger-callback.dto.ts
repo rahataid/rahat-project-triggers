@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { TriggerCallbackType } from '@lib/database';
+import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -8,6 +11,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateTriggerCallbackDto {
@@ -73,4 +77,16 @@ export class CreateTriggerCallbackPayloadDto {
   @ApiProperty({ type: CreateTriggerCallbackDto })
   @IsObject()
   callback: CreateTriggerCallbackDto;
+}
+
+export class CreateTriggerCallbacksDto {
+  @ApiProperty({
+    type: [CreateTriggerCallbackDto],
+    description: 'Callbacks to create, one or more at a time',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerCallbackDto)
+  triggerCallbackConfig: CreateTriggerCallbackDto[];
 }
