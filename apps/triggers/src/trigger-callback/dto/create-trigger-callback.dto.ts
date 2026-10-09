@@ -90,3 +90,44 @@ export class CreateTriggerCallbacksDto {
   @Type(() => CreateTriggerCallbackDto)
   triggerCallbackConfig: CreateTriggerCallbackDto[];
 }
+
+export class UpdateTriggerCallbacksByXrefDto {
+  @ApiProperty({
+    description:
+      'Opaque reference (e.g. Activity uuid) whose existing callbacks are replaced',
+  })
+  @IsString()
+  @IsNotEmpty()
+  xrefId: string;
+
+  @ApiProperty({
+    type: [CreateTriggerCallbackDto],
+    required: false,
+    description:
+      'Replacement set of callbacks for this xref — existing callbacks with this xref are deleted and these are created in their place. An empty array clears all callbacks for this xref.',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerCallbackDto)
+  triggerCallbackConfig: CreateTriggerCallbackDto[];
+}
+
+export class UpdateTriggerCallbacksByTriggerDto {
+  @ApiProperty({
+    description: 'UUID of the trigger whose existing callbacks are replaced',
+  })
+  @IsString()
+  @IsNotEmpty()
+  triggerId: string;
+
+  @ApiProperty({
+    type: [CreateTriggerCallbackDto],
+    required: false,
+    description:
+      'Replacement set of callbacks for this trigger — existing callbacks on this trigger are deleted and these are created in their place. An empty array clears all callbacks for this trigger.',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerCallbackDto)
+  triggerCallbackConfig: CreateTriggerCallbackDto[];
+}

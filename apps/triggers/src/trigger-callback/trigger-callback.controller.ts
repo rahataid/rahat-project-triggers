@@ -13,6 +13,8 @@ import {
   GetTriggerCallbacksDto,
   RemoveTriggerCallbackDto,
   ReplayTriggerCallbackDto,
+  UpdateTriggerCallbacksByTriggerDto,
+  UpdateTriggerCallbacksByXrefDto,
   // UpdateTriggerCallbackDto, // update is disabled for now
 } from './dto';
 import { TriggerCallbackService } from './trigger-callback.service';
@@ -57,6 +59,23 @@ export class TriggerCallbackController {
   // update(payload: UpdateTriggerCallbackDto) {
   //   return this.triggerCallbackService.update(payload);
   // }
+
+  // we have to removed this updateByXref and updateByTrigger latter
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE_BY_XREF,
+  })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
+  updateByXref(payload: UpdateTriggerCallbacksByXrefDto) {
+    return this.triggerCallbackService.updateByXref(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE_BY_TRIGGER,
+  })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
+  updateByTrigger(payload: UpdateTriggerCallbacksByTriggerDto) {
+    return this.triggerCallbackService.updateByTrigger(payload);
+  }
 
   @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.REMOVE,

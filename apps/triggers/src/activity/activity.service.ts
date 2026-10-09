@@ -522,6 +522,7 @@ export class ActivityService {
         xref: activityUuid,
       },
       select: {
+        uuid: true,
         config: true,
         trigger: { select: { uuid: true, title: true } },
       },
