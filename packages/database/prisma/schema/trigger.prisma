@@ -58,6 +58,8 @@ model TriggerCallback {
   id   Int    @id @default(autoincrement())
   uuid String @unique @default(uuid())
 
+   xref String?
+
   trigger   Trigger @relation(fields: [triggerId], references: [uuid], onDelete: Cascade)
   triggerId String
 
@@ -78,6 +80,7 @@ model TriggerCallback {
   logs TriggerCallbackLog[]
 
   @@index([triggerId])
+  @@index([xref])
   @@map("tbl_trigger_callbacks")
   @@schema("public")
 }

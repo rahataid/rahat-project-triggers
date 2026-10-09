@@ -446,6 +446,7 @@ export class PhasesService {
                 not: ActivityStatus.COMPLETED,
               },
               isDeleted: false,
+              hasTriggerCallback: false,
             },
           },
         },

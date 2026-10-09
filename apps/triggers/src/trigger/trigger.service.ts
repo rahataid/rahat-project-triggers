@@ -21,6 +21,7 @@ import {
   PrismaService,
   DataSource,
   Prisma,
+  TriggerCallbackType,
 } from '@lib/database';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bull';
@@ -273,7 +274,7 @@ export class TriggerService {
     const { uuid } = payload;
     this.logger.log(`Getting trigger with uuid: ${uuid}`);
     try {
-      return await this.prisma.trigger.findUnique({
+      const trigger = await this.prisma.trigger.findUnique({
         where: {
           uuid,
         },
@@ -289,10 +290,43 @@ export class TriggerService {
           },
         },
       });
+
+      if (!trigger) {
+        return trigger;
+      }
+
+      const activities = await this.getRelatedActivities(trigger.callbacks);
+
+      return { ...trigger, activities };
     } catch (error: any) {
       this.logger.error(error.message);
       throw new RpcException(error.message);
     }
+  }
+
+  private async getRelatedActivities(
+    callbacks: { type: TriggerCallbackType; xref: string | null }[],
+  ) {
+    const activityUuids = [
+      ...new Set(
+        callbacks
+          .filter(
+            (cb) =>
+              cb.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
+              cb.xref,
+          )
+          .map((cb) => cb.xref as string),
+      ),
+    ];
+
+    if (!activityUuids.length) {
+      return [];
+    }
+
+    return this.prisma.activity.findMany({
+      where: { uuid: { in: activityUuids } },
+      select: { uuid: true, title: true },
+    });
   }
 
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {
@@ -969,7 +1003,11 @@ export class TriggerService {
               'triggeredAt', t."triggeredAt"::timestamptz,
               'createdAt', t."createdAt"::timestamptz,
               'updatedAt', t."updatedAt"::timestamptz,
-              'leadTime', t."leadTime"
+              'leadTime', t."leadTime",
+              'hasTriggerCallback', EXISTS (
+                SELECT 1 FROM public.tbl_trigger_callbacks tc
+                WHERE tc."triggerId" = t.uuid AND tc."isDeleted" = false
+              )
             )
           ) FILTER (WHERE "isDeleted" = false), '[]') AS "triggers"
         FROM public.tbl_triggers t

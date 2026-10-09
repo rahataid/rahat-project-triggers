@@ -94,6 +94,8 @@ export const MS_TRIGGERS_JOBS = {
       GET_ALL: 'ms.jobs.triggers.callbacks.getAll',
       GET_ONE: 'ms.jobs.triggers.callbacks.getOne',
       UPDATE: 'ms.jobs.triggers.callbacks.update',
+      UPDATE_BY_XREF: 'ms.jobs.triggers.callbacks.update_by_xref',
+      UPDATE_BY_TRIGGER: 'ms.jobs.triggers.callbacks.update_by_trigger',
       REMOVE: 'ms.jobs.triggers.callbacks.remove',
       GET_LOGS: 'ms.jobs.triggers.callbacks.getLogs',
       REPLAY: 'ms.jobs.triggers.callbacks.replay',

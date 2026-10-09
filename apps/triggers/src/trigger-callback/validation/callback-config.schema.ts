@@ -2,7 +2,10 @@ import { z } from 'zod';
 import { TriggerCallbackType } from '@lib/database';
 
 export const activityCommunicationConfigSchema = z.object({
-  activityUuid: z.string().min(1, 'activityUuid is required'),
+  // Legacy/informational — dispatch now resolves the activity from
+  // TriggerCallback.xref, not this field. TODO: once callers stop sending
+  // it, require xref itself at the DTO/service level instead.
+  activityUuid: z.string().optional(),
   communicationIds: z.array(z.string()).optional(),
   appId: z.string().optional(),
 });

@@ -7,13 +7,15 @@ import {
 import { MS_TRIGGERS_JOBS } from 'src/constant';
 import { ACTIONS, SUBJECTS } from 'src/common/ability.constants';
 import {
-  CreateTriggerCallbackDto,
+  CreateTriggerCallbacksDto,
   GetTriggerCallbackDto,
   GetTriggerCallbackLogsDto,
   GetTriggerCallbacksDto,
   RemoveTriggerCallbackDto,
   ReplayTriggerCallbackDto,
-  UpdateTriggerCallbackDto,
+  UpdateTriggerCallbacksByTriggerDto,
+  UpdateTriggerCallbacksByXrefDto,
+  // UpdateTriggerCallbackDto, // update is disabled for now
 } from './dto';
 import { TriggerCallbackService } from './trigger-callback.service';
 
@@ -30,8 +32,8 @@ export class TriggerCallbackController {
     cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.ADD,
   })
   @RequireAbility(ACTIONS.CREATE, SUBJECTS.TRIGGER)
-  create(payload: CreateTriggerCallbackDto) {
-    return this.triggerCallbackService.create(payload);
+  create(payload: CreateTriggerCallbacksDto) {
+    return this.triggerCallbackService.create(payload.triggerCallbackConfig);
   }
 
   @MessagePattern({
@@ -48,12 +50,31 @@ export class TriggerCallbackController {
     return this.triggerCallbackService.findOne(payload.uuid);
   }
 
+  // Update is disabled for now — only create/remove are supported while the
+  // xref -> Activity.hasTriggerCallback sync story is being worked out.
+  // @MessagePattern({
+  //   cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE,
+  // })
+  // @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
+  // update(payload: UpdateTriggerCallbackDto) {
+  //   return this.triggerCallbackService.update(payload);
+  // }
+
+  // we have to removed this updateByXref and updateByTrigger latter
   @MessagePattern({
-    cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE,
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE_BY_XREF,
   })
   @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
-  update(payload: UpdateTriggerCallbackDto) {
-    return this.triggerCallbackService.update(payload);
+  updateByXref(payload: UpdateTriggerCallbacksByXrefDto) {
+    return this.triggerCallbackService.updateByXref(payload);
+  }
+
+  @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.TRIGGER.CALLBACKS.UPDATE_BY_TRIGGER,
+  })
+  @RequireAbility(ACTIONS.UPDATE, SUBJECTS.TRIGGER)
+  updateByTrigger(payload: UpdateTriggerCallbacksByTriggerDto) {
+    return this.triggerCallbackService.updateByTrigger(payload);
   }
 
   @MessagePattern({
