@@ -1,45 +1,389 @@
-name: ALL DEV CI/CD
+# name: ALL DEV CI/CD
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       image_name:
+#         description: "Docker image name (e.g., rahat-project-triggers)"
+#         required: true
+#         default: "rahat-project-triggers"
+#         type: string
+#       dockerfile_path:
+#         description: "Path to Dockerfile"
+#         required: true
+#         default: "apps/triggers/Dockerfile.triggers"
+#         type: string
+#       tag_prefix:
+#         description: "Tag prefix"
+#         required: true
+#         default: "dev"
+#         type: string
+
+# env:
+#   CI: false
+#   PNPM_VERSION: "8.14.1"
+#   NODE_VERSION: "20.10.0"
+
+# jobs:
+#   deploy:
+#     name: Build & Push Docker Image
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+
+#       - name: Get short SHA and Run ID
+#         id: vars
+#         run: |
+#           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+#           echo "run_id_short=${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
+#           echo "image_tag=${{ inputs.tag_prefix }}-$(git rev-parse --short HEAD)-${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
+
+#       - name: Setup pnpm
+#         uses: pnpm/action-setup@v3
+#         with:
+#           version: ${{ env.PNPM_VERSION }}
+
+#       - name: Setup Node.js with caching
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: ${{ env.NODE_VERSION }}
+#           cache: "pnpm"
+
+#       - name: Install dependencies
+#         run: |
+#           pnpm install --frozen-lockfile --prefer-offline
+
+#       - name: Generate database and build
+#         run: |
+#           pnpm --filter @lib/database db:generate
+#           pnpm turbo build --filter=triggers
+
+#       - name: Import Secrets from Vault
+#         id: vault
+#         uses: hashicorp/vault-action@v2.4.0
+#         with:
+#           url: ${{ secrets.VAULT_URL }}
+#           token: ${{ secrets.VAULT_TOKEN }}
+#           secrets: |
+#             github/data/general/docker/esatya username | DOCKERHUB_USERNAME ;
+#             github/data/general/docker/esatya password | DOCKERHUB_TOKEN ;
+
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v3
+#         with:
+#           username: ${{ steps.vault.outputs.DOCKERHUB_USERNAME }}
+#           password: ${{ steps.vault.outputs.DOCKERHUB_TOKEN }}
+
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v3
+#         with:
+#           driver-opts: |
+#             image=moby/buildkit:latest
+#             network=host
+
+#       - name: Build and Push Docker Image
+#         id: build-push
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: .
+#           file: ${{ inputs.dockerfile_path }}
+#           push: true
+#           tags: |
+#             esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
+#             esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+#           cache-from: |
+#             type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
+#             type=registry,ref=esatya/${{ inputs.image_name }}:buildcache
+#           cache-to: type=registry,ref=esatya/${{ inputs.image_name }}:buildcache,mode=max
+#           provenance: false
+#           sbom: false
+
+#       - name: Output build information
+#         run: |
+#           echo "Image Digest: ${{ steps.build-push.outputs.digest }}"
+#           echo "Image Tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}"
+
+#     outputs:
+#       sha_short: ${{ steps.vars.outputs.sha_short }}
+#       run_id_short: ${{ steps.vars.outputs.run_id_short }}
+#       image_tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+#       image_digest: ${{ steps.build-push.outputs.digest }}
+
+
+name: 'ALL DEV CI/CD · Triggers Build & Push'
+run-name: "🚀 ${{ inputs.environment }} · ${{ inputs.custom_branch || github.ref_name }} · @${{ github.actor }}"
+
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Environment to deploy  (env | Docker tag | purpose)'
+        required: true
+        type: choice
+        options:
+          - 'dev-aa | Tag: aa-dev | AA Development'
+          - 'dev-qa | Tag: aa-dev-qa | AA QA Development'
+          - 'dev-stellar | Tag: aa-dev-stellar | AA Stellar Development'
+          - 'dev-unicef | Tag: aa-dev-unicef | UNICEF Development'
+          - 'dev-crm | Tag: dev-crm | CRM Development'
+          - 'dev-aidlink | Tag: dev-aidlink | AidLink Development'
+          - 'demo-stellar | Tag: aa-demo-stellar | AA Stellar Demo'
+          - 'train-mcn | Tag: mcn-training | MCN Training'
+          - 'train-nrcs | Tag: nrcs-training | NRCS Training'
+          - 'demo-mcn | Tag: demo-mcn | MCN Demo'
+          - 'demo-nrcs | Tag: demo-nrcs | NRCS Demo'
+          - 'demo-redcross | Tag: demo-redcross | Red Cross Demo'
+          - 'test-load | Tag: test-load | Load Testing'
+          - 'demo-unicef | Tag: demo-unicef | UNICEF Demo'
+          - 'demo-aidlink | Tag: demo-aidlink | AidLink Demo'
+          - 'demo-xcapita | Tag: demo-xcapita | C2C Xcapita Demo'
+          - 'dry-run-pin | Tag: dry-run-pin | DRY RUN PIN'
+          - 'demo-gsma | Tag: demo-gsma | GSMA Demo'
+          - 'mcn-demo-2026 | Tag: mcn-demo-2026 | MCN Demo 2026'
+          - 'main-geruwa | Tag: main-geruwa | Geruwa Main'
+          - 'main-geruwarm | Tag: main-geruwarm | Geruwa RM Main'
+          - 'main-mcn | Tag: aa-mcn-main | AA MCN Main'
+          - 'main-cam-ken | Tag: main-cam-ken | Cam-Ken Merge Main'
+          - 'prod-aa-demo | Tag: aa-demo-v2 | AA Demo v2 (prod folder)'
+
+      custom_branch:
+        description: 'Branch, tag or full commit SHA to build (leave empty to build the "Use workflow from" branch)'
+        required: false
+        type: string
+
       image_name:
-        description: "Docker image name (e.g., rahat-project-triggers)"
-        required: true
-        default: "rahat-project-triggers"
+        description: 'Docker image name override (leave empty for the default, e.g. rahat-project-triggers)'
+        required: false
         type: string
+
       dockerfile_path:
-        description: "Path to Dockerfile"
-        required: true
-        default: "apps/triggers/Dockerfile.triggers"
+        description: 'Dockerfile path override (leave empty for the default, e.g. apps/triggers/Dockerfile.triggers)'
+        required: false
         type: string
-      tag_prefix:
-        description: "Tag prefix"
-        required: true
-        default: "dev"
-        type: string
+
+concurrency:
+  group: triggers-deploy-${{ inputs.environment }}
+  cancel-in-progress: true
 
 env:
   CI: false
-  PNPM_VERSION: "8.14.1"
-  NODE_VERSION: "20.10.0"
+  PNPM_VERSION: '8.14.1'
+  NODE_VERSION: '20.10.0'
+  IMAGE_NAMESPACE: esatya
 
 jobs:
+  # -----------------------------
+  # Resolve environment config
+  # -----------------------------
+  resolve-config:
+    name: Resolve Environment Config
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.config.outputs.env_name }}
+      tag_suffix: ${{ steps.config.outputs.tag_suffix }}
+      image_name: ${{ steps.config.outputs.image_name }}
+      dockerfile_path: ${{ steps.config.outputs.dockerfile_path }}
+      turbo_filter: ${{ steps.config.outputs.turbo_filter }}
+      overrides: ${{ steps.config.outputs.overrides }}
+      env_config: ${{ steps.config.outputs.env_config }}
+      target_ref: ${{ steps.target.outputs.ref }}
+      target_sha: ${{ steps.target.outputs.sha }}
+    steps:
+      - name: Checkout environment config
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/TRIGGERS-CICD.environments.json
+          sparse-checkout-cone-mode: false
+
+      # Workflow file and env config come from the "Use workflow from" branch;
+      # the code that gets built comes from `custom_branch` (if set).
+      - name: Resolve branch to build
+        id: target
+        env:
+          TARGET_REF: ${{ inputs.custom_branch || github.ref_name }}
+        run: |
+          set -euo pipefail
+          REF=$(printf '%s' "$TARGET_REF" | xargs)
+          if ! git fetch --quiet --depth=1 --no-tags origin "$REF"; then
+            echo "::error::Could not find branch, tag or commit '$REF'. Use a full 40-character SHA for commits."
+            exit 1
+          fi
+          SHA=$(git rev-parse FETCH_HEAD)
+          echo "Building $REF @ $SHA"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve config from manual input
+        id: config
+        env:
+          SELECTED: ${{ inputs.environment }}
+          IMAGE_OVERRIDE: ${{ inputs.image_name }}
+          DOCKERFILE_OVERRIDE: ${{ inputs.dockerfile_path }}
+        run: |
+          set -euo pipefail
+          FILE=.github/TRIGGERS-CICD.environments.json
+
+          # Dropdown options look like "demo-redcross | Tag: demo-redcross | Red Cross Demo"
+          ENV=$(printf '%s' "$SELECTED" | cut -d'|' -f1 | xargs)
+
+          if ! jq -e --arg e "$ENV" '.environments | has($e)' "$FILE" >/dev/null; then
+            echo "::error::Unknown environment: '$ENV' (from '$SELECTED')"
+            exit 1
+          fi
+
+          # Merge per-environment values over the file defaults
+          CFG=$(jq -c --arg e "$ENV" '
+            .defaults as $d | .environments[$e] | {
+              description,
+              tag,
+              image_name:      (.image_name      // $d.image_name),
+              dockerfile_path: (.dockerfile_path // $d.dockerfile_path),
+              turbo_filter:    (.turbo_filter    // $d.turbo_filter),
+              urls:            (.urls  // {}),
+              notes:           (.notes // [])
+            }' "$FILE")
+
+          TAG=$(jq -r '.tag' <<<"$CFG")
+          IMAGE=$(jq -r '.image_name' <<<"$CFG")
+          DOCKERFILE=$(jq -r '.dockerfile_path' <<<"$CFG")
+          FILTER=$(jq -r '.turbo_filter' <<<"$CFG")
+
+          # Guard: the Tag shown in the dropdown label must match the JSON config
+          LABEL_TAG=$(printf '%s' "$SELECTED" | sed -n 's/.*Tag:[[:space:]]*\([^|[:space:]]*\).*/\1/p')
+          if [ -n "$LABEL_TAG" ] && [ "$LABEL_TAG" != "$TAG" ]; then
+            echo "::error::Dropdown label says Tag '$LABEL_TAG' but TRIGGERS-CICD.environments.json for '$ENV' uses '$TAG'. Update the dropdown or the JSON and commit."
+            exit 1
+          fi
+
+          # Optional manual overrides
+          OVERRIDES=""
+          if [ -n "$IMAGE_OVERRIDE" ]; then
+            IMAGE=$(printf '%s' "$IMAGE_OVERRIDE" | tr -d '[:space:]')
+            OVERRIDES="image_name"
+          fi
+          if [ -n "$DOCKERFILE_OVERRIDE" ]; then
+            DOCKERFILE=$(printf '%s' "$DOCKERFILE_OVERRIDE" | tr -d '[:space:]')
+            OVERRIDES="${OVERRIDES:+$OVERRIDES, }dockerfile_path"
+          fi
+
+          echo "Environment : $ENV"
+          echo "Docker tag  : $TAG"
+          echo "Image       : $IMAGE"
+          echo "Dockerfile  : $DOCKERFILE"
+          echo "Turbo filter: $FILTER"
+          echo "Overrides   : ${OVERRIDES:-none}"
+
+          {
+            echo "env_name=$ENV"
+            echo "tag_suffix=$TAG"
+            echo "image_name=$IMAGE"
+            echo "dockerfile_path=$DOCKERFILE"
+            echo "turbo_filter=$FILTER"
+            echo "overrides=$OVERRIDES"
+            echo "env_config=$CFG"
+          } >> "$GITHUB_OUTPUT"
+
+  # -----------------------------
+  # Deployment Preview (runs before any build)
+  # -----------------------------
+  preview:
+    name: Deployment Preview
+    runs-on: ubuntu-latest
+    needs: resolve-config
+    steps:
+      - name: Show what will be built and pushed
+        env:
+          ENV_NAME: ${{ needs.resolve-config.outputs.env_name }}
+          TAG: ${{ needs.resolve-config.outputs.tag_suffix }}
+          IMAGE_NAME: ${{ needs.resolve-config.outputs.image_name }}
+          DOCKERFILE: ${{ needs.resolve-config.outputs.dockerfile_path }}
+          TURBO_FILTER: ${{ needs.resolve-config.outputs.turbo_filter }}
+          OVERRIDES: ${{ needs.resolve-config.outputs.overrides }}
+          CFG: ${{ needs.resolve-config.outputs.env_config }}
+          TARGET_REF: ${{ needs.resolve-config.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.resolve-config.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${TARGET_SHA::7}"
+          RUN_TAG="${TAG}-${SHORT_SHA}-${GITHUB_RUN_NUMBER}"
+          IMAGE="$IMAGE_NAMESPACE/$IMAGE_NAME"
+          DESCRIPTION=$(jq -r '.description' <<<"$CFG")
+
+          {
+            echo "## 🚀 Deployment Preview: \`$ENV_NAME\`"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Environment** | \`$ENV_NAME\` |"
+            echo "| **Description** | $DESCRIPTION |"
+            echo "| **Docker tag** | \`$TAG\` |"
+            echo "| **Run-specific tag** | \`$RUN_TAG\` |"
+            echo "| **Branch being built** | \`$TARGET_REF\` |"
+            echo "| **Commit** | [\`$SHORT_SHA\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$TARGET_SHA) |"
+            echo "| **Workflow file from** | \`$GITHUB_REF_NAME\` |"
+            echo "| **Triggered by** | @$GITHUB_ACTOR |"
+            echo "| **Dockerfile** | \`$DOCKERFILE\` |"
+            echo "| **Turbo filter** | \`$TURBO_FILTER\` |"
+            echo ""
+            echo "### 🐳 Images to be pushed"
+            echo ""
+            echo "| Image | Run-specific image |"
+            echo "|---|---|"
+            echo "| \`$IMAGE:$TAG\` | \`$IMAGE:$RUN_TAG\` |"
+            echo ""
+            echo "### 🌐 Deployment URLs"
+            echo ""
+            if [ "$(jq '.urls | length' <<<"$CFG")" -gt 0 ]; then
+              jq -r '.urls | to_entries[] | "- **\(.key):** <\(.value)>"' <<<"$CFG"
+            else
+              echo "_No deployment URLs configured for this environment. Add them to \`.github/TRIGGERS-CICD.environments.json\`._"
+            fi
+            echo ""
+            NOTES=$(jq -r '.notes[]?' <<<"$CFG")
+            if [ -n "$NOTES" ] || [ -n "$OVERRIDES" ]; then
+              echo "### ⚠️ Notes"
+              echo ""
+              [ -n "$NOTES" ] && printf '%s\n' "$NOTES" | sed 's/^/> ⚠️ /'
+              [ -n "$OVERRIDES" ] && echo "> ⚠️ Environment defaults were overridden by input(s): \`$OVERRIDES\`."
+              echo ""
+            fi
+          } > preview.md
+
+          cat preview.md
+          cat preview.md >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------
+  # Build & Push
+  # -----------------------------
   deploy:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
+    needs: [resolve-config, preview]
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve-config.outputs.target_sha }}
           fetch-depth: 0
 
-      - name: Get short SHA and Run ID
+      - name: Get short SHA and image tag
         id: vars
+        env:
+          TAG: ${{ needs.resolve-config.outputs.tag_suffix }}
+          TARGET_SHA: ${{ needs.resolve-config.outputs.target_sha }}
         run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "run_id_short=${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
-          echo "image_tag=${{ inputs.tag_prefix }}-$(git rev-parse --short HEAD)-${GITHUB_RUN_ID:0:3}" >> $GITHUB_OUTPUT
+          SHORT_SHA="${TARGET_SHA::7}"
+          echo "sha_short=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "run_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${TAG}-${SHORT_SHA}-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -50,16 +394,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile --prefer-offline
 
       - name: Generate database and build
+        env:
+          TURBO_FILTER: ${{ needs.resolve-config.outputs.turbo_filter }}
         run: |
           pnpm --filter @lib/database db:generate
-          pnpm turbo build --filter=triggers
+          pnpm turbo build --filter="$TURBO_FILTER"
 
       - name: Import Secrets from Vault
         id: vault
@@ -89,25 +435,33 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ inputs.dockerfile_path }}
+          file: ${{ needs.resolve-config.outputs.dockerfile_path }}
           push: true
           tags: |
-            esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-            esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+            ${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:${{ needs.resolve-config.outputs.tag_suffix }}
+            ${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:${{ steps.vars.outputs.image_tag }}
           cache-from: |
-            type=registry,ref=esatya/${{ inputs.image_name }}:${{ inputs.tag_prefix }}
-            type=registry,ref=esatya/${{ inputs.image_name }}:buildcache
-          cache-to: type=registry,ref=esatya/${{ inputs.image_name }}:buildcache,mode=max
+            type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:${{ needs.resolve-config.outputs.tag_suffix }}
+            type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:buildcache,mode=max
           provenance: false
           sbom: false
 
       - name: Output build information
+        env:
+          IMAGE_REF: ${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+          DIGEST: ${{ steps.build-push.outputs.digest }}
         run: |
-          echo "Image Digest: ${{ steps.build-push.outputs.digest }}"
-          echo "Image Tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}"
+          echo "Image Digest: $DIGEST"
+          echo "Image Tag: $IMAGE_REF"
+          {
+            echo "### ✅ Pushed"
+            echo ""
+            echo "- \`$IMAGE_REF\`"
+            echo "- Digest: \`$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
-      run_id_short: ${{ steps.vars.outputs.run_id_short }}
-      image_tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
+      image_tag: ${{ env.IMAGE_NAMESPACE }}/${{ needs.resolve-config.outputs.image_name }}:${{ steps.vars.outputs.image_tag }}
       image_digest: ${{ steps.build-push.outputs.digest }}
