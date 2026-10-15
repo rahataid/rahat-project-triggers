@@ -9,8 +9,6 @@ import { setupProcessHandlers } from './utils/global-filters.filter';
 const logger = new Logger('Bootstrap');
 
 export async function bootstrap() {
-  setupProcessHandlers(logger);
-
   try {
     const PORT: number = process.env.PORT ? Number(process.env.PORT) : 7080;
 
@@ -29,6 +27,8 @@ export async function bootstrap() {
         },
       },
     );
+
+    setupProcessHandlers(logger, app);
 
     // app.useGlobalPipes(
     //   new ValidationPipe({

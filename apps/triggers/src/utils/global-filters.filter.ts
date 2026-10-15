@@ -1,6 +1,9 @@
-import { Logger } from '@nestjs/common';
+import { INestApplicationContext, Logger } from '@nestjs/common';
 
-export function setupProcessHandlers(logger: Logger) {
+export function setupProcessHandlers(
+  logger: Logger,
+  app?: INestApplicationContext,
+) {
   process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
     try {
       logger.error(
@@ -35,21 +38,22 @@ export function setupProcessHandlers(logger: Logger) {
     }
   });
 
-  process.on('SIGTERM', () => {
+  const shutdown = async (signal: string) => {
     try {
-      logger.warn('SIGTERM signal received: closing application gracefully');
+      logger.warn(`${signal} signal received: closing application gracefully`);
     } catch (logError) {
-      console.warn('Logger failed in SIGTERM handler:', logError);
+      console.warn(`Logger failed in ${signal} handler:`, logError);
     }
-    process.exit(0);
-  });
 
-  process.on('SIGINT', () => {
     try {
-      logger.warn('SIGINT signal received: closing application gracefully');
-    } catch (logError) {
-      console.warn('Logger failed in SIGINT handler:', logError);
+      await app?.close();
+    } catch (closeError) {
+      logger.error('Error while closing application', closeError as Error);
+    } finally {
+      process.exit(0);
     }
-    process.exit(0);
-  });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
