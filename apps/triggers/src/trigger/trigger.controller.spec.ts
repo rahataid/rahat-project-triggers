@@ -10,6 +10,9 @@ import {
   GetByLocationPayloadDto,
 } from './dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SseService } from 'src/sse/sse.service';
+import { TriggerCallbackService } from 'src/trigger-callback/trigger-callback.service';
+import { MicroserviceAuthGuard } from '@rumsan/user/ability/ms-rpc-auth';
 
 describe('TriggerController', () => {
   let controller: TriggerController;
@@ -70,6 +73,15 @@ describe('TriggerController', () => {
   const mockEventEmitter = {
     emit: jest.fn(),
   };
+
+  const mockSseService = {
+    publishEvent: jest.fn(),
+  };
+
+  const mockTriggerCallbackService = {
+    enqueueForTrigger: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TriggerController],
@@ -103,8 +115,19 @@ describe('TriggerController', () => {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
         },
+        {
+          provide: SseService,
+          useValue: mockSseService,
+        },
+        {
+          provide: TriggerCallbackService,
+          useValue: mockTriggerCallbackService,
+        },
       ],
-    }).compile();
+    })
+      .overrideGuard(MicroserviceAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<TriggerController>(TriggerController);
     mockTriggerService = module.get(TriggerService);
