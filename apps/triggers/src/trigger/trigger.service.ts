@@ -1,3 +1,4 @@
+//rahat-project-triggers/apps/triggers/src/trigger/trigger.service.ts
 import {
   BadRequestException,
   forwardRef,
@@ -34,7 +35,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { triggerPayloadSchema } from './validation/trigger.schema';
 import { TRIGGER_CONSTANTS } from './trigger.constants';
 import { SseService } from 'src/sse/sse.service';
-
+import {
+  NotificationChannel,
+  NotificationPayload,
+} from 'src/types/notification-types';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
@@ -554,6 +558,22 @@ export class TriggerService {
           },
         });
 
+        // this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+        //   payload: {
+        //     title: `Trigger Statement Met for ${phase.riverBasin}`,
+        //     description: `The trigger condition has been met for phase ${phase.name}, year ${phase.activeYear}, in the ${phase.riverBasin} river basin.`,
+        //     group: 'Trigger Statement',
+        //     notify: true,
+        //     push: {
+        //       data: {
+        //         phaseUuid: phase.uuid,
+        //         riverBasin: phase.riverBasin,
+        //         activeYear: phase.activeYear,
+        //       },
+        //     },
+        //   },
+        // });
+
         this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
           payload: {
             title: `Trigger Statement Met for ${phase.riverBasin}`,
@@ -702,23 +722,21 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-      // TODO: make this function dynamic based on chain type
-      // const res = await this.sendUpdateTriggerToOnChain(
-      //   appId ? appId : appIds?.app,
-      //   jobDetails,
-      // );
-
-      // this.logger.log(`
-      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-      //   `);
+      const notification: NotificationPayload = {
+        projectId: appId || appIds?.app,
+        title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
+        description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
+        group: 'Trigger Statement',
+        audience: { permissions: [{ action: 'read', subject: 'Trigger' }] },
+        channels: [
+          NotificationChannel.PUSH,
+          NotificationChannel.EMAIL,
+          NotificationChannel.SMS,
+        ],
+      };
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
-        payload: {
-          title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
-          description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
-          group: 'Trigger Statement',
-          notify: true,
-        },
+        payload: notification,
       });
 
       return updatedTrigger;
