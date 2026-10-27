@@ -216,6 +216,12 @@ export class TriggerService {
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
         source: dto.source || trigger.source,
         leadTime: dto.leadTime ?? trigger.leadTime,
+        extra: dto.manualSources
+          ? {
+              ...((trigger.extra as Record<string, any>) ?? {}),
+              manualSources: dto.manualSources,
+            }
+          : trigger.extra,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -319,7 +325,7 @@ export class TriggerService {
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {
     this.logger.log(`Creating ${dto.source} trigger for app: ${appId}`);
     try {
-      const { phaseId, ...rest } = dto;
+      const { phaseId, manualSources, ...rest } = dto;
       const phase = await this.phasesService.findOne(phaseId);
 
       if (!phase) {
@@ -339,6 +345,7 @@ export class TriggerService {
           },
         },
         source: dto.source,
+        ...(manualSources && { extra: { manualSources } }),
         isDeleted: false,
         repeatKey: randomUUID(),
         createdBy,
@@ -995,6 +1002,7 @@ export class TriggerService {
               'description', t.description,
               'triggerStatement', t."triggerStatement",
               'triggerDocuments', t."triggerDocuments",
+              'extra', t.extra,
               'notes', t.notes,
               'phaseId', t."phaseId",
               'source', t.source,
