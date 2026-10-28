@@ -19,7 +19,7 @@
     },
     "dev-stellar": {
       "description": "AA Stellar Development",
-      "tag": "aa-dev-stellar",
+      "tag": "aa-stellar",
       "urls": {},
       "notes": []
     },
