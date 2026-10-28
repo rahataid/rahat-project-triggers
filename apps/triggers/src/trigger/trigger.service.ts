@@ -732,6 +732,7 @@ export class TriggerService {
           permissions: [{ action: ACTIONS.READ, subject: SUBJECTS.TRIGGER }],
         },
         channels: [
+          NotificationChannel.IN_APP,
           NotificationChannel.PUSH,
           NotificationChannel.EMAIL,
           NotificationChannel.SMS,
