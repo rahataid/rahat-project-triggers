@@ -95,10 +95,9 @@ export interface Gauge {
 }
 
 interface ForecastRange {
-  timeRange?: {
-    startTime?: string;
-    endTime?: string;
-  };
+  value?: number;
+  forecastStartTime?: string;
+  forecastEndTime?: string;
   trend?: string;
   severity?: string;
   [key: string]: any;
