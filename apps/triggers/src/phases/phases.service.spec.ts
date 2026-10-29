@@ -34,6 +34,8 @@ import {
   ConfigureThresholdPhaseDto,
 } from './dto';
 import { of } from 'rxjs';
+import { SseService } from 'src/sse/sse.service';
+import { TriggerCallbackService } from 'src/trigger-callback/trigger-callback.service';
 
 describe('PhasesService', () => {
   let service: PhasesService;
@@ -98,6 +100,15 @@ describe('PhasesService', () => {
     emit: jest.fn(),
   };
 
+  const mockSseService = {
+    publishEvent: jest.fn(),
+  };
+
+  const mockTriggerCallbackService = {
+    enqueueForTrigger: jest.fn(),
+    cloneForNewTrigger: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -125,6 +136,14 @@ describe('PhasesService', () => {
         {
           provide: MS_TRIGGER_CLIENTS.RAHAT,
           useValue: mockClientProxy,
+        },
+        {
+          provide: SseService,
+          useValue: mockSseService,
+        },
+        {
+          provide: TriggerCallbackService,
+          useValue: mockTriggerCallbackService,
         },
       ],
     }).compile();
@@ -1159,7 +1178,9 @@ describe('PhasesService', () => {
       (prismaService.phase.findUnique as jest.Mock).mockResolvedValue(
         mockPhase,
       );
-      (triggerService.createTrigger as jest.Mock).mockResolvedValue({});
+      (triggerService.createTrigger as jest.Mock).mockResolvedValue({
+        uuid: 'trigger-1-v2',
+      });
       (triggerService.archive as jest.Mock).mockResolvedValue({});
       (prismaService.phase.update as jest.Mock).mockResolvedValue({
         ...mockPhase,
@@ -1192,6 +1213,9 @@ describe('PhasesService', () => {
       );
 
       expect(triggerService.archive).toHaveBeenCalledWith('trigger-1');
+      expect(
+        mockTriggerCallbackService.cloneForNewTrigger,
+      ).toHaveBeenCalledWith('trigger-1', 'trigger-1-v2');
       expect(eventEmitter.emit).toHaveBeenCalledWith(EVENTS.PHASE_REVERTED, {
         phaseId: payload.phaseId,
         revertedAt: expect.any(String),

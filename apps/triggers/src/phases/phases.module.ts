@@ -7,6 +7,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TriggerModule } from 'src/trigger/trigger.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SseModule } from 'src/sse/sse.module';
+import { TriggerCallbackModule } from 'src/trigger-callback/trigger-callback.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SseModule } from 'src/sse/sse.module';
       name: BQUEUE.COMMUNICATION,
     }),
     forwardRef(() => TriggerModule),
+    TriggerCallbackModule,
     ClientsModule.registerAsync([
       {
         name: MS_TRIGGER_CLIENTS.RAHAT,
