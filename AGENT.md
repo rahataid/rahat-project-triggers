@@ -69,3 +69,12 @@ This repo already has `.cursor/rules/*.mdc` files (naming conventions, module st
 ## Keeping docs in sync
 
 Same convention as the other three repos in this ecosystem: update the relevant `docs/agent/*.md` when the implementation changes, bump `_Last updated: YYYY-MM-DD_` for functional changes.
+
+## Commits and pull requests
+
+Commits and PRs in this repo are authored by the developer. When writing them:
+
+- Do not add `Co-Authored-By` trailers or "Generated with ..." lines for any AI agent or tool.
+- Do not name or mention an AI agent, assistant, or model in commit messages, PR titles, or PR descriptions.
+- Commit as the configured git user; never set the author or committer to an agent identity.
+- Describe the change itself, in the developer's voice.
