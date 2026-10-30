@@ -1,3 +1,4 @@
+//rahat-project-triggers/apps/triggers/src/trigger/trigger.service.ts
 import {
   BadRequestException,
   forwardRef,
@@ -23,6 +24,7 @@ import {
   Prisma,
 } from '@lib/database';
 import { randomUUID } from 'crypto';
+import { isUUID } from 'class-validator';
 import { InjectQueue } from '@nestjs/bull';
 import { BQUEUE, CORE_MODULE, EVENTS, JOBS } from 'src/constant';
 import type { Queue } from 'bull';
@@ -34,7 +36,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { triggerPayloadSchema } from './validation/trigger.schema';
 import { TRIGGER_CONSTANTS } from './trigger.constants';
 import { SseService } from 'src/sse/sse.service';
-
+import { ACTIONS, SUBJECTS } from 'src/common/ability.constants';
+import {
+  NotificationChannel,
+  NotificationPayload,
+} from 'src/types/notification-types';
 const paginate: PaginatorTypes.PaginateFunction = paginator({ perPage: 10 });
 
 @Injectable()
@@ -468,101 +474,205 @@ export class TriggerService {
 
       const triggers = await this.prisma.trigger.findMany({
         where: triggerWhereArgs,
-      });
-
-      if (triggers.length !== ids.length) {
-        const notfoundTriggers = ids.filter(
-          (id) => !triggers.some((trigger) => trigger.uuid === id),
-        );
-        this.logger.warn(
-          `Some triggers not found to activate: ${notfoundTriggers.join(', ')}`,
-        );
-      }
-
-      const phases: Record<
-        string,
-        { mandatoryTriggers: number; optionalTriggers: number }
-      > = triggers.reduce((acc, trigger) => {
-        if (!acc[trigger.phaseId as string]) {
-          acc[trigger.phaseId] = {
-            mandatoryTriggers: 0,
-            optionalTriggers: 0,
-          };
-        }
-
-        if (trigger.isMandatory) {
-          acc[trigger.phaseId].mandatoryTriggers++;
-        } else {
-          acc[trigger.phaseId].optionalTriggers++;
-        }
-
-        return acc;
-      }, {});
-
-      const updatedTriggers = await this.prisma.trigger.updateMany({
-        where: triggerWhereArgs,
-        data: {
-          isTriggered: true,
-          triggeredAt: new Date(),
-          triggeredBy: 'System',
+        include: {
+          phase: {
+            include: {
+              source: true,
+            },
+          },
         },
       });
 
-      this.logger.log(`Total ${updatedTriggers.count} triggers updated`);
+      const updatedTriggersList: any[] = [];
 
-      for (const phaseId in phases) {
-        await this.prisma.phase.update({
+      for (const trigger of triggers) {
+        // 1. Update individual trigger status
+        const updatedTrigger = await this.prisma.trigger.update({
           where: {
-            uuid: phaseId,
+            uuid: trigger.uuid,
           },
           data: {
-            receivedMandatoryTriggers: {
-              increment: phases[phaseId].mandatoryTriggers,
-            },
-            receivedOptionalTriggers: {
-              increment: phases[phaseId].optionalTriggers,
-            },
+            isTriggered: true,
+            triggeredAt: new Date(),
+            triggeredBy: 'System',
+          },
+          include: {
+            phase: true,
           },
         });
-      }
 
-      const jobs = triggers.map((trigger) => ({
-        name: JOBS.TRIGGER.REACHED_THRESHOLD,
-        data: trigger,
-        opts: {
+        updatedTriggersList.push(updatedTrigger);
+
+        await this.sseService.publishEvent('phase.updated', updatedTrigger);
+
+        if (trigger.isMandatory) {
+          await this.prisma.phase.update({
+            where: {
+              uuid: trigger.phaseId,
+            },
+            data: {
+              receivedMandatoryTriggers: {
+                increment: 1,
+              },
+            },
+          });
+        } else {
+          await this.prisma.phase.update({
+            where: {
+              uuid: trigger.phaseId,
+            },
+            data: {
+              receivedOptionalTriggers: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        // 4. Add job to trigger queue
+        this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
           attempts: 3,
           removeOnComplete: true,
           backoff: {
             type: 'exponential',
             delay: 1000,
           },
-        },
-      }));
+        });
 
-      this.logger.log(
-        `Total ${jobs.length} triggers added to trigger threshold queue`,
-      );
+        this.logger.log(
+          `Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD}`,
+        );
 
-      this.triggerQueue.addBulk(jobs);
-
-      // TODO: Need to think about onchain queue update
-
-      for (const phaseId in phases) {
-        const phase = await this.prisma.phase.findUnique({
+        // 5. Resolve appId via Activity for notifications
+        const appIds = await this.prisma.activity.findFirst({
           where: {
-            uuid: phaseId,
+            phaseId: trigger.phaseId,
           },
         });
+
+        const targetAppId = appIds?.app;
+
+        if (!targetAppId) {
+          this.logger.warn(
+            `No appId found for phaseId: ${trigger.phaseId}. Skipping notification creation.`,
+          );
+          continue;
+        }
+
+        // if (triggers.length !== ids.length) {
+        //   const notfoundTriggers = ids.filter(
+        //     (id) => !triggers.some((trigger) => trigger.uuid === id),
+        //   );
+        //   this.logger.warn(
+        //     `Some triggers not found to activate: ${notfoundTriggers.join(', ')}`,
+        //   );
+        // }
+
+        // const phases: Record<
+        //   string,
+        //   { mandatoryTriggers: number; optionalTriggers: number }
+        // > = triggers.reduce((acc, trigger) => {
+        //   if (!acc[trigger.phaseId as string]) {
+        //     acc[trigger.phaseId] = {
+        //       mandatoryTriggers: 0,
+        //       optionalTriggers: 0,
+        //     };
+        //   }
+
+        //   if (trigger.isMandatory) {
+        //     acc[trigger.phaseId].mandatoryTriggers++;
+        //   } else {
+        //     acc[trigger.phaseId].optionalTriggers++;
+        //   }
+
+        //   return acc;
+        // }, {});
+
+        // const updatedTriggers = await this.prisma.trigger.updateMany({
+        //   where: triggerWhereArgs,
+        //   data: {
+        //     isTriggered: true,
+        //     triggeredAt: new Date(),
+        //     triggeredBy: 'System',
+        //   },
+        // });
+
+        // this.logger.log(`Total ${updatedTriggers.count} triggers updated`);
+
+        // for (const phaseId in phases) {
+        //   await this.prisma.phase.update({
+        //     where: {
+        //       uuid: phaseId,
+        //     },
+        //     data: {
+        //       receivedMandatoryTriggers: {
+        //         increment: phases[phaseId].mandatoryTriggers,
+        //       },
+        //       receivedOptionalTriggers: {
+        //         increment: phases[phaseId].optionalTriggers,
+        //       },
+        //     },
+        //   });
+        // }
+
+        // const jobs = triggers.map((trigger) => ({
+        //   name: JOBS.TRIGGER.REACHED_THRESHOLD,
+        //   data: trigger,
+        //   opts: {
+        //     attempts: 3,
+        //     removeOnComplete: true,
+        //     backoff: {
+        //       type: 'exponential',
+        //       delay: 1000,
+        //     },
+        //   },
+        // }));
+
+        // this.logger.log(
+        //   `Total ${jobs.length} triggers added to trigger threshold queue`,
+        // );
+
+        // this.triggerQueue.addBulk(jobs);
+
+        // TODO: Need to think about onchain queue update
+
+        // for (const phaseId in phases) {
+        //   const phase = await this.prisma.phase.findUnique({
+        //     where: {
+        //       uuid: phaseId,
+        //     },
+        //   });
+
+        //   this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+        //     payload: {
+        //       title: `Trigger Statement Met for ${phase.riverBasin}`,
+        //       description: `The trigger condition has been met for phase ${phase.name}, year ${phase.activeYear}, in the ${phase.riverBasin} river basin.`,
+        //       group: 'Trigger Statement',
+        //       notify: true,
+        //     },
+        //   });
+        // }
+        const notification: NotificationPayload = {
+          projectId: targetAppId,
+          title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
+          description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
+          group: 'Trigger Statement',
+          audience: {
+            permissions: [{ action: ACTIONS.READ, subject: SUBJECTS.TRIGGER }],
+          },
+          channels: [
+            NotificationChannel.IN_APP,
+            NotificationChannel.PUSH,
+            NotificationChannel.EMAIL,
+            NotificationChannel.SMS,
+          ],
+        };
 
         this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
-          payload: {
-            title: `Trigger Statement Met for ${phase.riverBasin}`,
-            description: `The trigger condition has been met for phase ${phase.name}, year ${phase.activeYear}, in the ${phase.riverBasin} river basin.`,
-            group: 'Trigger Statement',
-            notify: true,
-          },
+          payload: notification,
         });
       }
+      return updatedTriggersList;
     } catch (error: any) {
       this.logger.error(error);
       if (error instanceof RpcException) throw error;
@@ -687,7 +797,11 @@ export class TriggerService {
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
         `);
 
+      // Notify activity managers whose activities share this trigger's lead time
+      await this.notifyActivityManagers(updatedTrigger, appId);
+
       const phaseId = updatedTrigger.phaseId;
+
       const appIds = await this.prisma.activity.findFirst({
         where: {
           phaseId,
@@ -702,23 +816,24 @@ export class TriggerService {
         return updatedTrigger;
       }
 
-      // TODO: make this function dynamic based on chain type
-      // const res = await this.sendUpdateTriggerToOnChain(
-      //   appId ? appId : appIds?.app,
-      //   jobDetails,
-      // );
-
-      // this.logger.log(`
-      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
-      //   `);
+      const notification: NotificationPayload = {
+        projectId: appId || appIds?.app,
+        title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
+        description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
+        group: 'Trigger Statement',
+        audience: {
+          permissions: [{ action: ACTIONS.READ, subject: SUBJECTS.TRIGGER }],
+        },
+        channels: [
+          NotificationChannel.IN_APP,
+          NotificationChannel.PUSH,
+          NotificationChannel.EMAIL,
+          NotificationChannel.SMS,
+        ],
+      };
 
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
-        payload: {
-          title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
-          description: `The trigger condition has been met for phase ${updatedTrigger.phase.name}, year ${updatedTrigger.phase.activeYear}, in the ${updatedTrigger.phase.riverBasin} river basin.`,
-          group: 'Trigger Statement',
-          notify: true,
-        },
+        payload: notification,
       });
 
       return updatedTrigger;
@@ -834,6 +949,155 @@ export class TriggerService {
         phase: true,
       },
     });
+  }
+
+  /**
+   * After a trigger is activated: find all activities of the same phase that have
+   * the same leadTime as the trigger, and notify their managers (IN_APP + EMAIL).
+   * Never throws; a failure here must not affect trigger activation.
+   */
+  private async notifyActivityManagers(
+    trigger: {
+      uuid: string;
+      title?: string | null;
+      phaseId?: string | null;
+      leadTime?: string | null;
+      phase?: { name: string; activeYear: string; riverBasin: string } | null;
+    },
+    appId?: string,
+  ): Promise<void> {
+    try {
+      const leadTime = trigger.leadTime?.trim();
+      const targetKey = this.normalizeLeadTime(leadTime);
+
+      console.log(
+        `Trigger ${trigger.uuid}: notifying activity managers for leadTime -->>> "${leadTime}"`,
+      );
+
+      if (!leadTime || !trigger.phaseId) {
+        this.logger.log(
+          `Trigger ${trigger.uuid}: no leadTime/phase, skipping activity manager notification`,
+        );
+        return;
+      }
+
+      const phaseActivities = await this.prisma.activity.findMany({
+        where: {
+          phaseId: trigger.phaseId,
+          isDeleted: false,
+          isTemplate: false,
+          status: { not: 'COMPLETED' },
+          managerId: { not: null },
+        },
+        select: { title: true, managerId: true, app: true, leadTime: true },
+      });
+
+      const activities = phaseActivities.filter(
+        (a) => this.normalizeLeadTime(a.leadTime) === targetKey,
+      );
+
+      this.logger.log(
+        `Phase ${trigger.phaseId}: ${phaseActivities.length} candidate activities, ` +
+          `${activities.length} match leadTime "${leadTime}" (key=${targetKey})`,
+      );
+
+      // const activities = await this.prisma.activity.findMany({
+      //   where: {
+      //     phaseId: trigger.phaseId,
+      //     leadTime: { equals: leadTime, mode: 'insensitive' },
+      //     isDeleted: false,
+      //     isTemplate: false,
+      //     status: { not: 'COMPLETED' },
+      //     managerId: { not: null },
+      //   },
+      //   select: { title: true, managerId: true, app: true },
+      // });
+
+      // console.log(`activities with leadTime "${leadTime}" in phase ${trigger.phaseId}-->>:`, activities);
+
+      if (!activities.length) {
+        this.logger.log(
+          `Trigger ${trigger.uuid}: no activities with leadTime "${leadTime}" in phase ${trigger.phaseId}`,
+        );
+        return;
+      }
+
+      // managerId -> activity titles (dedupes managers, skips invalid ids)
+      const byManager = new Map<string, string[]>();
+      for (const activity of activities) {
+        const managerId = activity.managerId;
+        if (!managerId || !isUUID(managerId)) {
+          this.logger.warn(
+            `Skipping activity "${activity.title}": managerId "${managerId}" is not a valid user uuid`,
+          );
+          continue;
+        }
+        byManager.set(managerId, [
+          ...(byManager.get(managerId) ?? []),
+          activity.title,
+        ]);
+      }
+
+      if (!byManager.size) return;
+
+      console.log(`byManager map for leadTime "${leadTime}"-->>:`, byManager);
+
+      const projectId = appId || activities[0]?.app;
+      console.log(`projectId for notifications:-->> ${projectId}`);
+      const phaseLabel = trigger.phase
+        ? `phase ${trigger.phase.name}, year ${trigger.phase.activeYear}, ${trigger.phase.riverBasin} river basin`
+        : 'your phase';
+
+      console.log(`phaseLabel for notifications:-->> ${phaseLabel}`);
+
+      for (const [managerId, titles] of byManager) {
+        const notification: NotificationPayload = {
+          projectId,
+          title: `Action required: activities with ${leadTime} lead time`,
+          description:
+            `Trigger "${trigger.title ?? trigger.uuid}" has been activated for ${phaseLabel}. ` +
+            `Activities assigned to you with a lead time of ${leadTime}: ${titles.join(', ')}.`,
+          group: 'Activity Lead Time',
+          audience: { userIds: [managerId] },
+          channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
+        };
+
+        this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+          payload: notification,
+        });
+      }
+
+      this.logger.log(
+        `Trigger ${trigger.uuid}: notified ${byManager.size} manager(s) for ${activities.length} activity(ies) with leadTime "${leadTime}"`,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to notify activity managers for trigger ${trigger.uuid}: ${error?.message}`,
+        error?.stack,
+      );
+    }
+  }
+
+  /**
+   * "3 day" | "3 Days" | "3d" | "72 hours" -> "h:72"
+   * Unrecognised formats fall back to the lowercase trimmed string.
+   */
+  private normalizeLeadTime(value?: string | null): string | null {
+    if (!value) return null;
+    const raw = value.trim().toLowerCase().replace(/\s+/g, ' ');
+    const m = raw.match(
+      /^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks)$/,
+    );
+    if (!m) return raw;
+
+    const amount = Number(m[1]);
+    const unit = m[2];
+    const hours = unit.startsWith('h')
+      ? amount
+      : unit.startsWith('d')
+        ? amount * 24
+        : amount * 24 * 7; // weeks
+    return `h:${hours}`;
   }
 
   private buildAddTriggerJobDto(trigger: any): AddTriggerJobDto {
