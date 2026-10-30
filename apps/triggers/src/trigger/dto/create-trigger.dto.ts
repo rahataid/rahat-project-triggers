@@ -66,6 +66,16 @@ export class CreateTriggerDto {
   triggerDocuments?: Record<string, any>;
 
   @ApiProperty({
+    example: ['source-a', 'source-b'],
+    description: 'Manual sources for the trigger (stored in extra.manualSources)',
+    required: false,
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  manualSources?: string[];
+
+  @ApiProperty({
     example: 'Some notes about the trigger',
     description: 'Additional notes for the trigger',
   })
