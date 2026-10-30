@@ -112,42 +112,41 @@
 #       image_tag: esatya/${{ inputs.image_name }}:${{ steps.vars.outputs.image_tag }}
 #       image_digest: ${{ steps.build-push.outputs.digest }}
 
-
-name: 'ALL DEV CI/CD · Triggers Build & Push'
+name: "ALL DEV CI/CD · Triggers Build & Push"
 run-name: "🚀 ${{ inputs.environment }} · ${{ inputs.custom_branch || github.ref_name }} · @${{ github.actor }}"
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy  (env | Docker tag | purpose)'
+        description: "Environment to deploy  (env | Docker tag | purpose)"
         required: true
         type: choice
         options:
-          - 'dev-aa | Tag: aa-dev | AA Development'
-          - 'dev-qa | Tag: aa-dev-qa | AA QA Development'
-          - 'dev-stellar | Tag: aa-dev-stellar | AA Stellar Development'
-          - 'dev-unicef | Tag: aa-dev-unicef | UNICEF Development'
-          - 'dev-crm | Tag: dev-crm | CRM Development'
-          - 'dev-aidlink | Tag: dev-aidlink | AidLink Development'
-          - 'demo-stellar | Tag: aa-demo-stellar | AA Stellar Demo'
-          - 'train-mcn | Tag: mcn-training | MCN Training'
-          - 'train-nrcs | Tag: nrcs-training | NRCS Training'
-          - 'demo-mcn | Tag: demo-mcn | MCN Demo'
-          - 'demo-nrcs | Tag: demo-nrcs | NRCS Demo'
-          - 'demo-redcross | Tag: demo-redcross | Red Cross Demo'
-          - 'test-load | Tag: test-load | Load Testing'
-          - 'demo-unicef | Tag: demo-unicef | UNICEF Demo'
-          - 'demo-aidlink | Tag: demo-aidlink | AidLink Demo'
-          - 'demo-xcapita | Tag: demo-xcapita | C2C Xcapita Demo'
-          - 'dry-run-pin | Tag: dry-run-pin | DRY RUN PIN'
-          - 'demo-gsma | Tag: demo-gsma | GSMA Demo'
-          - 'mcn-demo-2026 | Tag: mcn-demo-2026 | MCN Demo 2026'
-          - 'main-geruwa | Tag: main-geruwa | Geruwa Main'
-          - 'main-geruwarm | Tag: main-geruwarm | Geruwa RM Main'
-          - 'main-mcn | Tag: aa-mcn-main | AA MCN Main'
-          - 'main-cam-ken | Tag: main-cam-ken | Cam-Ken Merge Main'
-          - 'prod-aa-demo | Tag: aa-demo-v2 | AA Demo v2 (prod folder)'
+          - "dev-aa | Tag: dev | AA Development"
+          - "dev-qa | Tag: dev-qa | AA QA Development"
+          - "dev-stellar | Tag: aa-stellar | AA Stellar Development"
+          - "dev-unicef | Tag: aa-dev-unicef | UNICEF Development"
+          - "dev-crm | Tag: dev-crm | CRM Development"
+          - "dev-aidlink | Tag: dev-aidlink | AidLink Development"
+          - "demo-stellar | Tag: aa-demo-stellar | AA Stellar Demo"
+          - "train-mcn | Tag: mcn-training | MCN Training"
+          - "train-nrcs | Tag: nrcs-training | NRCS Training"
+          - "demo-mcn | Tag: demo-mcn | MCN Demo"
+          - "demo-nrcs | Tag: demo-nrcs | NRCS Demo"
+          - "demo-redcross | Tag: demo-redcross | Red Cross Demo"
+          - "test-load | Tag: test-load | Load Testing"
+          - "demo-unicef | Tag: demo-unicef | UNICEF Demo"
+          - "demo-aidlink | Tag: demo-aidlink | AidLink Demo"
+          - "demo-xcapita | Tag: demo-xcapita | C2C Xcapita Demo"
+          - "dry-run-pin | Tag: dry-run-pin | DRY RUN PIN"
+          - "demo-gsma | Tag: demo-gsma | GSMA Demo"
+          - "mcn-demo-2026 | Tag: mcn-demo-2026 | MCN Demo 2026"
+          - "main-geruwa | Tag: main-geruwa | Geruwa Main"
+          - "main-geruwarm | Tag: main-geruwarm | Geruwa RM Main"
+          - "main-mcn | Tag: aa-mcn-main | AA MCN Main"
+          - "main-cam-ken | Tag: main-cam-ken | Cam-Ken Merge Main"
+          - "prod-aa-demo | Tag: aa-demo-v2 | AA Demo v2 (prod folder)"
 
       custom_branch:
         description: 'Branch, tag or full commit SHA to build (leave empty to build the "Use workflow from" branch)'
@@ -155,12 +154,12 @@ on:
         type: string
 
       image_name:
-        description: 'Docker image name override (leave empty for the default, e.g. rahat-project-triggers)'
+        description: "Docker image name override (leave empty for the default, e.g. rahat-project-triggers)"
         required: false
         type: string
 
       dockerfile_path:
-        description: 'Dockerfile path override (leave empty for the default, e.g. apps/triggers/Dockerfile.triggers)'
+        description: "Dockerfile path override (leave empty for the default, e.g. apps/triggers/Dockerfile.triggers)"
         required: false
         type: string
 
@@ -170,8 +169,8 @@ concurrency:
 
 env:
   CI: false
-  PNPM_VERSION: '8.14.1'
-  NODE_VERSION: '20.10.0'
+  PNPM_VERSION: "8.14.1"
+  NODE_VERSION: "20.10.0"
   IMAGE_NAMESPACE: esatya
 
 jobs:
@@ -394,7 +393,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: |
