@@ -10,6 +10,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { CORE_MODULE } from 'src/constant';
 import { NotificationProcessor } from './notification.processor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TriggerCallbackModule } from 'src/trigger-callback/trigger-callback.module';
+import { TriggerCallbackProcessor } from './trigger-callback.processor';
 
 @Module({
   imports: [
@@ -32,12 +34,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     SourcesDataModule,
     ActivityModule,
     StatsModule,
+    TriggerCallbackModule,
   ],
   providers: [
     TriggerProcessor,
     CommunicationProcessor,
     StatsProcessor,
     NotificationProcessor,
+    TriggerCallbackProcessor,
   ],
 })
 export class ProcessorsModule {}

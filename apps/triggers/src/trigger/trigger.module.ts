@@ -8,6 +8,7 @@ import { HttpModule } from '@nestjs/axios';
 import { SourcesDataModule } from 'src/sources-data/sources-data.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TriggerCallbackModule } from 'src/trigger-callback/trigger-callback.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ),
     forwardRef(() => SourcesDataModule),
     forwardRef(() => PhasesModule),
+    TriggerCallbackModule,
   ],
   controllers: [TriggerController],
   providers: [TriggerService],

@@ -1,80 +1,151 @@
 model Trigger {
-    id   Int    @id @default(autoincrement())
-    uuid String @unique @default(uuid())
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
 
-    repeatKey   String  @unique
-    repeatEvery String?
+  repeatKey   String  @unique
+  repeatEvery String?
 
-    triggerStatement Json?   @db.JsonB()
-    triggerDocuments Json?   @db.JsonB()
-    notes            String?
-    title            String?
-    description      String?
+  triggerStatement Json?   @db.JsonB()
+  triggerDocuments Json?   @db.JsonB()
+  notes            String?
+  title            String?
+  description      String?
 
-    phase   Phase?      @relation(fields: [phaseId], references: [uuid])
-    phaseId String?
-    source  DataSource?
-    leadTime         String?
+  phase    Phase?      @relation(fields: [phaseId], references: [uuid])
+  phaseId  String?
+  source   DataSource?
+  leadTime String?
 
-    isMandatory      Boolean @default(false)
-    isTriggered      Boolean @default(false)
-    isDeleted        Boolean @default(false)
-    isDailyMonitored Boolean @default(false)
+  isMandatory      Boolean @default(false)
+  isTriggered      Boolean @default(false)
+  isDeleted        Boolean @default(false)
+  isDailyMonitored Boolean @default(false)
 
-    logicKey String?
+  logicKey String?
 
-    createdBy       String?
-    triggeredBy     String?
-    transactionHash String?
+  createdBy       String?
+  triggeredBy     String?
+  transactionHash String?
 
-    triggeredAt DateTime?
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime? @updatedAt()
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt()
 
-    @@schema("public")
-    @@map("tbl_triggers")
+  callbacks TriggerCallback[]
+
+  @@map("tbl_triggers")
+  @@schema("public")
+}
+
+enum TriggerCallbackType {
+  ACTIVITY_COMMUNICATION
+  WEBHOOK
+  MS_EVENT
+  INTERNAL_EVENT
+
+  @@schema("public")
+}
+
+enum TriggerCallbackStatus {
+  PENDING
+  SUCCESS
+  FAILED
+
+  @@schema("public")
+}
+
+model TriggerCallback {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+
+  trigger   Trigger @relation(fields: [triggerId], references: [uuid], onDelete: Cascade)
+  triggerId String
+
+  type   TriggerCallbackType
+  name   String?
+  config Json                @db.JsonB()
+
+  isActive  Boolean @default(true)
+  isDeleted Boolean @default(false)
+  order     Int     @default(0)
+
+  dispatchedAt DateTime?
+
+  createdBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt()
+
+  logs TriggerCallbackLog[]
+
+  @@index([triggerId])
+  @@map("tbl_trigger_callbacks")
+  @@schema("public")
+}
+
+model TriggerCallbackLog {
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+
+  callback   TriggerCallback @relation(fields: [callbackId], references: [uuid], onDelete: Cascade)
+  callbackId String
+  triggerId  String
+
+  attempt Int                   @default(1)
+  status  TriggerCallbackStatus @default(PENDING)
+
+  request  Json?   @db.JsonB()
+  response Json?   @db.JsonB()
+  error    String?
+
+  durationMs Int?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([callbackId])
+  @@index([triggerId])
+  @@map("tbl_trigger_callback_logs")
+  @@schema("public")
 }
 
 model TriggerHistory {
-    id   Int    @id @default(autoincrement())
-    uuid String
+  id   Int    @id @default(autoincrement())
+  uuid String
 
-    repeatKey   String
-    repeatEvery String?
+  repeatKey   String
+  repeatEvery String?
 
-    triggerStatement Json?   @db.JsonB()
-    triggerDocuments Json?   @db.JsonB()
-    notes            String?
-    title            String?
-    description      String?
-    leadTime         String?
+  triggerStatement Json?   @db.JsonB()
+  triggerDocuments Json?   @db.JsonB()
+  notes            String?
+  title            String?
+  description      String?
+  leadTime         String?
 
+  phase   Phase?  @relation(fields: [phaseId], references: [uuid])
+  phaseId String?
 
-    phase   Phase?  @relation(fields: [phaseId], references: [uuid])
-    phaseId String?
+  phaseActivationDate DateTime?
+  version             Int
 
-    phaseActivationDate DateTime?
-    version             Int
+  source           DataSource?
+  isMandatory      Boolean     @default(false)
+  isTriggered      Boolean     @default(false)
+  isDeleted        Boolean     @default(false)
+  isDailyMonitored Boolean     @default(false)
 
-    source           DataSource?
-    isMandatory      Boolean     @default(false)
-    isTriggered      Boolean     @default(false)
-    isDeleted        Boolean     @default(false)
-    isDailyMonitored Boolean     @default(false)
+  logicKey String?
 
-    logicKey String?
+  triggeredBy     String?
+  transactionHash String?
 
-    triggeredBy     String?
-    transactionHash String?
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+  createdBy   String?
+  updatedAt   DateTime? @updatedAt()
 
-    triggeredAt DateTime?
-    createdAt   DateTime  @default(now())
-    createdBy   String?
-    updatedAt   DateTime? @updatedAt()
+  revertedAt DateTime
+  revertedBy String
 
-    revertedAt DateTime
-    revertedBy String
-
-    @@map("tbl_trigger_history")
-    @@schema("public")
+  @@map("tbl_trigger_history")
+  @@schema("public")
 }

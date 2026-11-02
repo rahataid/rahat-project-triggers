@@ -6,6 +6,7 @@ export const BQUEUE = {
   STELLAR: 'STELLAR',
   STELLAR_TRIGGER: 'STELLAR_TRIGGER',
   NOTIFICATION_TRIGGER: 'NOTIFICATION_TRIGGER',
+  TRIGGER_CALLBACK: 'TRIGGER_CALLBACK',
 };
 export const CORE_MODULE = 'RAHAT_CORE_PROJECT_CLIENT';
 
@@ -19,6 +20,7 @@ export const JOBS = {
   TRIGGER: {
     ADD: 'rahat.jobs.trigger.add',
     REACHED_THRESHOLD: 'rahat.jobs.trigger.reachedThreshold',
+    CALLBACK_DISPATCH: 'rahat.jobs.trigger.callback.dispatch',
   },
   ACTIVITIES: {
     GET_ONE: 'rahat.jobs.activities.getOne',
@@ -87,6 +89,15 @@ export const MS_TRIGGERS_JOBS = {
     UPDATE_TRANSCTION: 'ms.jobs.triggers.updateTransaction',
     ACTIVATE: 'ms.jobs.triggers.activate',
     GET_BY_LOCATION: 'ms.jobs.triggers.getByLocation',
+    CALLBACKS: {
+      ADD: 'ms.jobs.triggers.callbacks.add',
+      GET_ALL: 'ms.jobs.triggers.callbacks.getAll',
+      GET_ONE: 'ms.jobs.triggers.callbacks.getOne',
+      UPDATE: 'ms.jobs.triggers.callbacks.update',
+      REMOVE: 'ms.jobs.triggers.callbacks.remove',
+      GET_LOGS: 'ms.jobs.triggers.callbacks.getLogs',
+      REPLAY: 'ms.jobs.triggers.callbacks.replay',
+    },
   },
 
   PHASES: {

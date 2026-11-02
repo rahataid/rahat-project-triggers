@@ -8,6 +8,8 @@ import { PhasesService } from 'src/phases/phases.service';
 import { CORE_MODULE, JOBS, EVENTS } from 'src/constant';
 import { GetTriggersDto } from './dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SseService } from 'src/sse/sse.service';
+import { TriggerCallbackService } from 'src/trigger-callback/trigger-callback.service';
 
 // Mock the paginator function
 jest.mock('@lib/database', () => ({
@@ -53,6 +55,14 @@ describe('TriggerService', () => {
 
   const mockEventEmitter = {
     emit: jest.fn(),
+  };
+
+  const mockSseService = {
+    publishEvent: jest.fn(),
+  };
+
+  const mockTriggerCallbackService = {
+    enqueueForTrigger: jest.fn(),
   };
   const mockPhasesServiceImplementation = {
     create: jest.fn(),
@@ -121,6 +131,14 @@ describe('TriggerService', () => {
         {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
+        },
+        {
+          provide: SseService,
+          useValue: mockSseService,
+        },
+        {
+          provide: TriggerCallbackService,
+          useValue: mockTriggerCallbackService,
         },
       ],
     }).compile();
@@ -419,6 +437,10 @@ describe('TriggerService', () => {
               source: true,
             },
           },
+          callbacks: {
+            where: { isDeleted: false },
+            orderBy: { order: 'asc' },
+          },
         },
       });
       expect(result).toEqual(mockTrigger);
@@ -600,6 +622,51 @@ describe('TriggerService', () => {
           }),
         }),
       );
+      expect(result).toEqual(mockActivatedTrigger);
+      expect(
+        mockTriggerCallbackService.enqueueForTrigger,
+      ).toHaveBeenCalledWith('trigger-uuid', 'app-id');
+    });
+
+    it('should not fail activation when callback dispatch rejects', async () => {
+      const uuid = 'test-uuid';
+
+      const mockTrigger = {
+        uuid: 'trigger-uuid',
+        isTriggered: false,
+        source: DataSource.MANUAL,
+        isMandatory: true,
+        phaseId: 'phase-uuid',
+        triggerDocuments: [],
+        triggerStatement: { condition: 'test' },
+      };
+
+      const mockActivatedTrigger = {
+        uuid: 'trigger-uuid',
+        isTriggered: true,
+        triggeredBy: 'user-name',
+        triggeredAt: new Date(),
+        triggerStatement: { condition: 'test' },
+        source: DataSource.MANUAL,
+        phase: {
+          uuid: uuid,
+          name: Phases.PREPAREDNESS,
+          activeYear: '2025',
+          riverBasin: 'Karnali',
+        },
+      };
+
+      mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
+      mockPrismaService.trigger.update.mockResolvedValue(mockActivatedTrigger);
+      mockPrismaService.phase.update.mockResolvedValue({});
+      mockPrismaService.activity.findFirst.mockResolvedValue({ app: 'app-id' });
+      mockClientProxy.send.mockReturnValue(of({ name: 'test-action' }));
+      mockTriggerCallbackService.enqueueForTrigger.mockRejectedValueOnce(
+        new Error('callback dispatch boom'),
+      );
+
+      const result = await service.activateTrigger(mockActivatePayload);
+
       expect(result).toEqual(mockActivatedTrigger);
     });
 
@@ -844,6 +911,49 @@ describe('TriggerService', () => {
           }),
         }),
       );
+
+      expect(
+        mockTriggerCallbackService.enqueueForTrigger,
+      ).toHaveBeenCalledTimes(3);
+      expect(
+        mockTriggerCallbackService.enqueueForTrigger,
+      ).toHaveBeenCalledWith('trigger-uuid-1');
+      expect(
+        mockTriggerCallbackService.enqueueForTrigger,
+      ).toHaveBeenCalledWith('trigger-uuid-3');
+    });
+
+    it('should not fail activation when callback dispatch rejects for one trigger', async () => {
+      const mockTriggers = [
+        {
+          uuid: 'trigger-uuid-1',
+          phaseId: 'phase-uuid-1',
+          isMandatory: true,
+          source: DataSource.DHM,
+          isTriggered: false,
+          isDeleted: false,
+        },
+      ];
+
+      const mockPhase = {
+        uuid: 'phase-uuid-1',
+        name: 'Phase 1',
+        riverBasin: 'Test Basin',
+        activeYear: '2025',
+      };
+
+      mockPrismaService.trigger.findMany.mockResolvedValue(mockTriggers as any);
+      mockPrismaService.trigger.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.phase.update.mockResolvedValue({});
+      mockPrismaService.phase.findUnique.mockResolvedValue(mockPhase as any);
+      mockTriggerQueue.addBulk.mockResolvedValue(undefined);
+      mockTriggerCallbackService.enqueueForTrigger.mockRejectedValueOnce(
+        new Error('callback dispatch boom'),
+      );
+
+      await expect(
+        service.activeAutomatedTriggers(['trigger-uuid-1']),
+      ).resolves.toBeUndefined();
     });
 
     it('should handle when some triggers are not found', async () => {
