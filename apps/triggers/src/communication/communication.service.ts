@@ -6,9 +6,15 @@ import {
 } from '@lib/database';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { TransportType, TriggerType, ValidationAddress } from '@rumsan/connect';
+import {
+  SessionStatus,
+  TransportType,
+  TriggerType,
+  ValidationAddress,
+} from '@rumsan/connect';
 import { ActivityService } from 'src/activity/activity.service';
 import type { CommsClient } from 'src/comms/comms.service';
+import { batchFetchSessionStatuses } from 'src/comms/comms.utils';
 import {
   CommunicationGroupType,
   CommunicationTargetDto,
@@ -126,6 +132,8 @@ export class CommunicationService {
       transportId,
       sessionId,
       status,
+      startDate,
+      endDate,
       page = 1,
       perPage = 10,
       sort = DEFAULT_SORT_FIELD,
@@ -143,12 +151,17 @@ export class CommunicationService {
       ...(status && { status }),
     };
 
+    const dateFilter: Record<string, Date> = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+
     const query = {
       where: {
         isDeleted: false,
         ...(title && { title: { contains: title, mode: 'insensitive' } }),
-        ...(xrefId && { xrefId }),
+        ...(xrefId && xrefId !== 'all' && { xrefId }),
         ...(transportId && { transportId }),
+        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
         ...(Object.keys(targetFilter).length && {
           targets: { some: targetFilter },
         }),
@@ -160,14 +173,80 @@ export class CommunicationService {
     };
 
     try {
-      return await paginate(this.prisma.communication, query, {
+      const paginatedResult = await paginate(this.prisma.communication, query, {
         page,
         perPage,
       });
+
+      paginatedResult.data = await this.enrichWithSessionStatus(
+        paginatedResult.data,
+        xrefId,
+      );
+
+      return paginatedResult;
     } catch (error: any) {
       this.logger.error('Failed to list communications', error);
       throw new RpcException(error?.message || 'Failed to list communications');
     }
+  }
+
+  private async enrichWithSessionStatus<
+    T extends { targets?: any[] }
+  >(communications: T[], xrefId?: string): Promise<T[]> {
+    if (!communications?.length) return communications;
+
+    const sessionIds = communications
+      .flatMap((c) => c.targets ?? [])
+      .map((t) => t.sessionId)
+      .filter(Boolean);
+
+    const effectiveXrefId =
+      xrefId && xrefId !== 'all'
+        ? xrefId
+        : (communications.find((c: any) => c.xrefId) as any)?.xrefId;
+
+    const sessionCache = await batchFetchSessionStatuses(
+      this.commsClient,
+      sessionIds,
+      25,
+      6000,
+      effectiveXrefId,
+    );
+
+    return communications.map((comm) => {
+      if (!comm.targets?.length) return comm;
+
+      const targets = comm.targets.map((target) => {
+        if (!target.sessionId) {
+          return {
+            ...target,
+            sessionStatus:
+              target.status === CommunicationTargetStatus.PENDING
+                ? 'Not Started'
+                : target.status,
+            counts: null,
+          };
+        }
+
+        const session = sessionCache.get(target.sessionId);
+        const hasError =
+          target.status === CommunicationTargetStatus.FAILED ||
+          Boolean(target.error);
+
+        return {
+          ...target,
+          sessionStatus: hasError
+            ? SessionStatus.FAILED
+            : session?.status || target.status,
+          counts: session?.counts ?? null,
+        };
+      });
+
+      return {
+        ...comm,
+        targets,
+      };
+    });
   }
 
   async findOne(uuid: string) {
@@ -183,7 +262,12 @@ export class CommunicationService {
       throw new RpcException(`Communication with uuid ${uuid} not found`);
     }
 
-    return communication;
+    const [communicationWithStatus] = await this.enrichWithSessionStatus(
+      [communication],
+      communication.xrefId,
+    );
+
+    return communicationWithStatus;
   }
 
   async update(uuid: string, dto: UpdateCommunicationDto) {
