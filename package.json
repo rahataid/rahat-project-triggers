@@ -1,6 +1,6 @@
 {
   "name": "triggers",
-  "version": "v5.2.1",
+  "version": "v5.3.0",
   "private": true,
   "scripts": {
     "build": "turbo run build",
