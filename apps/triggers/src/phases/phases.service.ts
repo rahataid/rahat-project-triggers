@@ -776,6 +776,7 @@ export class PhasesService {
             phaseId: trigger.phaseId,
             source: trigger.source,
             leadTime: trigger.leadTime,
+            manualSources: (trigger.extra as any)?.manualSources,
           },
           trigger.createdBy,
         );
@@ -792,6 +793,7 @@ export class PhasesService {
             phaseId: trigger.phaseId,
             source: trigger.source,
             leadTime: trigger.leadTime,
+            manualSources: (trigger.extra as any)?.manualSources,
           },
           trigger.createdBy,
         );

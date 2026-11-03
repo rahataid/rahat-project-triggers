@@ -24,4 +24,12 @@ export class GetActivityHavingCommsDto {
   @IsOptional()
   @IsNumber()
   perPage?: number;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
 }
