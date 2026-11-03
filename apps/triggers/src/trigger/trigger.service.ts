@@ -187,13 +187,9 @@ export class TriggerService {
       }
 
       if (trigger.isTriggered) {
-        this.logger.warn(
-          'Trigger has already been activated. Cannot update an activated trigger.',
+        this.logger.log(
+          `Updating already activated trigger with uuid: ${uuid}`,
         );
-        throw new RpcException({
-          message: 'Trigger has already been activated.',
-          code: 'TRIGGER_ALREADY_ACTIVATED',
-        });
       }
 
       // Validate source only if it's provided
@@ -216,6 +212,12 @@ export class TriggerService {
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
         source: dto.source || trigger.source,
         leadTime: dto.leadTime ?? trigger.leadTime,
+        extra: dto.manualSources
+          ? {
+              ...((trigger.extra as Record<string, any>) ?? {}),
+              manualSources: dto.manualSources,
+            }
+          : trigger.extra,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -319,7 +321,7 @@ export class TriggerService {
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {
     this.logger.log(`Creating ${dto.source} trigger for app: ${appId}`);
     try {
-      const { phaseId, ...rest } = dto;
+      const { phaseId, manualSources, ...rest } = dto;
       const phase = await this.phasesService.findOne(phaseId);
 
       if (!phase) {
@@ -339,6 +341,7 @@ export class TriggerService {
           },
         },
         source: dto.source,
+        ...(manualSources && { extra: { manualSources } }),
         isDeleted: false,
         repeatKey: randomUUID(),
         createdBy,
@@ -673,19 +676,26 @@ export class TriggerService {
         });
       }
 
-      // TODO: EVM Change
-      this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
-        attempts: 3,
-        removeOnComplete: true,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      });
+      // Phase already active, no need to evaluate threshold again
+      if (trigger.phase?.isActive) {
+        this.logger.log(
+          `Phase ${trigger.phaseId} is already active. Skipping threshold queue for trigger ${trigger.uuid}`,
+        );
+      } else {
+        // TODO: EVM Change
+        this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        });
 
-      this.logger.log(`
+        this.logger.log(`
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
         `);
+      }
 
       const phaseId = updatedTrigger.phaseId;
       const appIds = await this.prisma.activity.findFirst({
@@ -995,6 +1005,7 @@ export class TriggerService {
               'description', t.description,
               'triggerStatement', t."triggerStatement",
               'triggerDocuments', t."triggerDocuments",
+              'extra', t.extra,
               'notes', t.notes,
               'phaseId', t."phaseId",
               'source', t.source,
