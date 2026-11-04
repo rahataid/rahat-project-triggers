@@ -233,14 +233,6 @@ export class TriggerService {
         },
       });
 
-      // TODO: Need to think about onchain queue update
-      // const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
-
-      // const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
-
-      // this.logger.log(`
-      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
-      //   `);
       await this.sseService.publishEvent('phase.updated', updatedTrigger);
 
       return updatedTrigger;
@@ -252,30 +244,44 @@ export class TriggerService {
   }
 
   async getAll(payload: GetTriggersDto) {
-    this.logger.log(`Getting all triggers for app`, payload);
     try {
-      const { riverBasin, activeYear, ...dto } = payload;
+      const { riverBasin, activeYear, phaseId, page, perPage } = payload as any;
 
       // if (!riverBasin || !activeYear) {
       //   this.logger.warn('riverBasin or activeYear not provided');
       //   throw new RpcException('riverBasin or activeYear not provided');
       // }
 
+      const phaseWhere: Prisma.PhaseWhereInput = {};
+
+      if (
+        activeYear !== undefined &&
+        activeYear !== null &&
+        `${activeYear}`.trim() !== ''
+      ) {
+        // Check prisma/schema.prisma -> Phase.activeYear
+        // String column: String(activeYear).trim()
+        // Int column:    Number(activeYear)
+        phaseWhere.activeYear = String(activeYear).trim();
+      }
+
+      if (riverBasin && `${riverBasin}`.trim() !== '') {
+        phaseWhere.riverBasin = {
+          contains: `${riverBasin}`.trim(),
+          mode: 'insensitive',
+        };
+      }
+
+      const where: Prisma.TriggerWhereInput = {
+        // `isDeleted: false` excludes rows where isDeleted is NULL (e.g. seeded data)
+        isDeleted: { not: true },
+        ...(phaseId && { phaseId }),
+        ...(Object.keys(phaseWhere).length > 0 && { phase: phaseWhere }),
+      };
       return paginate(
         this.prisma.trigger,
         {
-          where: {
-            isDeleted: false,
-            phase: {
-              ...(activeYear && { activeYear }),
-              ...(riverBasin && {
-                riverBasin: {
-                  contains: riverBasin,
-                  mode: 'insensitive',
-                },
-              }),
-            },
-          },
+          where,
           include: {
             phase: {
               include: {
@@ -288,12 +294,11 @@ export class TriggerService {
           },
         },
         {
-          page: dto.page,
-          perPage: dto.perPage,
+          page,
+          perPage,
         },
       );
     } catch (error: any) {
-      this.logger.error(error);
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
@@ -434,12 +439,6 @@ export class TriggerService {
         }
       }
 
-      // if(trigger.isMandatory){
-      //   const totalTriggersAfterDeleting = Number(phaseDetail.triggerRequirements.mandatoryTriggers.totalTriggers) - 1
-      //   if(totalTriggersAfterDeleting<phaseDetail.requiredMandatoryTriggers) {
-      //     throw new RpcException('Trigger criterias disrupted.')
-      //   }
-      // }
 
       const updatedTrigger = await this.prisma.trigger.update({
         where: {
@@ -559,99 +558,6 @@ export class TriggerService {
           continue;
         }
 
-        // if (triggers.length !== ids.length) {
-        //   const notfoundTriggers = ids.filter(
-        //     (id) => !triggers.some((trigger) => trigger.uuid === id),
-        //   );
-        //   this.logger.warn(
-        //     `Some triggers not found to activate: ${notfoundTriggers.join(', ')}`,
-        //   );
-        // }
-
-        // const phases: Record<
-        //   string,
-        //   { mandatoryTriggers: number; optionalTriggers: number }
-        // > = triggers.reduce((acc, trigger) => {
-        //   if (!acc[trigger.phaseId as string]) {
-        //     acc[trigger.phaseId] = {
-        //       mandatoryTriggers: 0,
-        //       optionalTriggers: 0,
-        //     };
-        //   }
-
-        //   if (trigger.isMandatory) {
-        //     acc[trigger.phaseId].mandatoryTriggers++;
-        //   } else {
-        //     acc[trigger.phaseId].optionalTriggers++;
-        //   }
-
-        //   return acc;
-        // }, {});
-
-        // const updatedTriggers = await this.prisma.trigger.updateMany({
-        //   where: triggerWhereArgs,
-        //   data: {
-        //     isTriggered: true,
-        //     triggeredAt: new Date(),
-        //     triggeredBy: 'System',
-        //   },
-        // });
-
-        // this.logger.log(`Total ${updatedTriggers.count} triggers updated`);
-
-        // for (const phaseId in phases) {
-        //   await this.prisma.phase.update({
-        //     where: {
-        //       uuid: phaseId,
-        //     },
-        //     data: {
-        //       receivedMandatoryTriggers: {
-        //         increment: phases[phaseId].mandatoryTriggers,
-        //       },
-        //       receivedOptionalTriggers: {
-        //         increment: phases[phaseId].optionalTriggers,
-        //       },
-        //     },
-        //   });
-        // }
-
-        // const jobs = triggers.map((trigger) => ({
-        //   name: JOBS.TRIGGER.REACHED_THRESHOLD,
-        //   data: trigger,
-        //   opts: {
-        //     attempts: 3,
-        //     removeOnComplete: true,
-        //     backoff: {
-        //       type: 'exponential',
-        //       delay: 1000,
-        //     },
-        //   },
-        // }));
-
-        // this.logger.log(
-        //   `Total ${jobs.length} triggers added to trigger threshold queue`,
-        // );
-
-        // this.triggerQueue.addBulk(jobs);
-
-        // TODO: Need to think about onchain queue update
-
-        // for (const phaseId in phases) {
-        //   const phase = await this.prisma.phase.findUnique({
-        //     where: {
-        //       uuid: phaseId,
-        //     },
-        //   });
-
-        //   this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
-        //     payload: {
-        //       title: `Trigger Statement Met for ${phase.riverBasin}`,
-        //       description: `The trigger condition has been met for phase ${phase.name}, year ${phase.activeYear}, in the ${phase.riverBasin} river basin.`,
-        //       group: 'Trigger Statement',
-        //       notify: true,
-        //     },
-        //   });
-        // }
         const notification: NotificationPayload = {
           projectId: targetAppId,
           title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
@@ -754,7 +660,6 @@ export class TriggerService {
         },
       });
       await this.sseService.publishEvent('phase.updated', updatedTrigger);
-
       // const jobDetails = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
 
       if (trigger.isMandatory) {
