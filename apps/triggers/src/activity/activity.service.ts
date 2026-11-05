@@ -32,7 +32,7 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     private readonly commsService: CommsService,
     private readonly sseService: SseService,
-  ) { }
+  ) {}
 
   private get commsClient(): CommsClient {
     return this.commsService.getCurrentClient();
@@ -557,7 +557,7 @@ export class ActivityService {
   }
 
   async getAll(payload: GetActivityDto) {
-    this.logger.log(`[ActivityService.getAll] Raw payload: ${JSON.stringify(payload)}`);
+    this.logger.log('Fetching all activities', payload);
 
     const {
       page,
@@ -575,11 +575,6 @@ export class ActivityService {
       activeYear,
       isAutomated,
     } = payload;
-
-    this.logger.log(
-      `[ActivityService.getAll] Extracted activeYear: "${activeYear}" (${typeof activeYear}), riverBasin: "${riverBasin}" (${typeof riverBasin})`
-    );
-
     try {
       const query = {
         where: {
@@ -591,13 +586,10 @@ export class ActivityService {
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...((riverBasin || activeYear) && {
             phase: {
-              ...(activeYear && { activeYear: String(activeYear) }),
+              ...(activeYear && { activeYear }),
               ...(riverBasin && {
                 source: {
-                  riverBasin: {
-                    contains: riverBasin,
-                    mode: 'insensitive',
-                  },
+                  riverBasin,
                 },
               }),
             },
@@ -631,26 +623,10 @@ export class ActivityService {
         },
       };
 
-      this.logger.log(`[ActivityService.getAll] Prisma query where: ${JSON.stringify(query.where, null, 2)}`);
-
-      const result = await paginate(this.prisma.activity, query, {
+      return paginate(this.prisma.activity, query, {
         page,
         perPage,
       });
-
-      this.logger.log(
-        `[ActivityService.getAll] Result count: ${result?.data?.length}, Total: ${result?.meta?.total}. Phases/Years in results: ${JSON.stringify(
-          result?.data?.map((a: any) => ({
-            id: a.id,
-            title: a.title,
-            phaseName: a.phase?.name,
-            phaseYear: a.phase?.activeYear,
-            riverBasin: a.phase?.source?.riverBasin || a.phase?.riverBasin,
-          }))
-        )}`
-      );
-
-      return result;
     } catch (error: any) {
       this.logger.error(
         'Something went wrong while fetching activities',
@@ -662,7 +638,6 @@ export class ActivityService {
   }
 
   async listProjectSpecific(payload: GetActivityDto) {
-    this.logger.log(`[ActivityService.listProjectSpecific] Raw payload: ${JSON.stringify(payload)}`);
     try {
       const {
         page,
@@ -687,13 +662,10 @@ export class ActivityService {
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...((riverBasin || activeYear) && {
             phase: {
-              ...(activeYear && { activeYear: String(activeYear) }),
+              ...(activeYear && { activeYear }),
               ...(riverBasin && {
                 source: {
-                  riverBasin: {
-                    contains: riverBasin,
-                    mode: 'insensitive',
-                  },
+                  riverBasin,
                 },
               }),
             },
@@ -725,8 +697,6 @@ export class ActivityService {
           createdAt: 'desc',
         },
       };
-
-      this.logger.log(`[ActivityService.listProjectSpecific] Prisma query where: ${JSON.stringify(query.where, null, 2)}`);
 
       return paginate(this.prisma.activity, query, {
         page,
@@ -1050,9 +1020,10 @@ export class ActivityService {
           not: [],
         },
         phase: {
-          ...(phase && phase !== 'all' && {
-            name: { equals: phase, mode: 'insensitive' },
-          }),
+          ...(phase &&
+            phase !== 'all' && {
+              name: { equals: phase, mode: 'insensitive' },
+            }),
           ...(activeYear && { activeYear }),
           ...(riverBasin && {
             source: {
@@ -1482,11 +1453,11 @@ export class ActivityService {
       ) as Array<{
         groupId: string;
         message:
-        | string
-        | {
-          mediaURL: string;
-          fileName: string;
-        };
+          | string
+          | {
+              mediaURL: string;
+              fileName: string;
+            };
         groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
         transportId: string;
         communicationId: string;
@@ -1707,11 +1678,11 @@ export class ActivityService {
     ) as Array<{
       groupId: string;
       message:
-      | string
-      | {
-        mediaURL: string;
-        fileName: string;
-      };
+        | string
+        | {
+            mediaURL: string;
+            fileName: string;
+          };
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;
