@@ -557,7 +557,7 @@ export class ActivityService {
   }
 
   async getAll(payload: GetActivityDto) {
-    this.logger.log('Fetching all activities', payload);
+    this.logger.log(`[ActivityService.getAll] Raw payload: ${JSON.stringify(payload)}`);
 
     const {
       page,
@@ -575,6 +575,11 @@ export class ActivityService {
       activeYear,
       isAutomated,
     } = payload;
+
+    this.logger.log(
+      `[ActivityService.getAll] Extracted activeYear: "${activeYear}" (${typeof activeYear}), riverBasin: "${riverBasin}" (${typeof riverBasin})`
+    );
+
     try {
       const query = {
         where: {
@@ -586,10 +591,13 @@ export class ActivityService {
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...((riverBasin || activeYear) && {
             phase: {
-              ...(activeYear && { activeYear }),
+              ...(activeYear && { activeYear: String(activeYear) }),
               ...(riverBasin && {
                 source: {
-                  riverBasin,
+                  riverBasin: {
+                    contains: riverBasin,
+                    mode: 'insensitive',
+                  },
                 },
               }),
             },
@@ -623,10 +631,26 @@ export class ActivityService {
         },
       };
 
-      return paginate(this.prisma.activity, query, {
+      this.logger.log(`[ActivityService.getAll] Prisma query where: ${JSON.stringify(query.where, null, 2)}`);
+
+      const result = await paginate(this.prisma.activity, query, {
         page,
         perPage,
       });
+
+      this.logger.log(
+        `[ActivityService.getAll] Result count: ${result?.data?.length}, Total: ${result?.meta?.total}. Phases/Years in results: ${JSON.stringify(
+          result?.data?.map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            phaseName: a.phase?.name,
+            phaseYear: a.phase?.activeYear,
+            riverBasin: a.phase?.source?.riverBasin || a.phase?.riverBasin,
+          }))
+        )}`
+      );
+
+      return result;
     } catch (error: any) {
       this.logger.error(
         'Something went wrong while fetching activities',
@@ -638,6 +662,7 @@ export class ActivityService {
   }
 
   async listProjectSpecific(payload: GetActivityDto) {
+    this.logger.log(`[ActivityService.listProjectSpecific] Raw payload: ${JSON.stringify(payload)}`);
     try {
       const {
         page,
@@ -662,10 +687,13 @@ export class ActivityService {
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
           ...((riverBasin || activeYear) && {
             phase: {
-              ...(activeYear && { activeYear }),
+              ...(activeYear && { activeYear: String(activeYear) }),
               ...(riverBasin && {
                 source: {
-                  riverBasin,
+                  riverBasin: {
+                    contains: riverBasin,
+                    mode: 'insensitive',
+                  },
                 },
               }),
             },
@@ -697,6 +725,8 @@ export class ActivityService {
           createdAt: 'desc',
         },
       };
+
+      this.logger.log(`[ActivityService.listProjectSpecific] Prisma query where: ${JSON.stringify(query.where, null, 2)}`);
 
       return paginate(this.prisma.activity, query, {
         page,
