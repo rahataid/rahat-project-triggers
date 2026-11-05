@@ -88,6 +88,25 @@ export class ActivityService {
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
+      if (Array.isArray(newActivity.activityCommunication)) {
+        for (const comm of newActivity.activityCommunication as any[]) {
+          if (comm?.isScheduled && comm?.scheduledAt && comm?.communicationId && !comm?.sessionId) {
+            try {
+              await this.triggerCommunication({
+                activityId: newActivity.uuid,
+                communicationId: comm.communicationId,
+                appId: payload.appId,
+              });
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled communication ${comm.communicationId}`,
+                err,
+              );
+            }
+          }
+        }
+      }
+
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
       await this.sseService.publishEvent('activity.created', newActivity);
 
@@ -471,10 +490,30 @@ export class ActivityService {
             sessionId: string;
           };
 
-          let sessionStatus = SessionStatus.NEW;
+          let sessionStatus: string = SessionStatus.NEW;
           let completedAt = null;
           let startedAt = null;
           let updatedAt = null;
+
+          if (!communication.sessionId && (communication.isScheduled || communication.scheduledAt)) {
+            try {
+              const triggered = await this.triggerCommunication({
+                activityId: activityData.uuid,
+                communicationId: communication.communicationId,
+                appId,
+              });
+              if (triggered?.cuid) {
+                communication.sessionId = triggered.cuid;
+                sessionStatus = 'SCHEDULED';
+              }
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled activity communication ${communication.communicationId}`,
+                err,
+              );
+            }
+          }
+
           if (communication.sessionId) {
             const promises: Promise<any>[] = [
               commsClient.session.get(communication.sessionId),
@@ -503,13 +542,23 @@ export class ActivityService {
               const fail = Number(counts.FAIL ?? counts.fail ?? 0);
               const success = Number(counts.SUCCESS ?? counts.success ?? 0);
               const total = Number(counts.TOTAL ?? counts.total ?? 0);
+              const scheduled = Number(counts.SCHEDULED ?? counts.scheduled ?? 0);
               if (
                 (fail > 0 && success === 0) ||
                 (total > 0 && fail === total)
               ) {
                 sessionStatus = SessionStatus.FAILED;
+              } else if (scheduled > 0 && success === 0 && fail === 0) {
+                sessionStatus = 'SCHEDULED';
               }
             }
+          }
+
+          if (
+            sessionStatus === SessionStatus.NEW &&
+            (communication.isScheduled || communication.scheduledAt)
+          ) {
+            sessionStatus = 'SCHEDULED';
           }
 
           const transport = await commsClient.transport.get(
@@ -1334,6 +1383,26 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+
+      if (Array.isArray(updatedActivity.activityCommunication)) {
+        for (const comm of updatedActivity.activityCommunication as any[]) {
+          if (comm?.isScheduled && comm?.scheduledAt && comm?.communicationId && !comm?.sessionId) {
+            try {
+              await this.triggerCommunication({
+                activityId: updatedActivity.uuid,
+                communicationId: comm.communicationId,
+                appId: activity.app,
+              });
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled communication ${comm.communicationId}`,
+                err,
+              );
+            }
+          }
+        }
+      }
+
       await this.sseService.publishEvent('activity.updated', updatedActivity);
       return updatedActivity;
     } catch (error: any) {
@@ -1670,6 +1739,10 @@ export class ActivityService {
       transportId: string;
       communicationId: string;
       subject: string;
+      isScheduled?: boolean;
+      scheduledAt?: string;
+      sessionId?: string;
+      sessionStatus?: string;
     }>;
 
     const selectedCommunication = parsedCommunications.find(
@@ -1719,6 +1792,12 @@ export class ActivityService {
       messageContent = selectedCommunication.message as string;
     }
 
+    const isScheduledFuture = Boolean(
+      selectedCommunication?.isScheduled &&
+        selectedCommunication?.scheduledAt &&
+        new Date(selectedCommunication.scheduledAt).getTime() > Date.now(),
+    );
+
     /// cva_communication microservice
     const { data: sessionData } = await this.commsClient.broadcast.create({
       addresses: addresses,
@@ -1729,9 +1808,13 @@ export class ActivityService {
           subject: messageSubject,
         },
       },
-      options: {},
+      options: isScheduledFuture
+        ? { scheduledTimestamp: new Date(selectedCommunication.scheduledAt) }
+        : {},
       transport: selectedCommunication.transportId,
-      trigger: TriggerType.IMMEDIATE,
+      trigger: isScheduledFuture
+        ? TriggerType.SCHEDULED
+        : TriggerType.IMMEDIATE,
       xref: payload.appId,
     });
 
@@ -1748,6 +1831,9 @@ export class ActivityService {
         return {
           ...c,
           sessionId: sessionData.cuid,
+          sessionStatus: isScheduledFuture
+            ? 'SCHEDULED'
+            : SessionStatus.PENDING,
         };
       }
       return c;

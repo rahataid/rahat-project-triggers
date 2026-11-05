@@ -36,6 +36,8 @@ const WRITABLE_FIELDS = [
   'audioURL',
   'transportId',
   'createdBy',
+  'isScheduled',
+  'scheduledAt',
 ] as const;
 
 const INCLUDE_TARGETS = {
@@ -57,7 +59,7 @@ export class CommunicationService {
     @Inject('COMMS_CLIENT')
     private readonly commsClient: CommsClient,
     private readonly activityService: ActivityService,
-  ) {}
+  ) { }
 
   /**
    * Picks only the columns this model owns. Callers reach us over the message
@@ -72,6 +74,11 @@ export class CommunicationService {
     for (const field of WRITABLE_FIELDS) {
       const value = dto[field];
       if (value !== undefined) data[field] = value;
+    }
+
+    if (dto.isScheduled !== undefined) data.isScheduled = Boolean(dto.isScheduled);
+    if (dto.scheduledAt !== undefined) {
+      data.scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
     }
 
     if (data.audioURL) data.audioURL = { ...data.audioURL };
@@ -106,7 +113,7 @@ export class CommunicationService {
     this.logger.log(`Creating communication: ${dto.title}`);
 
     try {
-      return await this.prisma.communication.create({
+      const created = await this.prisma.communication.create({
         data: {
           ...(this.toWritableData(dto) as any),
           targets: {
@@ -115,6 +122,19 @@ export class CommunicationService {
         },
         include: INCLUDE_TARGETS,
       });
+
+      if (dto.isScheduled && dto.scheduledAt) {
+        try {
+          return await this.trigger(created.uuid, dto.xrefId);
+        } catch (triggerError) {
+          this.logger.error(
+            `Failed to auto-trigger scheduled communication ${created.uuid}`,
+            triggerError,
+          );
+        }
+      }
+
+      return created;
     } catch (error: any) {
       this.logger.error('Failed to create communication', error);
       throw new RpcException(
@@ -216,15 +236,24 @@ export class CommunicationService {
     return communications.map((comm) => {
       if (!comm.targets?.length) return comm;
 
+      const isCommFuture = Boolean(
+        (comm as any).isScheduled &&
+        (comm as any).scheduledAt &&
+        new Date((comm as any).scheduledAt).getTime() > Date.now(),
+      );
+
       const targets = comm.targets.map((target) => {
         if (!target.sessionId) {
           return {
             ...target,
-            sessionStatus:
-              target.status === CommunicationTargetStatus.PENDING
+            sessionStatus: isCommFuture
+              ? 'SCHEDULED'
+              : target.status === CommunicationTargetStatus.PENDING
                 ? 'Not Started'
                 : target.status,
-            counts: null,
+            counts: isCommFuture
+              ? { SUCCESS: 0, FAIL: 0, PENDING: 0, SCHEDULED: 1, TOTAL: 1 }
+              : null,
           };
         }
 
@@ -233,11 +262,17 @@ export class CommunicationService {
           target.status === CommunicationTargetStatus.FAILED ||
           Boolean(target.error);
 
+        const isTargetScheduled = Boolean(
+          isCommFuture && (session?.counts?.SUCCESS ?? 0) === 0,
+        );
+
         return {
           ...target,
           sessionStatus: hasError
             ? SessionStatus.FAILED
-            : session?.status || target.status,
+            : isTargetScheduled
+              ? 'SCHEDULED'
+              : session?.status || target.status,
           counts: session?.counts ?? null,
         };
       });
@@ -270,15 +305,403 @@ export class CommunicationService {
     return communicationWithStatus;
   }
 
+  async getCommunicationOverview(payload: any) {
+    this.logger.log('Fetching communication overview with pagination');
+    try {
+      const {
+        appId: rawAppId,
+        project,
+        startDate: rawStartDate,
+        from,
+        endDate: rawEndDate,
+        to,
+        phase,
+        groupType,
+        recipient,
+        transportId,
+        channel,
+        title,
+        search,
+        source = 'all',
+        page: rawPage,
+        currentPage: rawCurrentPage,
+        perPage: rawPerPage,
+        limit: rawLimit,
+      } = payload || {};
+
+      const appId = rawAppId || project;
+      const startDate = rawStartDate || from;
+      const endDate = rawEndDate || to;
+      const effectiveSearch = (search || title || '').trim().toLowerCase();
+      const effectiveRecipient = (recipient || groupType || '').toUpperCase().trim();
+      const currentPage = Math.max(1, Number(rawPage ?? rawCurrentPage ?? 1));
+      const limit = Math.max(1, Number(rawPerPage ?? rawLimit ?? 10));
+
+      const dateFilter: Record<string, Date> = {};
+      if (startDate) dateFilter.gte = new Date(startDate);
+      if (endDate) dateFilter.lte = new Date(endDate);
+
+      const overviewRows: any[] = [];
+      const phaseByCommId = new Map<string, string>();
+      const phaseBySessionId = new Map<string, string>();
+
+      const classifyChannel = (item: any): string => {
+        if (item?.audioURL) return 'VOICE';
+        if (typeof item?.message === 'object' && item?.message?.mediaURL) return 'VOICE';
+        if (typeof item?.message === 'string' && /\.(mp3|wav|ogg|m4a)/i.test(item?.message)) return 'VOICE';
+        if (item?.subject) return 'EMAIL';
+        return 'SMS';
+      };
+
+      if (source !== 'communications') {
+        const actWhere: any = {
+          isDeleted: false,
+          activityCommunication: { not: [] },
+        };
+        if (appId && appId !== 'all') actWhere.app = appId;
+        if (Object.keys(dateFilter).length > 0) actWhere.createdAt = dateFilter;
+        if (phase && phase !== 'all') {
+          actWhere.phase = { name: { equals: phase, mode: 'insensitive' } };
+        }
+        if (effectiveSearch) {
+          actWhere.title = { contains: effectiveSearch, mode: 'insensitive' };
+        }
+
+        const activities = await this.prisma.activity.findMany({
+          where: actWhere,
+          include: {
+            phase: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        for (const act of activities) {
+          const actPhase = act.phase?.name || 'N/A';
+          const rawComms = Array.isArray(act.activityCommunication)
+            ? (act.activityCommunication as any[])
+            : [];
+
+          if (!rawComms.length) {
+            overviewRows.push({
+              id: `act-${act.uuid}`,
+              date: (act.updatedAt || act.createdAt).toISOString(),
+              projectId: act.app,
+              title: act.title,
+              channel: 'SMS',
+              transportName: 'SMS',
+              groupName: 'General',
+              recipientType: 'BENEFICIARY',
+              phase: actPhase,
+              status: act.status || 'NOT_STARTED',
+              delivered: act.status === 'COMPLETED' ? 1 : 0,
+              total: 1,
+              failed: 0,
+              pending: act.status === 'NOT_STARTED' ? 1 : 0,
+              activityId: act.uuid,
+              source: 'activity',
+            });
+            continue;
+          }
+
+          for (let idx = 0; idx < rawComms.length; idx++) {
+            const c: any = rawComms[idx] || {};
+            const commId = c.communicationId || '';
+            const sessionId = c.sessionId || '';
+            const gType = (c.groupType || 'BENEFICIARY').toUpperCase();
+            const ch = classifyChannel(c);
+
+            if (actPhase && actPhase !== 'N/A') {
+              if (commId) phaseByCommId.set(commId, actPhase);
+              if (sessionId) phaseBySessionId.set(sessionId, actPhase);
+            }
+
+            const isActScheduled = Boolean(c.isScheduled || c.scheduledAt);
+            const isActFuture = Boolean(
+              c.scheduledAt && new Date(c.scheduledAt).getTime() > Date.now(),
+            );
+
+            overviewRows.push({
+              id: `act-${act.uuid}-${commId || sessionId || idx}`,
+              date: (act.updatedAt || act.createdAt).toISOString(),
+              projectId: act.app,
+              title: c.communicationTitle || act.title,
+              channel: ch,
+              transportName: ch,
+              groupName:
+                c.groupName ||
+                (gType.includes('STAKEHOLDER')
+                  ? 'Stakeholders'
+                  : 'Beneficiaries'),
+              recipientType: gType.includes('STAKEHOLDER')
+                ? 'STAKEHOLDER'
+                : 'BENEFICIARY',
+              phase: actPhase,
+              status: isActFuture ? 'SCHEDULED' : (act.status || 'NOT_STARTED'),
+              delivered: act.status === 'COMPLETED' ? 1 : 0,
+              total: 1,
+              failed: 0,
+              pending: act.status === 'NOT_STARTED' && !isActFuture ? 1 : 0,
+              scheduled: isActFuture ? 1 : 0,
+              isScheduled: isActScheduled,
+              scheduledAt: c.scheduledAt ? new Date(c.scheduledAt).toISOString() : null,
+              sessionId: sessionId || undefined,
+              communicationId: commId || undefined,
+              activityId: act.uuid,
+              message:
+                typeof c.message === 'string'
+                  ? c.message
+                  : c.message?.fileName,
+              source: 'activity',
+            });
+          }
+        }
+      }
+
+      if (source !== 'activities') {
+        const commWhere: any = {
+          isDeleted: false,
+        };
+        if (appId && appId !== 'all') commWhere.xrefId = appId;
+        if (Object.keys(dateFilter).length > 0) commWhere.createdAt = dateFilter;
+        if (transportId) commWhere.transportId = transportId;
+        if (effectiveSearch) {
+          commWhere.title = { contains: effectiveSearch, mode: 'insensitive' };
+        }
+        if (effectiveRecipient && effectiveRecipient !== 'ALL') {
+          commWhere.targets = {
+            some: {
+              groupType: { contains: effectiveRecipient, mode: 'insensitive' },
+            },
+          };
+        }
+
+        const communications = await this.prisma.communication.findMany({
+          where: commWhere,
+          include: INCLUDE_TARGETS,
+          orderBy: { createdAt: 'desc' },
+        });
+
+        for (const comm of communications) {
+          const targets = Array.isArray(comm.targets) ? comm.targets : [];
+          const ch = classifyChannel(comm);
+          const commPhase =
+            phaseByCommId.get(comm.uuid) ||
+            targets
+              .map((t) => t.sessionId && phaseBySessionId.get(t.sessionId))
+              .find(Boolean) ||
+            'N/A';
+
+          const isCommFuture = Boolean(
+            comm.isScheduled &&
+            comm.scheduledAt &&
+            new Date(comm.scheduledAt).getTime() > Date.now(),
+          );
+
+          if (!targets.length) {
+            overviewRows.push({
+              id: `comm-${comm.uuid}`,
+              date: (comm.updatedAt || comm.createdAt).toISOString(),
+              projectId: comm.xrefId || '',
+              title: comm.title,
+              channel: ch,
+              transportName: ch,
+              groupName: 'General',
+              recipientType: 'BENEFICIARY',
+              phase: commPhase,
+              status: isCommFuture ? 'SCHEDULED' : 'NOT_STARTED',
+              delivered: 0,
+              total: 1,
+              failed: 0,
+              pending: isCommFuture ? 0 : 1,
+              scheduled: isCommFuture ? 1 : 0,
+              isScheduled: Boolean(comm.isScheduled),
+              scheduledAt: comm.scheduledAt ? comm.scheduledAt.toISOString() : null,
+              communicationId: comm.uuid,
+              subject: comm.subject || undefined,
+              message:
+                typeof comm.message === 'string' ? comm.message : undefined,
+              source: 'communication',
+            });
+            continue;
+          }
+
+          for (const target of targets) {
+            const gType = (target.groupType || 'BENEFICIARY').toUpperCase();
+            const targetPhase =
+              (target.sessionId && phaseBySessionId.get(target.sessionId)) ||
+              commPhase;
+
+            overviewRows.push({
+              id: `comm-${comm.uuid}-${target.uuid || target.id}`,
+              date: (comm.updatedAt || comm.createdAt).toISOString(),
+              projectId: comm.xrefId || '',
+              title: comm.title,
+              channel: ch,
+              transportName: ch,
+              groupName:
+                (target as any).groupName ||
+                (gType.includes('STAKEHOLDER')
+                  ? 'Stakeholders'
+                  : 'Beneficiaries'),
+              recipientType: gType.includes('STAKEHOLDER')
+                ? 'STAKEHOLDER'
+                : 'BENEFICIARY',
+              phase: targetPhase,
+              status: isCommFuture ? 'SCHEDULED' : (target.status || 'PENDING'),
+              delivered: target.status === 'SENT' ? 1 : 0,
+              total: 1,
+              failed: target.status === 'FAILED' ? 1 : 0,
+              pending: target.status === 'PENDING' && !isCommFuture ? 1 : 0,
+              scheduled: isCommFuture ? 1 : 0,
+              isScheduled: Boolean(comm.isScheduled),
+              scheduledAt: comm.scheduledAt ? comm.scheduledAt.toISOString() : null,
+              sessionId: target.sessionId || undefined,
+              communicationId: comm.uuid,
+              subject: comm.subject || undefined,
+              message:
+                typeof comm.message === 'string' ? comm.message : undefined,
+              failReason: target.error || undefined,
+              source: 'communication',
+            });
+          }
+        }
+      }
+
+      const seenCommIds = new Set(
+        overviewRows
+          .filter((r) => r.source === 'communication' && r.communicationId)
+          .map((r) => r.communicationId),
+      );
+      const seenSessionIds = new Set(
+        overviewRows
+          .filter((r) => r.source === 'communication' && r.sessionId)
+          .map((r) => r.sessionId),
+      );
+
+      let deduped = overviewRows.filter((r) => {
+        if (r.source === 'activity') {
+          if (r.communicationId && seenCommIds.has(r.communicationId)) return false;
+          if (r.sessionId && seenSessionIds.has(r.sessionId)) return false;
+        }
+        return true;
+      });
+
+      if (effectiveRecipient && effectiveRecipient !== 'ALL') {
+        deduped = deduped.filter((r) =>
+          r.recipientType.toUpperCase().includes(effectiveRecipient),
+        );
+      }
+      if (channel && channel !== 'all') {
+        deduped = deduped.filter(
+          (r) => r.channel.toUpperCase() === channel.toUpperCase(),
+        );
+      }
+      if (phase && phase !== 'all') {
+        deduped = deduped.filter(
+          (r) =>
+            r.phase &&
+            r.phase.toUpperCase() !== 'N/A' &&
+            r.phase.toLowerCase() === phase.toLowerCase(),
+        );
+      }
+      if (effectiveSearch) {
+        deduped = deduped.filter(
+          (r) =>
+            (r.title && r.title.toLowerCase().includes(effectiveSearch)) ||
+            (r.message && r.message.toLowerCase().includes(effectiveSearch)) ||
+            (r.subject && r.subject.toLowerCase().includes(effectiveSearch)),
+        );
+      }
+
+      deduped.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
+
+      const total = deduped.length;
+      const lastPage = Math.ceil(total / limit) || 1;
+      const paginatedItems = deduped.slice(
+        (currentPage - 1) * limit,
+        currentPage * limit,
+      );
+
+      const pageSessionIds = paginatedItems
+        .map((r) => r.sessionId)
+        .filter((s): s is string => Boolean(s));
+
+      if (pageSessionIds.length > 0) {
+        try {
+          const sessionCache = await batchFetchSessionStatuses(
+            this.commsClient,
+            pageSessionIds,
+            10,
+            3000,
+            appId && appId !== 'all' ? appId : undefined,
+          );
+
+          for (const item of paginatedItems) {
+            if (item.sessionId && sessionCache.has(item.sessionId)) {
+              const res = sessionCache.get(item.sessionId);
+              if (res) {
+                if (res.status) item.status = res.status;
+                if (res.counts) {
+                  item.delivered = res.counts.SUCCESS || 0;
+                  item.failed = res.counts.FAIL || 0;
+                  item.scheduled = res.counts.SCHEDULED || 0;
+                  item.pending = res.counts.PENDING || 0;
+                  item.total =
+                    res.counts.TOTAL ||
+                    item.delivered + item.failed + item.pending + item.scheduled;
+                }
+              }
+            }
+            if (
+              item.isScheduled &&
+              item.scheduledAt &&
+              new Date(item.scheduledAt).getTime() > Date.now() &&
+              (item.delivered ?? 0) === 0
+            ) {
+              item.status = 'SCHEDULED';
+            }
+          }
+        } catch {
+          // Keep current status if comms service is offline
+        }
+      }
+
+      return {
+        data: paginatedItems,
+        meta: {
+          total,
+          lastPage,
+          currentPage,
+          perPage: limit,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error('Failed to get communication overview', error);
+      throw new RpcException(
+        error?.message || 'Failed to get communication overview',
+      );
+    }
+  }
+
   async update(uuid: string, dto: UpdateCommunicationDto) {
     this.logger.log(`Updating communication: ${uuid}`);
     const communication = await this.findOne(uuid);
+
+    const isFutureScheduled = Boolean(
+      communication.isScheduled &&
+      communication.scheduledAt &&
+      new Date(communication.scheduledAt).getTime() > Date.now(),
+    );
 
     const data: Record<string, any> = this.toWritableData(dto);
 
     if (dto.targets !== undefined) {
       const isUntouched = communication.targets.every(
-        (target) => target.status === CommunicationTargetStatus.PENDING,
+        (target) =>
+          target.status === CommunicationTargetStatus.PENDING ||
+          isFutureScheduled,
       );
 
       if (!isUntouched) {
@@ -294,14 +717,37 @@ export class CommunicationService {
         deleteMany: {},
         createMany: { data: this.toTargetRows(dto.targets) },
       };
+    } else if (isFutureScheduled) {
+      data.targets = {
+        updateMany: {
+          where: {},
+          data: {
+            status: CommunicationTargetStatus.PENDING,
+            sessionId: null,
+          },
+        },
+      };
     }
 
     try {
-      return await this.prisma.communication.update({
+      const updated = await this.prisma.communication.update({
         where: { uuid },
         data,
         include: INCLUDE_TARGETS,
       });
+
+      if (updated.isScheduled && updated.scheduledAt) {
+        try {
+          await this.trigger(uuid, dto.xrefId || communication.xrefId);
+        } catch (triggerError: any) {
+          this.logger.error(
+            `Failed to schedule broadcast session in Connect for updated communication ${uuid}`,
+            triggerError,
+          );
+        }
+      }
+
+      return updated;
     } catch (error: any) {
       this.logger.error(`Failed to update communication ${uuid}`, error);
       throw new RpcException(
@@ -341,9 +787,17 @@ export class CommunicationService {
    * own comms session, and a failure for one group is recorded on that target
    * without stopping the others. Pass `targetUuids` to retry specific groups.
    */
-  async trigger(uuid: string, appId: string, targetUuids?: string[]) {
+  async trigger(uuid: string, appId?: string, targetUuids?: string[]) {
     this.logger.log(`Triggering communication: ${uuid}`);
     const communication = await this.findOne(uuid);
+    const effectiveAppId = appId || communication.xrefId;
+
+    if (!effectiveAppId) {
+      throw new RpcException({
+        message: 'Communication has no associated project (xrefId).',
+        code: 'COMMUNICATION_XREFID_MISSING',
+      });
+    }
 
     if (!communication.transportId) {
       throw new RpcException({
@@ -408,8 +862,14 @@ export class CommunicationService {
         const addresses = await this.activityService.getAddresses(
           target.groupType as CommunicationGroupType,
           target.groupId,
-          appId,
+          effectiveAppId,
           transport.validationAddress as ValidationAddress,
+        );
+
+        const isScheduledFuture = Boolean(
+          communication.isScheduled &&
+          communication.scheduledAt &&
+          new Date(communication.scheduledAt).getTime() > Date.now(),
         );
 
         const { data: session } = await this.commsClient.broadcast.create({
@@ -419,10 +879,14 @@ export class CommunicationService {
             content,
             meta: { subject },
           },
-          options: {},
+          options: isScheduledFuture
+            ? { scheduledTimestamp: new Date(communication.scheduledAt) }
+            : {},
           transport: communication.transportId,
-          trigger: TriggerType.IMMEDIATE,
-          xref: appId,
+          trigger: isScheduledFuture
+            ? TriggerType.SCHEDULED
+            : TriggerType.IMMEDIATE,
+          xref: effectiveAppId,
         });
 
         if (!session) {
