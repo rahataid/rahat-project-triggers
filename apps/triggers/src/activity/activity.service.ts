@@ -572,6 +572,7 @@ export class ActivityService {
       status,
       appId,
       riverBasin,
+      activeYear,
       isAutomated,
     } = payload;
     try {
@@ -583,11 +584,14 @@ export class ActivityService {
             isAutomated: isAutomated === 'true' ? true : false,
           }),
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
-          ...(riverBasin && {
+          ...((riverBasin || activeYear) && {
             phase: {
-              source: {
-                riverBasin,
-              },
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
             },
           }),
           ...(category && { categoryId: category }),
@@ -646,6 +650,8 @@ export class ActivityService {
         responsibility,
         status,
         appId,
+        riverBasin,
+        activeYear,
       } = payload;
       this.logger.log(`Fetching all activities for project ${appId}`);
 
@@ -654,6 +660,16 @@ export class ActivityService {
           app: appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...((riverBasin || activeYear) && {
+            phase: {
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
+            },
+          }),
           ...(category && { categoryId: category }),
           ...(phase && { phaseId: phase }),
           ...(isComplete && { isComplete: isComplete }),
