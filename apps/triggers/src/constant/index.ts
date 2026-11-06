@@ -167,6 +167,7 @@ export const MS_TRIGGERS_JOBS = {
   COMMUNICATIONS: {
     CREATE: 'ms.jobs.communications.create',
     GET_ALL: 'ms.jobs.communications.getAll',
+    GET_OVERVIEW: 'ms.jobs.communications.getOverview',
     GET_ONE: 'ms.jobs.communications.getOne',
     UPDATE: 'ms.jobs.communications.update',
     REMOVE: 'ms.jobs.communications.remove',
