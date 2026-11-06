@@ -44,7 +44,7 @@ export class CategoryController {
   })
   async add(payload: CreateCategoryDto) {
     console.log('payload');
-    const { appId, ...rest } = payload;
+    const { appId, user, ...rest } = payload;
     return this.categoryService.create(appId, rest);
   }
 
