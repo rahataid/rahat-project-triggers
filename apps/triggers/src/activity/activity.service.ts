@@ -32,7 +32,7 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     private readonly commsService: CommsService,
     private readonly sseService: SseService,
-  ) { }
+  ) {}
 
   private get commsClient(): CommsClient {
     return this.commsService.getCurrentClient();
@@ -572,6 +572,7 @@ export class ActivityService {
       status,
       appId,
       riverBasin,
+      activeYear,
       isAutomated,
     } = payload;
     try {
@@ -583,11 +584,14 @@ export class ActivityService {
             isAutomated: isAutomated === 'true' ? true : false,
           }),
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
-          ...(riverBasin && {
+          ...((riverBasin || activeYear) && {
             phase: {
-              source: {
-                riverBasin,
-              },
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
             },
           }),
           ...(category && { categoryId: category }),
@@ -646,6 +650,8 @@ export class ActivityService {
         responsibility,
         status,
         appId,
+        riverBasin,
+        activeYear,
       } = payload;
       this.logger.log(`Fetching all activities for project ${appId}`);
 
@@ -654,6 +660,16 @@ export class ActivityService {
           app: appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...((riverBasin || activeYear) && {
+            phase: {
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
+            },
+          }),
           ...(category && { categoryId: category }),
           ...(phase && { phaseId: phase }),
           ...(isComplete && { isComplete: isComplete }),
@@ -1004,9 +1020,10 @@ export class ActivityService {
           not: [],
         },
         phase: {
-          ...(phase && phase !== 'all' && {
-            name: { equals: phase, mode: 'insensitive' },
-          }),
+          ...(phase &&
+            phase !== 'all' && {
+              name: { equals: phase, mode: 'insensitive' },
+            }),
           ...(activeYear && { activeYear }),
           ...(riverBasin && {
             source: {
@@ -1436,11 +1453,11 @@ export class ActivityService {
       ) as Array<{
         groupId: string;
         message:
-        | string
-        | {
-          mediaURL: string;
-          fileName: string;
-        };
+          | string
+          | {
+              mediaURL: string;
+              fileName: string;
+            };
         groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
         transportId: string;
         communicationId: string;
@@ -1661,11 +1678,11 @@ export class ActivityService {
     ) as Array<{
       groupId: string;
       message:
-      | string
-      | {
-        mediaURL: string;
-        fileName: string;
-      };
+        | string
+        | {
+            mediaURL: string;
+            fileName: string;
+          };
       groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
       transportId: string;
       communicationId: string;
