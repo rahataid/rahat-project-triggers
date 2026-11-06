@@ -1,9 +1,12 @@
 export interface ActivityCommunicationData {
+  communicationId?: string;
   groupType: 'STAKEHOLDERS' | 'BENEFICIARY';
   groupId: string;
-  communicationType: string;
+  communicationType?: string;
   message?: string;
   audioURL?: { mediaURL: string; fileName: string };
+  isScheduled?: boolean;
+  scheduledAt?: string;
 }
 
 export enum SessionStatus {
@@ -11,6 +14,7 @@ export enum SessionStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  SCHEDULED = 'SCHEDULED',
 }
 export enum ValidationAddress {
   ANY = 'ANY',
