@@ -11,4 +11,6 @@ export class CreateCategoryDto {
   @IsString()
   @ApiProperty({ example: '', description: ' app ID' })
   appId?: string;
+
+  user?: any;
 }
