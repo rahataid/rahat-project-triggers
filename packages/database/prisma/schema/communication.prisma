@@ -23,6 +23,10 @@ model Communication {
     // Shared across all group deliveries
     transportId String?
 
+    //Schedule Communication
+    isScheduled Boolean @default(false)
+    scheduledAt    DateTime?
+
     isDeleted Boolean @default(false)
     createdBy String?
 
