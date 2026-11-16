@@ -8,6 +8,17 @@ enum CommunicationTargetStatus {
     @@schema("public")
 }
 
+enum CommunicationStatus {
+    SCHEDULED
+    NOT_STARTED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+    CANCELLED
+
+    @@schema("public")
+}
+
 model Communication {
     id   Int    @id @default(autoincrement())
     uuid String @unique @default(uuid())
@@ -27,6 +38,8 @@ model Communication {
     isScheduled Boolean @default(false)
     scheduledAt    DateTime?
 
+    status CommunicationStatus @default(NOT_STARTED)
+
     isDeleted Boolean @default(false)
     createdBy String?
 
@@ -37,6 +50,7 @@ model Communication {
 
     @@index([xrefId])
     @@index([transportId])
+    @@index([xrefId, status])
     @@map("tbl_communications")
     @@schema("public")
 }
