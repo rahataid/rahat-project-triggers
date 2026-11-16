@@ -7,6 +7,7 @@ import { of, throwError } from 'rxjs';
 import { ActivityService } from './activity.service';
 import { MS_TRIGGER_CLIENTS } from 'src/constant';
 import { CommsService } from 'src/comms/comms.service';
+import { SseService } from 'src/sse/sse.service';
 import {
   CreateActivityDto,
   GetActivityDto,
@@ -105,6 +106,12 @@ describe('ActivityService', () => {
           provide: CommsService,
           useValue: {
             getCurrentClient: () => mockCommsClientImplementation,
+          },
+        },
+        {
+          provide: SseService,
+          useValue: {
+            publishEvent: jest.fn(),
           },
         },
       ],
@@ -360,6 +367,32 @@ describe('ActivityService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             phaseId: 'phase-uuid',
+          }),
+        }),
+      );
+    });
+
+    it('should handle filtering by activeYear and riverBasin', async () => {
+      const payloadWithYearAndBasin = {
+        ...mockPayload,
+        activeYear: '2025',
+        riverBasin: 'karnali',
+      };
+
+      mockPrismaService.activity.findMany.mockResolvedValue([]);
+      mockPrismaService.activity.count.mockResolvedValue(0);
+
+      await service.getAll(payloadWithYearAndBasin);
+
+      expect(mockPrismaService.activity.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            phase: {
+              activeYear: '2025',
+              source: {
+                riverBasin: 'karnali',
+              },
+            },
           }),
         }),
       );
