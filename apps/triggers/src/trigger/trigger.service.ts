@@ -144,7 +144,6 @@ export class TriggerService {
   async update(payload: UpdateTriggerPayloadDto) {
     const { uuid, appId, ...dto } = payload;
 
-
     if (!uuid) {
       throw new BadRequestException({
         message: 'uuid is required',
@@ -355,7 +354,6 @@ export class TriggerService {
   async remove(payload: RemoveTriggerPayloadDto) {
     const { uuid } = payload;
 
-
     if (!uuid) {
       throw new BadRequestException({
         message: 'Uuid is required',
@@ -515,7 +513,6 @@ export class TriggerService {
           },
         });
 
-
         // 5. Resolve appId via Activity for notifications
         const appIds = await this.prisma.activity.findFirst({
           where: {
@@ -670,7 +667,6 @@ export class TriggerService {
           delay: 1000,
         },
       });
-
 
       // Notify activity managers whose activities share this trigger's lead time
       await this.notifyActivityManagers(updatedTrigger, appId);
@@ -892,10 +888,16 @@ export class TriggerService {
         ? `phase ${trigger.phase.name}, year ${trigger.phase.activeYear}, ${trigger.phase.riverBasin} river basin`
         : 'your phase';
 
+      const escapeHtml = (s: string) =>
+        s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
 
       for (const managerId of managerIds) {
-        // All activities in this phase assigned to this manager (all statuses)
-        const managerActivities = phaseActivities.filter(
+        // Only activities of this manager that match the trigger's lead time
+        const managerActivities = leadTimeActivities.filter(
           (a) => a.managerId === managerId,
         );
 
@@ -909,37 +911,118 @@ export class TriggerService {
         const completed = managerActivities.filter(
           (a) => a.status === 'COMPLETED',
         ).length;
-        const delayed = managerActivities.filter((a) => a.status === 'DELAYED').length;
+        const delayed = managerActivities.filter(
+          (a) => a.status === 'DELAYED',
+        ).length;
 
-        const matchingTitles = leadTimeActivities
-          .filter((a) => a.managerId === managerId)
-          .map((a) => a.title)
-          .join(', ');
+        const triggerTitle = trigger.title ?? trigger.uuid;
 
-        const description =
-          `Trigger "${trigger.title ?? trigger.uuid}" has been activated for ${phaseLabel}. ` +
-          `Activities assigned to you with a lead time of ${leadTime}: ${matchingTitles}.\n\n` +
-          `Your activity summary for this phase:\n` +
+        // ---------- Plain text (IN_APP) ----------
+        const textActivities = managerActivities
+          .map((a, i) => `${i + 1}. ${a.title}`)
+          .join('\n');
+
+        const textDescription =
+          `Trigger "${triggerTitle}" has been activated for ${phaseLabel}.\n` +
+          `Activities assigned to you with a lead time of ${leadTime}:\n` +
+          `${textActivities}\n\n` +
+          `Your activity summary for this lead time:\n` +
           `Total activities: ${total}\n` +
           `Pending: ${pending}\n` +
           `In Progress: ${inProgress}\n` +
           `Completed: ${completed}` +
           (delayed > 0 ? `\nDelayed: ${delayed}` : '');
 
-        const notification: NotificationPayload = {
+        const htmlActivities = managerActivities
+          .map((a) => `<li>${escapeHtml(a.title)}</li>`)
+          .join('');
+
+        const htmlDescription =
+          `<p>Trigger "<strong>${escapeHtml(triggerTitle)}</strong>" has been activated for ${escapeHtml(phaseLabel)}.</p>` +
+          `<p>Activities assigned to you with a lead time of <strong>${escapeHtml(leadTime)}</strong>:</p>` +
+          `<ol style="text-align:left;display:inline-block;margin:0 0 16px;">${htmlActivities}</ol>` +
+          `<p><strong>Your activity summary for this lead time:</strong></p>` +
+          `<table style="margin:0 auto;text-align:left;">` +
+          `<tr><td>Total activities:</td><td><strong>${total}</strong></td></tr>` +
+          `<tr><td>Pending:</td><td><strong>${pending}</strong></td></tr>` +
+          `<tr><td>In Progress:</td><td><strong>${inProgress}</strong></td></tr>` +
+          `<tr><td>Completed:</td><td><strong>${completed}</strong></td></tr>` +
+          (delayed > 0
+            ? `<tr><td>Delayed:</td><td><strong>${delayed}</strong></td></tr>`
+            : '') +
+          `</table>`;
+        const base = {
           projectId,
           title: `Action required: activities with ${leadTime} lead time`,
-          description,
           group: 'Activity Lead Time',
           audience: { userIds: [managerId] },
-          channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
         };
 
         this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
-          payload: notification,
+          payload: {
+            ...base,
+            description: textDescription,
+            channels: [NotificationChannel.IN_APP],
+          } as NotificationPayload,
+        });
+
+        this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+          payload: {
+            ...base,
+            description: htmlDescription,
+            channels: [NotificationChannel.EMAIL],
+          } as NotificationPayload,
         });
       }
 
+      // for (const managerId of managerIds) {
+      //   // All activities in this phase assigned to this manager (all statuses)
+      //   const managerActivities = phaseActivities.filter(
+      //     (a) => a.managerId === managerId,
+      //   );
+
+      //   const total = managerActivities.length;
+      //   const pending = managerActivities.filter(
+      //     (a) => a.status === 'NOT_STARTED',
+      //   ).length;
+      //   const inProgress = managerActivities.filter(
+      //     (a) => a.status === 'WORK_IN_PROGRESS',
+      //   ).length;
+      //   const completed = managerActivities.filter(
+      //     (a) => a.status === 'COMPLETED',
+      //   ).length;
+      //   const delayed = managerActivities.filter(
+      //     (a) => a.status === 'DELAYED',
+      //   ).length;
+
+      //   const matchingTitles = leadTimeActivities
+      //     .filter((a) => a.managerId === managerId)
+      //     .map((a) => a.title)
+      //     .join(', ');
+
+      //   const description =
+      //     `Trigger "${trigger.title ?? trigger.uuid}" has been activated for ${phaseLabel}. ` +
+      //     `Activities assigned to you with a lead time of ${leadTime}: ${matchingTitles}.\n\n` +
+      //     `Your activity summary for this phase:\n` +
+      //     `Total activities: ${total}\n` +
+      //     `Pending: ${pending}\n` +
+      //     `In Progress: ${inProgress}\n` +
+      //     `Completed: ${completed}` +
+      //     (delayed > 0 ? `\nDelayed: ${delayed}` : '');
+
+      //   const notification: NotificationPayload = {
+      //     projectId,
+      //     title: `Action required: activities with ${leadTime} lead time`,
+      //     description,
+      //     group: 'Activity Lead Time',
+      //     audience: { userIds: [managerId] },
+      //     channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
+      //   };
+
+      //   this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
+      //     payload: notification,
+      //   });
+      // }
     } catch (error: any) {
       this.logger.error(
         `Failed to notify activity managers for trigger ${trigger.uuid}: ${error?.message}`,
