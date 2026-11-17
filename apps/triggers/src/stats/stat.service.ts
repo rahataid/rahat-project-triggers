@@ -16,7 +16,7 @@ export class StatsService {
   constructor(
     private prisma: PrismaService,
     private activityService: ActivityService,
-  ) {}
+  ) { }
 
   async calculatePhaseActivities() {
     const phases = await this.prisma.phase.findMany();
@@ -145,7 +145,7 @@ export class StatsService {
         const appId = group.app;
         // const k = await this.activityService.getCommsStats(appId);
         const k =
-          await this.activityService.getTransportSessionStatsByGroup(appId);
+          await this.activityService.getTransportSessionStatsByGroup({ appId });
         await this.save({
           name: `COMMS_STATS_${appId}`,
           group: 'commsStats',
