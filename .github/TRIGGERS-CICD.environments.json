@@ -143,6 +143,12 @@
       "urls": {},
       "notes": []
     },
+    "NRCS Simulation": {
+      "description": "NRCS Simulation",
+      "tag": "release-v4.0.0-nrcs",
+      "urls": {},
+      "notes": []
+    },
     "prod-aa-demo": {
       "description": "AA Demo v2 (prod folder)",
       "tag": "aa-demo-v2",
