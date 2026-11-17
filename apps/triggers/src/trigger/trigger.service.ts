@@ -71,16 +71,6 @@ export class TriggerService {
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
 
-      // TODO: Need to think about onchain queue update
-      // const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
-      //   this.buildAddTriggerJobDto(trigger),
-      // );
-
-      // const res = await this.sendAddTriggerToOnChain(appId, queueData);
-
-      // this.logger.log(`
-      //   Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
-      //   `);
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
@@ -95,11 +85,6 @@ export class TriggerService {
     createdBy: string,
   ) {
     if (dto.source === DataSource.MANUAL) {
-      this.logger.log(
-        `User requested MANUAL Trigger, So creating manual trigger`,
-      );
-      // const dtoCopy = { ...dto };
-      // delete dtoCopy.triggerDocuments?.type;
       return await this.createTrigger(appId, dto, createdBy);
     }
 
@@ -120,9 +105,6 @@ export class TriggerService {
 
   async updateTransaction(payload: UpdateTriggerTransactionDto) {
     const { uuid, transactionHash } = payload;
-    this.logger.log(
-      `Updating trigger transaction hash on trigger with uuid: ${uuid}`,
-    );
 
     try {
       const trigger = await this.prisma.trigger.findUnique({
@@ -162,7 +144,6 @@ export class TriggerService {
   async update(payload: UpdateTriggerPayloadDto) {
     const { uuid, appId, ...dto } = payload;
 
-    this.logger.log(`Updating trigger with uuid: ${uuid}`);
 
     if (!uuid) {
       throw new BadRequestException({
@@ -306,7 +287,6 @@ export class TriggerService {
 
   async findOne(payload: findOneTriggerDto) {
     const { uuid } = payload;
-    this.logger.log(`Getting trigger with uuid: ${uuid}`);
     try {
       return await this.prisma.trigger.findUnique({
         where: {
@@ -328,7 +308,6 @@ export class TriggerService {
   }
 
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {
-    this.logger.log(`Creating ${dto.source} trigger for app: ${appId}`);
     try {
       const { phaseId, ...rest } = dto;
       const phase = await this.phasesService.findOne(phaseId);
@@ -376,7 +355,6 @@ export class TriggerService {
   async remove(payload: RemoveTriggerPayloadDto) {
     const { uuid } = payload;
 
-    this.logger.log(`Removing trigger with uuid: ${uuid}`);
 
     if (!uuid) {
       throw new BadRequestException({
@@ -438,7 +416,6 @@ export class TriggerService {
           });
         }
       }
-
 
       const updatedTrigger = await this.prisma.trigger.update({
         where: {
@@ -538,9 +515,6 @@ export class TriggerService {
           },
         });
 
-        this.logger.log(
-          `Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD}`,
-        );
 
         // 5. Resolve appId via Activity for notifications
         const appIds = await this.prisma.activity.findFirst({
@@ -588,7 +562,6 @@ export class TriggerService {
 
   async activateTrigger(data: ActivateTriggerPayloadDto) {
     const { uuid, appId, ...payload } = data;
-    this.logger.log(`Activating trigger with uuid: ${uuid}`);
 
     if (!uuid) {
       throw new BadRequestException({
@@ -698,9 +671,6 @@ export class TriggerService {
         },
       });
 
-      this.logger.log(`
-        Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
-        `);
 
       // Notify activity managers whose activities share this trigger's lead time
       await this.notifyActivityManagers(updatedTrigger, appId);
@@ -750,7 +720,6 @@ export class TriggerService {
   }
 
   async archive(repeatKey: string) {
-    this.logger.log(`Archiving trigger with repeatKey: ${repeatKey}`);
     try {
       const trigger = await this.prisma.trigger.findUnique({
         where: {
@@ -875,93 +844,92 @@ export class TriggerService {
       const leadTime = trigger.leadTime?.trim();
       const targetKey = this.normalizeLeadTime(leadTime);
 
-      console.log(
-        `Trigger ${trigger.uuid}: notifying activity managers for leadTime -->>> "${leadTime}"`,
-      );
-
       if (!leadTime || !trigger.phaseId) {
-        this.logger.log(
-          `Trigger ${trigger.uuid}: no leadTime/phase, skipping activity manager notification`,
-        );
         return;
       }
 
+      // Find activities matching the trigger's lead time — these determine which managers to notify
       const phaseActivities = await this.prisma.activity.findMany({
         where: {
           phaseId: trigger.phaseId,
           isDeleted: false,
           isTemplate: false,
-          status: { not: 'COMPLETED' },
           managerId: { not: null },
         },
-        select: { title: true, managerId: true, app: true, leadTime: true },
+        select: {
+          title: true,
+          managerId: true,
+          app: true,
+          leadTime: true,
+          status: true,
+        },
       });
 
-      const activities = phaseActivities.filter(
+      const leadTimeActivities = phaseActivities.filter(
         (a) => this.normalizeLeadTime(a.leadTime) === targetKey,
       );
 
-      this.logger.log(
-        `Phase ${trigger.phaseId}: ${phaseActivities.length} candidate activities, ` +
-          `${activities.length} match leadTime "${leadTime}" (key=${targetKey})`,
-      );
-
-      // const activities = await this.prisma.activity.findMany({
-      //   where: {
-      //     phaseId: trigger.phaseId,
-      //     leadTime: { equals: leadTime, mode: 'insensitive' },
-      //     isDeleted: false,
-      //     isTemplate: false,
-      //     status: { not: 'COMPLETED' },
-      //     managerId: { not: null },
-      //   },
-      //   select: { title: true, managerId: true, app: true },
-      // });
-
-      // console.log(`activities with leadTime "${leadTime}" in phase ${trigger.phaseId}-->>:`, activities);
-
-      if (!activities.length) {
-        this.logger.log(
-          `Trigger ${trigger.uuid}: no activities with leadTime "${leadTime}" in phase ${trigger.phaseId}`,
-        );
+      if (!leadTimeActivities.length) {
         return;
       }
 
-      // managerId -> activity titles (dedupes managers, skips invalid ids)
-      const byManager = new Map<string, string[]>();
-      for (const activity of activities) {
-        const managerId = activity.managerId;
-        if (!managerId || !isUUID(managerId)) {
+      // Collect unique valid manager IDs from lead-time-matched activities
+      const managerIds = new Set<string>();
+      for (const activity of leadTimeActivities) {
+        if (activity.managerId && isUUID(activity.managerId)) {
+          managerIds.add(activity.managerId);
+        } else {
           this.logger.warn(
-            `Skipping activity "${activity.title}": managerId "${managerId}" is not a valid user uuid`,
+            `Skipping activity "${activity.title}": managerId "${activity.managerId}" is not a valid user uuid`,
           );
-          continue;
         }
-        byManager.set(managerId, [
-          ...(byManager.get(managerId) ?? []),
-          activity.title,
-        ]);
       }
 
-      if (!byManager.size) return;
+      if (!managerIds.size) return;
 
-      console.log(`byManager map for leadTime "${leadTime}"-->>:`, byManager);
-
-      const projectId = appId || activities[0]?.app;
-      console.log(`projectId for notifications:-->> ${projectId}`);
+      const projectId = appId || leadTimeActivities[0]?.app;
       const phaseLabel = trigger.phase
         ? `phase ${trigger.phase.name}, year ${trigger.phase.activeYear}, ${trigger.phase.riverBasin} river basin`
         : 'your phase';
 
-      console.log(`phaseLabel for notifications:-->> ${phaseLabel}`);
 
-      for (const [managerId, titles] of byManager) {
+      for (const managerId of managerIds) {
+        // All activities in this phase assigned to this manager (all statuses)
+        const managerActivities = phaseActivities.filter(
+          (a) => a.managerId === managerId,
+        );
+
+        const total = managerActivities.length;
+        const pending = managerActivities.filter(
+          (a) => a.status === 'NOT_STARTED',
+        ).length;
+        const inProgress = managerActivities.filter(
+          (a) => a.status === 'WORK_IN_PROGRESS',
+        ).length;
+        const completed = managerActivities.filter(
+          (a) => a.status === 'COMPLETED',
+        ).length;
+        const delayed = managerActivities.filter((a) => a.status === 'DELAYED').length;
+
+        const matchingTitles = leadTimeActivities
+          .filter((a) => a.managerId === managerId)
+          .map((a) => a.title)
+          .join(', ');
+
+        const description =
+          `Trigger "${trigger.title ?? trigger.uuid}" has been activated for ${phaseLabel}. ` +
+          `Activities assigned to you with a lead time of ${leadTime}: ${matchingTitles}.\n\n` +
+          `Your activity summary for this phase:\n` +
+          `Total activities: ${total}\n` +
+          `Pending: ${pending}\n` +
+          `In Progress: ${inProgress}\n` +
+          `Completed: ${completed}` +
+          (delayed > 0 ? `\nDelayed: ${delayed}` : '');
+
         const notification: NotificationPayload = {
           projectId,
           title: `Action required: activities with ${leadTime} lead time`,
-          description:
-            `Trigger "${trigger.title ?? trigger.uuid}" has been activated for ${phaseLabel}. ` +
-            `Activities assigned to you with a lead time of ${leadTime}: ${titles.join(', ')}.`,
+          description,
           group: 'Activity Lead Time',
           audience: { userIds: [managerId] },
           channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
@@ -972,9 +940,6 @@ export class TriggerService {
         });
       }
 
-      this.logger.log(
-        `Trigger ${trigger.uuid}: notified ${byManager.size} manager(s) for ${activities.length} activity(ies) with leadTime "${leadTime}"`,
-      );
     } catch (error: any) {
       this.logger.error(
         `Failed to notify activity managers for trigger ${trigger.uuid}: ${error?.message}`,
