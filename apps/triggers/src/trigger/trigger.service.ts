@@ -882,11 +882,20 @@ export class TriggerService {
       }
 
       if (!managerIds.size) return;
-
       const projectId = appId || leadTimeActivities[0]?.app;
-      const phaseLabel = trigger.phase
-        ? `phase ${trigger.phase.name}, year ${trigger.phase.activeYear}, ${trigger.phase.riverBasin} river basin`
-        : 'your phase';
+
+      const phaseName = trigger.phase?.name ?? 'your';
+      const riverBasin = trigger.phase?.riverBasin ?? 'your river basin';
+      const triggerTitle = trigger.title ?? trigger.uuid;
+      const PROJECT_NAME_PLACEHOLDER = '{{PROJECT_NAME}}';
+      const USER_NAME_PLACEHOLDER = '{{USER_NAME}}';
+      const statusLabel = (status: string) =>
+        ({
+          NOT_STARTED: 'Pending',
+          WORK_IN_PROGRESS: 'In Progress',
+          COMPLETED: 'Completed',
+          DELAYED: 'Delayed',
+        })[status] ?? status;
 
       const escapeHtml = (s: string) =>
         s
@@ -894,6 +903,8 @@ export class TriggerService {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;');
+
+      const emailTitle = `Rahat Alert: Trigger Activated: Complete Pending Activities with ${leadTime} lead time.`;
 
       for (const managerId of managerIds) {
         // Only activities of this manager that match the trigger's lead time
@@ -915,45 +926,64 @@ export class TriggerService {
           (a) => a.status === 'DELAYED',
         ).length;
 
-        const triggerTitle = trigger.title ?? trigger.uuid;
-
         // ---------- Plain text (IN_APP) ----------
+        // No user/project placeholders: the in-app notification is already shown
+        // to that user inside the project, and placeholders are only resolved in queueEmail.
         const textActivities = managerActivities
-          .map((a, i) => `${i + 1}. ${a.title}`)
+          .map((a, i) => `${i + 1}. ${a.title} — ${statusLabel(a.status)}`)
           .join('\n');
 
         const textDescription =
-          `Trigger "${triggerTitle}" has been activated for ${phaseLabel}.\n` +
-          `Activities assigned to you with a lead time of ${leadTime}:\n` +
-          `${textActivities}\n\n` +
-          `Your activity summary for this lead time:\n` +
-          `Total activities: ${total}\n` +
-          `Pending: ${pending}\n` +
-          `In Progress: ${inProgress}\n` +
-          `Completed: ${completed}` +
-          (delayed > 0 ? `\nDelayed: ${delayed}` : '');
+          `The trigger statement “${triggerTitle}” has been met for the ${phaseName} phase, with a lead time of ${leadTime} for ${riverBasin}.\n\n` +
+          `Your Assigned Activities are as follows:\n${textActivities}\n\n` +
+          `Your Activity Summary for This Lead Time\n` +
+          `* Total Activities: ${total}\n` +
+          `* Pending: ${pending}\n` +
+          `* In Progress: ${inProgress}\n` +
+          `* Completed: ${completed}` +
+          (delayed > 0 ? `\n* Delayed: ${delayed}` : '') +
+          `\n\nRequired Actions\n` +
+          `1. Review the activities assigned to you.\n` +
+          `2. Complete any pending or in-progress activities as required.\n` +
+          `3. Update the activity status and progress in the Rahat Platform.\n` +
+          `4. Record completion details and any relevant remarks or evidence, where applicable.\n\n` +
+          `Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.\n\n`;
 
+        // ---------- HTML (EMAIL) ----------
         const htmlActivities = managerActivities
-          .map((a) => `<li>${escapeHtml(a.title)}</li>`)
+          .map(
+            (a) =>
+              `<li>${escapeHtml(a.title)} — ${escapeHtml(statusLabel(a.status))}</li>`,
+          )
           .join('');
 
         const htmlDescription =
-          `<p>Trigger "<strong>${escapeHtml(triggerTitle)}</strong>" has been activated for ${escapeHtml(phaseLabel)}.</p>` +
-          `<p>Activities assigned to you with a lead time of <strong>${escapeHtml(leadTime)}</strong>:</p>` +
-          `<ol style="text-align:left;display:inline-block;margin:0 0 16px;">${htmlActivities}</ol>` +
-          `<p><strong>Your activity summary for this lead time:</strong></p>` +
-          `<table style="margin:0 auto;text-align:left;">` +
-          `<tr><td>Total activities:</td><td><strong>${total}</strong></td></tr>` +
-          `<tr><td>Pending:</td><td><strong>${pending}</strong></td></tr>` +
-          `<tr><td>In Progress:</td><td><strong>${inProgress}</strong></td></tr>` +
-          `<tr><td>Completed:</td><td><strong>${completed}</strong></td></tr>` +
-          (delayed > 0
-            ? `<tr><td>Delayed:</td><td><strong>${delayed}</strong></td></tr>`
-            : '') +
-          `</table>`;
+          `<div style="text-align:left;">` +
+          `<p>Dear ${USER_NAME_PLACEHOLDER},</p>` +
+          `<p>The trigger statement “<strong>${escapeHtml(triggerTitle)}</strong>” has been met for the <strong>${escapeHtml(phaseName)}</strong> phase, with a lead time of <strong>${escapeHtml(leadTime)}</strong> for <strong>${escapeHtml(riverBasin)}</strong>.</p>` +
+          `<p>Your Assigned Activities for the project <strong>${PROJECT_NAME_PLACEHOLDER}</strong> are as follows:</p>` +
+          `<ol>${htmlActivities}</ol>` +
+          `<p><strong>Your Activity Summary for This Lead Time</strong></p>` +
+          `<ul>` +
+          `<li>Total Activities: <strong>${total}</strong></li>` +
+          `<li>Pending: <strong>${pending}</strong></li>` +
+          `<li>In Progress: <strong>${inProgress}</strong></li>` +
+          `<li>Completed: <strong>${completed}</strong></li>` +
+          (delayed > 0 ? `<li>Delayed: <strong>${delayed}</strong></li>` : '') +
+          `</ul>` +
+          `<p><strong>Required Actions</strong></p>` +
+          `<ol>` +
+          `<li>Review the activities assigned to you.</li>` +
+          `<li>Complete any pending or in-progress activities as required.</li>` +
+          `<li>Update the activity status and progress in the Rahat Platform.</li>` +
+          `<li>Record completion details and any relevant remarks or evidence, where applicable.</li>` +
+          `</ol>` +
+          `<p>Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.</p>` +
+          `</div>`;
+
         const base = {
           projectId,
-          title: `Action required: activities with ${leadTime} lead time`,
+          title: emailTitle,
           group: 'Activity Lead Time',
           audience: { userIds: [managerId] },
         };
@@ -974,55 +1004,6 @@ export class TriggerService {
           } as NotificationPayload,
         });
       }
-
-      // for (const managerId of managerIds) {
-      //   // All activities in this phase assigned to this manager (all statuses)
-      //   const managerActivities = phaseActivities.filter(
-      //     (a) => a.managerId === managerId,
-      //   );
-
-      //   const total = managerActivities.length;
-      //   const pending = managerActivities.filter(
-      //     (a) => a.status === 'NOT_STARTED',
-      //   ).length;
-      //   const inProgress = managerActivities.filter(
-      //     (a) => a.status === 'WORK_IN_PROGRESS',
-      //   ).length;
-      //   const completed = managerActivities.filter(
-      //     (a) => a.status === 'COMPLETED',
-      //   ).length;
-      //   const delayed = managerActivities.filter(
-      //     (a) => a.status === 'DELAYED',
-      //   ).length;
-
-      //   const matchingTitles = leadTimeActivities
-      //     .filter((a) => a.managerId === managerId)
-      //     .map((a) => a.title)
-      //     .join(', ');
-
-      //   const description =
-      //     `Trigger "${trigger.title ?? trigger.uuid}" has been activated for ${phaseLabel}. ` +
-      //     `Activities assigned to you with a lead time of ${leadTime}: ${matchingTitles}.\n\n` +
-      //     `Your activity summary for this phase:\n` +
-      //     `Total activities: ${total}\n` +
-      //     `Pending: ${pending}\n` +
-      //     `In Progress: ${inProgress}\n` +
-      //     `Completed: ${completed}` +
-      //     (delayed > 0 ? `\nDelayed: ${delayed}` : '');
-
-      //   const notification: NotificationPayload = {
-      //     projectId,
-      //     title: `Action required: activities with ${leadTime} lead time`,
-      //     description,
-      //     group: 'Activity Lead Time',
-      //     audience: { userIds: [managerId] },
-      //     channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
-      //   };
-
-      //   this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
-      //     payload: notification,
-      //   });
-      // }
     } catch (error: any) {
       this.logger.error(
         `Failed to notify activity managers for trigger ${trigger.uuid}: ${error?.message}`,
