@@ -120,6 +120,7 @@ export class PhasesService {
     if (disbursementMethods?.length) {
       await this.validateUniqueDisbursementMethods(
         river_basin,
+        activeYear,
         disbursementMethods,
       );
     }
@@ -248,6 +249,7 @@ export class PhasesService {
     if (rest.disbursementMethods?.length) {
       await this.validateUniqueDisbursementMethods(
         phase.riverBasin,
+        phase.activeYear,
         rest.disbursementMethods,
         uuid,
       );
@@ -883,12 +885,14 @@ export class PhasesService {
 
   private async validateUniqueDisbursementMethods(
     riverBasin: string,
+    activeYear: string,
     methods: string[],
     excludeUuid?: string,
   ) {
     const existingPhases = await this.prisma.phase.findMany({
       where: {
         riverBasin,
+        activeYear,
         ...(excludeUuid && { uuid: { not: excludeUuid } }),
       },
     });
@@ -903,10 +907,10 @@ export class PhasesService {
 
       if (conflict) {
         this.logger.warn(
-          `Disbursement method "${method}" already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}`,
+          `Disbursement method "${method}" already assigned to phase "${conflict.name}" for riverBasin ${riverBasin} and activeYear ${activeYear}`,
         );
         throw new RpcException({
-          message: `Disbursement method "${method}" is already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}. Each method can only be used by one phase per project.`,
+          message: `Disbursement method "${method}" is already assigned to phase "${conflict.name}" for riverBasin ${riverBasin} and activeYear ${activeYear}. Each method can only be used by one phase per river basin and active year.`,
           code: 'DISBURSEMENT_METHOD_ALREADY_ASSIGNED_TO_PHASE',
           params: {
             method,
