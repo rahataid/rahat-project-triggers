@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { lastValueFrom, timeout } from 'rxjs';
 import { getClient } from '@rumsan/connect/src/clients';
 
@@ -43,7 +43,10 @@ export class CommsService {
       );
 
       if (!communicationSettings) {
-        throw new Error('Communication settings not found in response');
+        throw new RpcException({
+          message: 'Communication settings not found in response',
+          code: 'COMMUNICATION_SETTINGS_NOT_FOUND',
+        });
       }
 
       this.client = getClient({
@@ -97,6 +100,39 @@ export class CommsService {
         );
       }
     }
+    return this.client;
+  }
+
+  createLiveClient(): CommsClient {
+    const resolve = <K extends keyof CommsClient>(key: K) => ({
+      get: (): CommsClient[K] => this.requireClient()[key],
+    });
+
+    return Object.defineProperties({} as CommsClient, {
+      apiClient: resolve('apiClient'),
+      setAppId: resolve('setAppId'),
+      setAccessToken: resolve('setAccessToken'),
+      setHeaders: resolve('setHeaders'),
+      session: resolve('session'),
+      broadcast: resolve('broadcast'),
+      broadcastLog: resolve('broadcastLog'),
+      transport: resolve('transport'),
+    });
+  }
+
+  private requireClient(): CommsClient {
+    if (!this.client) {
+      // Initialization keeps retrying in the background until it succeeds.
+      throw new RpcException({
+        message:
+          'Communication service is not available yet. Please try again shortly.',
+        code: 'COMMS_SERVICE_UNAVAILABLE',
+      });
+    }
+    return this.client;
+  }
+
+  getCurrentClient(): CommsClient {
     return this.client;
   }
 }

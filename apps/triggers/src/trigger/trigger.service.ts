@@ -57,7 +57,10 @@ export class TriggerService {
     const { user, appId, triggers } = payload;
 
     if (!appId) {
-      throw new BadRequestException('appId is required');
+      throw new BadRequestException({
+        message: 'appId is required',
+        code: 'APP_ID_REQUIRED',
+      });
     }
 
     try {
@@ -78,6 +81,7 @@ export class TriggerService {
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -103,6 +107,8 @@ export class TriggerService {
       );
       throw new BadRequestException({
         message: `Invalid trigger payload: ${JSON.stringify(result.error.flatten())}`,
+        code: 'INVALID_TRIGGER_PAYLOAD',
+        params: { zodErrors: JSON.stringify(result.error.flatten()) },
       });
     }
 
@@ -124,7 +130,10 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn('Trigger not found.');
-        throw new RpcException('Trigger not found.');
+        throw new RpcException({
+          message: 'Trigger not found.',
+          code: 'TRIGGER_NOT_FOUND',
+        });
       }
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -142,6 +151,7 @@ export class TriggerService {
         `Error in updating trigger transaction hash on trigger with uuid: ${uuid}:`,
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -152,10 +162,16 @@ export class TriggerService {
     this.logger.log(`Updating trigger with uuid: ${uuid}`);
 
     if (!uuid) {
-      throw new BadRequestException('uuid is required');
+      throw new BadRequestException({
+        message: 'uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
     if (!appId) {
-      throw new BadRequestException('appId is required');
+      throw new BadRequestException({
+        message: 'appId is required',
+        code: 'APP_ID_REQUIRED',
+      });
     }
 
     try {
@@ -167,14 +183,16 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn('Trigger not found.');
-        throw new RpcException('Trigger not found.');
+        throw new RpcException({
+          message: 'Trigger not found.',
+          code: 'TRIGGER_NOT_FOUND',
+        });
       }
 
       if (trigger.isTriggered) {
-        this.logger.warn(
-          'Trigger has already been activated. Cannot update an activated trigger.',
+        this.logger.log(
+          `Updating already activated trigger with uuid: ${uuid}`,
         );
-        throw new RpcException('Trigger has already been activated.');
       }
 
       // Validate source only if it's provided
@@ -182,9 +200,11 @@ export class TriggerService {
         this.logger.warn(
           `Invalid source value: ${dto.source}. Must be one of: ${Object.values(DataSource).join(', ')}`,
         );
-        throw new BadRequestException(
-          `Invalid source value. Must be one of: ${Object.values(DataSource).join(', ')}`,
-        );
+        throw new BadRequestException({
+          message: `Invalid source value. Must be one of: ${Object.values(DataSource).join(', ')}`,
+          code: 'INVALID_SOURCE_VALUE',
+          params: { list: Object.values(DataSource).join(', ') },
+        });
       }
 
       const fields = {
@@ -195,6 +215,12 @@ export class TriggerService {
         isMandatory: dto.isMandatory ?? trigger.isMandatory,
         source: dto.source || trigger.source,
         leadTime: dto.leadTime ?? trigger.leadTime,
+        extra: dto.manualSources
+          ? {
+              ...((trigger.extra as Record<string, any>) ?? {}),
+              manualSources: dto.manualSources,
+            }
+          : trigger.extra,
       };
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -219,6 +245,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -266,6 +293,7 @@ export class TriggerService {
       );
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -300,6 +328,7 @@ export class TriggerService {
       return { ...trigger, activities };
     } catch (error: any) {
       this.logger.error(error.message);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -332,12 +361,16 @@ export class TriggerService {
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {
     this.logger.log(`Creating ${dto.source} trigger for app: ${appId}`);
     try {
-      const { phaseId, ...rest } = dto;
+      const { phaseId, manualSources, ...rest } = dto;
       const phase = await this.phasesService.findOne(phaseId);
 
       if (!phase) {
         this.logger.error(`Phase with id: ${phaseId} not found.`);
-        throw new RpcException(`Phase with id: ${phaseId} not found.`);
+        throw new RpcException({
+          message: `Phase with id: ${phaseId} not found.`,
+          code: 'PHASE_NOT_FOUND',
+          params: { phaseId },
+        });
       }
 
       const payload = {
@@ -348,6 +381,7 @@ export class TriggerService {
           },
         },
         source: dto.source,
+        ...(manualSources && { extra: { manualSources } }),
         isDeleted: false,
         repeatKey: randomUUID(),
         createdBy,
@@ -366,6 +400,7 @@ export class TriggerService {
       return trigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -376,7 +411,10 @@ export class TriggerService {
     this.logger.log(`Removing trigger with uuid: ${uuid}`);
 
     if (!uuid) {
-      throw new BadRequestException('Uuid is required');
+      throw new BadRequestException({
+        message: 'Uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
 
     try {
@@ -390,21 +428,31 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.error(`Trigger with id: ${uuid} not found.`);
-        throw new RpcException(`Trigger with id: ${uuid} not found.`);
+        throw new RpcException({
+          message: `Trigger with id: ${uuid} not found.`,
+          code: 'TRIGGER_NOT_FOUND',
+          params: { uuid },
+        });
       }
 
       if (trigger.isTriggered) {
         this.logger.error(
           `Trigger with id: ${uuid} is activated. Cannot remove an activated trigger.`,
         );
-        throw new RpcException(`Cannot remove an activated trigger.`);
+        throw new RpcException({
+          message: 'Cannot remove an activated trigger.',
+          code: 'CANNOT_REMOVE_ACTIVATED_TRIGGER',
+        });
       }
 
       if (trigger.phase.isActive) {
         this.logger.error(
           `Trigger with id: ${uuid} is in an active phase. Cannot remove triggers from an active phase.`,
         );
-        throw new RpcException(`Cannot remove triggers from an active phase.`);
+        throw new RpcException({
+          message: 'Cannot remove triggers from an active phase.',
+          code: 'CANNOT_REMOVE_ACTIVE_PHASE_TRIGGERS',
+        });
       }
 
       const phaseDetail = await this.phasesService.findOne(trigger.phaseId);
@@ -416,7 +464,10 @@ export class TriggerService {
             phaseDetail.triggerRequirements.optionalTriggers.totalTriggers,
           ) - 1;
         if (totalTriggersAfterDeleting < phaseDetail.requiredOptionalTriggers) {
-          throw new RpcException(`Trigger criterias disrupted.`);
+          throw new RpcException({
+            message: 'Trigger criterias disrupted.',
+            code: 'TRIGGER_CRITERIA_DISRUPTED',
+          });
         }
       }
 
@@ -440,6 +491,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -566,6 +618,7 @@ export class TriggerService {
       }
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -575,7 +628,10 @@ export class TriggerService {
     this.logger.log(`Activating trigger with uuid: ${uuid}`);
 
     if (!uuid) {
-      throw new BadRequestException('uuid is required');
+      throw new BadRequestException({
+        message: 'uuid is required',
+        code: 'UUID_REQUIRED',
+      });
     }
 
     try {
@@ -599,17 +655,26 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn('Trigger not found.');
-        throw new RpcException('Trigger not found.');
+        throw new RpcException({
+          message: 'Trigger not found.',
+          code: 'TRIGGER_NOT_FOUND',
+        });
       }
 
       if (trigger.isTriggered) {
         this.logger.warn('Trigger has already been activated.');
-        throw new RpcException('Trigger has already been activated.');
+        throw new RpcException({
+          message: 'Trigger has already been activated.',
+          code: 'TRIGGER_ALREADY_ACTIVATED',
+        });
       }
 
       if (trigger.source !== DataSource.MANUAL) {
         this.logger.warn('Cannot activate an automated trigger.');
-        throw new RpcException('Cannot activate an automated trigger.');
+        throw new RpcException({
+          message: 'Cannot activate an automated trigger.',
+          code: 'CANNOT_ACTIVATE_AUTOMATED_TRIGGER',
+        });
       }
 
       const triggerDocs = triggerDocuments?.length
@@ -661,19 +726,26 @@ export class TriggerService {
         });
       }
 
-      // TODO: EVM Change
-      this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
-        attempts: 3,
-        removeOnComplete: true,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      });
+      // Phase already active, no need to evaluate threshold again
+      if (trigger.phase?.isActive) {
+        this.logger.log(
+          `Phase ${trigger.phaseId} is already active. Skipping threshold queue for trigger ${trigger.uuid}`,
+        );
+      } else {
+        // TODO: EVM Change
+        this.triggerQueue.add(JOBS.TRIGGER.REACHED_THRESHOLD, trigger, {
+          attempts: 3,
+          removeOnComplete: true,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        });
 
-      this.logger.log(`
+        this.logger.log(`
         Trigger added to trigger queue with id: ${trigger.uuid}, action: ${JOBS.TRIGGER.REACHED_THRESHOLD} for appId ${appId}
         `);
+      }
 
       try {
         await this.triggerCallbackService.enqueueForTrigger(
@@ -723,6 +795,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -739,9 +812,11 @@ export class TriggerService {
 
       if (!trigger) {
         this.logger.warn(`Active trigger with id: ${repeatKey} not found.`);
-        throw new RpcException(
-          `Active trigger with id: ${repeatKey} not found.`,
-        );
+        throw new RpcException({
+          message: `Active trigger with id: ${repeatKey} not found.`,
+          code: 'ACTIVE_TRIGGER_NOT_FOUND',
+          params: { repeatKey },
+        });
       }
 
       const updatedTrigger = await this.prisma.trigger.update({
@@ -756,6 +831,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -806,6 +882,7 @@ export class TriggerService {
       // });
     } catch (error: any) {
       this.logger.error(error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
   }
@@ -989,6 +1066,7 @@ export class TriggerService {
               'description', t.description,
               'triggerStatement', t."triggerStatement",
               'triggerDocuments', t."triggerDocuments",
+              'extra', t.extra,
               'notes', t.notes,
               'phaseId', t."phaseId",
               'source', t.source,
@@ -1021,6 +1099,7 @@ export class TriggerService {
       };
     } catch (error: any) {
       this.logger.warn('Error while generating phase triggers stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
