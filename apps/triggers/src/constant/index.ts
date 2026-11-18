@@ -94,6 +94,8 @@ export const MS_TRIGGERS_JOBS = {
       GET_ALL: 'ms.jobs.triggers.callbacks.getAll',
       GET_ONE: 'ms.jobs.triggers.callbacks.getOne',
       UPDATE: 'ms.jobs.triggers.callbacks.update',
+      UPDATE_BY_XREF: 'ms.jobs.triggers.callbacks.update_by_xref',
+      UPDATE_BY_TRIGGER: 'ms.jobs.triggers.callbacks.update_by_trigger',
       REMOVE: 'ms.jobs.triggers.callbacks.remove',
       GET_LOGS: 'ms.jobs.triggers.callbacks.getLogs',
       REPLAY: 'ms.jobs.triggers.callbacks.replay',
@@ -175,6 +177,14 @@ export const MS_TRIGGERS_JOBS = {
     ADD: 'ms.jobs.categories.add',
     REMOVE: 'ms.jobs.categories.remove',
   },
+  COMMUNICATIONS: {
+    CREATE: 'ms.jobs.communications.create',
+    GET_ALL: 'ms.jobs.communications.getAll',
+    GET_ONE: 'ms.jobs.communications.getOne',
+    UPDATE: 'ms.jobs.communications.update',
+    REMOVE: 'ms.jobs.communications.remove',
+    TRIGGER: 'ms.jobs.communications.trigger',
+  },
   DAILY_MONITORING: {
     ADD: 'ms.jobs.dailyMonitoring.add',
     GET_ALL: 'ms.jobs.dailyMonitoring.getAll',
@@ -192,6 +202,9 @@ export const MS_TRIGGERS_JOBS = {
   },
   SETTINGS: {
     GET: 'ms.jobs.settings.get',
+  },
+  VERSION: {
+    GET: 'ms.jobs.version.get',
   },
   LIBRARY: {
     GET_ACTIVITY_TEMPLATES: 'ms.jobs.library.getActivityTemplates',

@@ -205,43 +205,62 @@ describe('setupProcessHandlers', () => {
   });
 
   describe('SIGTERM handler', () => {
-    it('should log SIGTERM message and exit with code 0', () => {
-      setupProcessHandlers(mockLogger);
+    it('should log SIGTERM message, close the app, and exit with code 0', async () => {
+      const mockApp = { close: jest.fn().mockResolvedValue(undefined) } as any;
+      setupProcessHandlers(mockLogger, mockApp);
 
-      processHandlers['SIGTERM']();
+      await processHandlers['SIGTERM']();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'SIGTERM signal received: closing application gracefully',
       );
+      expect(mockApp.close).toHaveBeenCalledTimes(1);
       expect(process.exit).toHaveBeenCalledWith(0);
     });
 
-    it('should only log once on SIGTERM', () => {
+    it('should only log once on SIGTERM', async () => {
       setupProcessHandlers(mockLogger);
 
-      processHandlers['SIGTERM']();
+      await processHandlers['SIGTERM']();
 
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
       expect(process.exit).toHaveBeenCalledTimes(1);
     });
+
+    it('should still exit if app.close() rejects', async () => {
+      const mockApp = {
+        close: jest.fn().mockRejectedValue(new Error('close failed')),
+      } as any;
+      setupProcessHandlers(mockLogger, mockApp);
+
+      await processHandlers['SIGTERM']();
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Error while closing application',
+        expect.any(Error),
+      );
+      expect(process.exit).toHaveBeenCalledWith(0);
+    });
   });
 
   describe('SIGINT handler', () => {
-    it('should log SIGINT message and exit with code 0', () => {
-      setupProcessHandlers(mockLogger);
+    it('should log SIGINT message, close the app, and exit with code 0', async () => {
+      const mockApp = { close: jest.fn().mockResolvedValue(undefined) } as any;
+      setupProcessHandlers(mockLogger, mockApp);
 
-      processHandlers['SIGINT']();
+      await processHandlers['SIGINT']();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'SIGINT signal received: closing application gracefully',
       );
+      expect(mockApp.close).toHaveBeenCalledTimes(1);
       expect(process.exit).toHaveBeenCalledWith(0);
     });
 
-    it('should only log once on SIGINT', () => {
+    it('should only log once on SIGINT', async () => {
       setupProcessHandlers(mockLogger);
 
-      processHandlers['SIGINT']();
+      await processHandlers['SIGINT']();
 
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
       expect(process.exit).toHaveBeenCalledTimes(1);
@@ -249,11 +268,11 @@ describe('setupProcessHandlers', () => {
   });
 
   describe('multiple signal handlers', () => {
-    it('should handle multiple different signals independently', () => {
+    it('should handle multiple different signals independently', async () => {
       setupProcessHandlers(mockLogger);
 
       // Test SIGTERM first
-      processHandlers['SIGTERM']();
+      await processHandlers['SIGTERM']();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'SIGTERM signal received: closing application gracefully',
@@ -264,7 +283,7 @@ describe('setupProcessHandlers', () => {
       jest.clearAllMocks();
 
       // Test SIGINT
-      processHandlers['SIGINT']();
+      await processHandlers['SIGINT']();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'SIGINT signal received: closing application gracefully',

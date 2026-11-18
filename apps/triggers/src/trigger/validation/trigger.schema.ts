@@ -132,6 +132,7 @@ export const triggerPayloadSchema = z.object({
     .union([z.record(z.any()), z.null(), z.undefined()])
     .optional()
     .transform((val) => (val === null ? undefined : val)),
+  manualSources: z.array(z.string()).optional(),
   notes: z.string().trim().max(500).optional().default(''),
   title: z.string().trim().min(3).max(120),
   description: z.string().optional(),

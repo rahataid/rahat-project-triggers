@@ -134,11 +134,15 @@ describe('TriggerService', () => {
         },
         {
           provide: SseService,
+<<<<<<< HEAD
           useValue: mockSseService,
         },
         {
           provide: TriggerCallbackService,
           useValue: mockTriggerCallbackService,
+=======
+          useValue: { publishEvent: jest.fn() },
+>>>>>>> f298a83b1f9f3be7c86bfcc5c38ed0700405fde2
         },
       ],
     }).compile();
@@ -364,19 +368,41 @@ describe('TriggerService', () => {
       );
     });
 
-    it('should handle already triggered trigger', async () => {
+    it('should update an already triggered trigger', async () => {
+      const mockUpdateTriggerPayload = {
+        uuid: 'trigger-uuid',
+        appId: 'app-id',
+        title: 'Updated Trigger',
+        manualSources: ['source-a'],
+      };
       const mockTriggeredTrigger = {
         uuid: 'trigger-uuid',
+        title: 'Existing Trigger',
         isTriggered: true,
+        source: DataSource.MANUAL,
+        extra: { other: 'value' },
+      };
+      const mockUpdatedTrigger = {
+        ...mockTriggeredTrigger,
+        title: 'Updated Trigger',
+        extra: { other: 'value', manualSources: ['source-a'] },
       };
 
       mockPrismaService.trigger.findUnique.mockResolvedValue(
         mockTriggeredTrigger,
       );
+      mockPrismaService.trigger.update.mockResolvedValue(mockUpdatedTrigger);
 
-      await expect(service.update(mockUpdateTriggerPayload)).rejects.toThrow(
-        RpcException,
-      );
+      const result = await service.update(mockUpdateTriggerPayload);
+
+      expect(mockPrismaService.trigger.update).toHaveBeenCalledWith({
+        where: { uuid: 'trigger-uuid' },
+        data: expect.objectContaining({
+          title: 'Updated Trigger',
+          extra: { other: 'value', manualSources: ['source-a'] },
+        }),
+      });
+      expect(result).toEqual(mockUpdatedTrigger);
     });
   });
 
@@ -421,6 +447,7 @@ describe('TriggerService', () => {
       const mockTrigger = {
         uuid: 'trigger-uuid',
         title: 'Test Trigger',
+        callbacks: [],
       };
 
       mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
@@ -443,7 +470,7 @@ describe('TriggerService', () => {
           },
         },
       });
-      expect(result).toEqual(mockTrigger);
+      expect(result).toEqual({ ...mockTrigger, activities: [] });
     });
   });
 
@@ -667,6 +694,44 @@ describe('TriggerService', () => {
 
       const result = await service.activateTrigger(mockActivatePayload);
 
+      expect(result).toEqual(mockActivatedTrigger);
+    });
+
+    it('should skip threshold queue when phase is already active', async () => {
+      const mockTrigger = {
+        uuid: 'trigger-uuid',
+        isTriggered: false,
+        source: DataSource.MANUAL,
+        isMandatory: true,
+        phaseId: 'phase-uuid',
+        triggerDocuments: [],
+        phase: { uuid: 'phase-uuid', isActive: true },
+      };
+
+      const mockActivatedTrigger = {
+        ...mockTrigger,
+        isTriggered: true,
+        phase: {
+          uuid: 'phase-uuid',
+          name: Phases.PREPAREDNESS,
+          activeYear: '2025',
+          riverBasin: 'Karnali',
+          isActive: true,
+        },
+      };
+
+      mockPrismaService.trigger.findUnique.mockResolvedValue(mockTrigger);
+      mockPrismaService.trigger.update.mockResolvedValue(mockActivatedTrigger);
+      mockPrismaService.phase.update.mockResolvedValue({});
+      mockPrismaService.activity.findFirst.mockResolvedValue({ app: 'app-id' });
+
+      const result = await service.activateTrigger(mockActivatePayload);
+
+      expect(mockTriggerQueue.add).not.toHaveBeenCalled();
+      expect(mockPrismaService.phase.update).toHaveBeenCalledWith({
+        where: { uuid: 'phase-uuid' },
+        data: { receivedMandatoryTriggers: { increment: 1 } },
+      });
       expect(result).toEqual(mockActivatedTrigger);
     });
 

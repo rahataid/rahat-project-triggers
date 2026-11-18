@@ -3,6 +3,7 @@ import type { Job } from 'bull';
 import { TriggerProcessor } from './trigger.processor';
 import { PhasesService } from '../phases/phases.service';
 import { DataSource, PrismaService } from '@lib/database';
+import { SseService } from '../sse/sse.service';
 
 describe('TriggerProcessor', () => {
   let processor: TriggerProcessor;
@@ -23,6 +24,10 @@ describe('TriggerProcessor', () => {
         {
           provide: PrismaService,
           useValue: {},
+        },
+        {
+          provide: SseService,
+          useValue: { publishEvent: jest.fn() },
         },
       ],
     }).compile();

@@ -25,6 +25,7 @@ describe('TriggerCallbackDispatcher', () => {
     },
     activity: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
   };
 
@@ -221,6 +222,7 @@ describe('TriggerCallbackDispatcher', () => {
         uuid: 'cb-1',
         isDeleted: false,
         type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        xref: 'activity-1',
         config: { activityUuid: 'activity-1' },
       });
       mockPrismaService.activity.findUnique.mockResolvedValue({
@@ -251,6 +253,7 @@ describe('TriggerCallbackDispatcher', () => {
         uuid: 'cb-1',
         isDeleted: false,
         type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        xref: 'activity-1',
         config: { activityUuid: 'activity-1', communicationIds: ['comm-2'] },
       });
       mockPrismaService.activity.findUnique.mockResolvedValue({
@@ -277,6 +280,7 @@ describe('TriggerCallbackDispatcher', () => {
         uuid: 'cb-1',
         isDeleted: false,
         type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        xref: 'missing-activity',
         config: { activityUuid: 'missing-activity' },
       });
       mockPrismaService.activity.findUnique.mockResolvedValue(null);
@@ -284,6 +288,55 @@ describe('TriggerCallbackDispatcher', () => {
       await expect(dispatcher.dispatch(baseJob, 1)).rejects.toThrow(
         'Activity missing-activity not found',
       );
+    });
+
+    it('excludes communications that already have a sessionId (already dispatched)', async () => {
+      mockPrismaService.triggerCallback.findUnique.mockResolvedValue({
+        uuid: 'cb-1',
+        isDeleted: false,
+        type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        xref: 'activity-1',
+        config: { activityUuid: 'activity-1' },
+      });
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        uuid: 'activity-1',
+        app: 'app-1',
+        activityCommunication: [
+          { communicationId: 'comm-1', sessionId: 'session-1' },
+          { communicationId: 'comm-2' },
+        ],
+      });
+
+      await dispatcher.dispatch(baseJob, 1);
+
+      expect(mockCommunicationQueue.add).toHaveBeenCalledTimes(1);
+      expect(mockCommunicationQueue.add).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ communicationId: 'comm-2' }),
+        expect.any(Object),
+      );
+    });
+
+    it('fails when every communication already has a sessionId', async () => {
+      mockPrismaService.triggerCallback.findUnique.mockResolvedValue({
+        uuid: 'cb-1',
+        isDeleted: false,
+        type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        xref: 'activity-1',
+        config: { activityUuid: 'activity-1' },
+      });
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        uuid: 'activity-1',
+        app: 'app-1',
+        activityCommunication: [
+          { communicationId: 'comm-1', sessionId: 'session-1' },
+        ],
+      });
+
+      await expect(dispatcher.dispatch(baseJob, 1)).rejects.toThrow(
+        'No pending communications found on activity activity-1',
+      );
+      expect(mockCommunicationQueue.add).not.toHaveBeenCalled();
     });
   });
 });

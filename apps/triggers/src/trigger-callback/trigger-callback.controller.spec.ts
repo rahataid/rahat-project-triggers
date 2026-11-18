@@ -39,9 +39,9 @@ describe('TriggerCallbackController', () => {
   });
 
   it('create delegates to the service', () => {
-    const payload = { triggerId: 't-1' } as any;
-    controller.create(payload);
-    expect(mockService.create).toHaveBeenCalledWith(payload);
+    const triggerCallbackConfig = [{ triggerId: 't-1' }] as any;
+    controller.create({ triggerCallbackConfig });
+    expect(mockService.create).toHaveBeenCalledWith(triggerCallbackConfig);
   });
 
   it('findAll delegates to findAllForTrigger with the triggerId', () => {
@@ -54,11 +54,13 @@ describe('TriggerCallbackController', () => {
     expect(mockService.findOne).toHaveBeenCalledWith('cb-1');
   });
 
-  it('update delegates to the service', () => {
-    const payload = { uuid: 'cb-1' } as any;
-    controller.update(payload);
-    expect(mockService.update).toHaveBeenCalledWith(payload);
-  });
+  // Update is disabled for now — only create/remove are supported while the
+  // xref -> Activity.hasTriggerCallback sync story is being worked out.
+  // it('update delegates to the service', () => {
+  //   const payload = { uuid: 'cb-1' } as any;
+  //   controller.update(payload);
+  //   expect(mockService.update).toHaveBeenCalledWith(payload);
+  // });
 
   it('remove delegates to the service', () => {
     const payload = { uuid: 'cb-1' };
