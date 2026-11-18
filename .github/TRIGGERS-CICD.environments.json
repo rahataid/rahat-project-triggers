@@ -145,7 +145,7 @@
     },
     "NRCS Simulation": {
       "description": "NRCS Simulation",
-      "tag": "release-v4.0.0-nrcs",
+      "tag": "nrcs-simulation",
       "urls": {},
       "notes": []
     },
