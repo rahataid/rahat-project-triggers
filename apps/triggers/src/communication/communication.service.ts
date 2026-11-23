@@ -36,6 +36,8 @@ const WRITABLE_FIELDS = [
   'audioURL',
   'transportId',
   'createdBy',
+  'isScheduled',
+  'scheduledAt',
 ] as const;
 
 const INCLUDE_TARGETS = {
@@ -57,7 +59,7 @@ export class CommunicationService {
     @Inject('COMMS_CLIENT')
     private readonly commsClient: CommsClient,
     private readonly activityService: ActivityService,
-  ) {}
+  ) { }
 
   /**
    * Picks only the columns this model owns. Callers reach us over the message
@@ -72,6 +74,11 @@ export class CommunicationService {
     for (const field of WRITABLE_FIELDS) {
       const value = dto[field];
       if (value !== undefined) data[field] = value;
+    }
+
+    if (dto.isScheduled !== undefined) data.isScheduled = Boolean(dto.isScheduled);
+    if (dto.scheduledAt !== undefined) {
+      data.scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
     }
 
     if (data.audioURL) data.audioURL = { ...data.audioURL };
@@ -106,7 +113,7 @@ export class CommunicationService {
     this.logger.log(`Creating communication: ${dto.title}`);
 
     try {
-      return await this.prisma.communication.create({
+      const created = await this.prisma.communication.create({
         data: {
           ...(this.toWritableData(dto) as any),
           targets: {
@@ -115,6 +122,19 @@ export class CommunicationService {
         },
         include: INCLUDE_TARGETS,
       });
+
+      if (dto.isScheduled && dto.scheduledAt) {
+        try {
+          return await this.trigger(created.uuid, dto.xrefId);
+        } catch (triggerError) {
+          this.logger.error(
+            `Failed to auto-trigger scheduled communication ${created.uuid}`,
+            triggerError,
+          );
+        }
+      }
+
+      return created;
     } catch (error: any) {
       this.logger.error('Failed to create communication', error);
       throw new RpcException(
@@ -216,15 +236,24 @@ export class CommunicationService {
     return communications.map((comm) => {
       if (!comm.targets?.length) return comm;
 
+      const isCommFuture = Boolean(
+        (comm as any).isScheduled &&
+        (comm as any).scheduledAt &&
+        new Date((comm as any).scheduledAt).getTime() > Date.now(),
+      );
+
       const targets = comm.targets.map((target) => {
         if (!target.sessionId) {
           return {
             ...target,
-            sessionStatus:
-              target.status === CommunicationTargetStatus.PENDING
+            sessionStatus: isCommFuture
+              ? 'SCHEDULED'
+              : target.status === CommunicationTargetStatus.PENDING
                 ? 'Not Started'
                 : target.status,
-            counts: null,
+            counts: isCommFuture
+              ? { SUCCESS: 0, FAIL: 0, PENDING: 0, SCHEDULED: 1, TOTAL: 1 }
+              : null,
           };
         }
 
@@ -233,11 +262,17 @@ export class CommunicationService {
           target.status === CommunicationTargetStatus.FAILED ||
           Boolean(target.error);
 
+        const isTargetScheduled = Boolean(
+          isCommFuture && (session?.counts?.SUCCESS ?? 0) === 0,
+        );
+
         return {
           ...target,
           sessionStatus: hasError
             ? SessionStatus.FAILED
-            : session?.status || target.status,
+            : isTargetScheduled
+              ? 'SCHEDULED'
+              : session?.status || target.status,
           counts: session?.counts ?? null,
         };
       });
@@ -380,6 +415,11 @@ export class CommunicationService {
               if (sessionId) phaseBySessionId.set(sessionId, actPhase);
             }
 
+            const isActScheduled = Boolean(c.isScheduled || c.scheduledAt);
+            const isActFuture = Boolean(
+              c.scheduledAt && new Date(c.scheduledAt).getTime() > Date.now(),
+            );
+
             overviewRows.push({
               id: `act-${act.uuid}-${commId || sessionId || idx}`,
               date: (act.updatedAt || act.createdAt).toISOString(),
@@ -396,11 +436,14 @@ export class CommunicationService {
                 ? 'STAKEHOLDER'
                 : 'BENEFICIARY',
               phase: actPhase,
-              status: act.status || 'NOT_STARTED',
+              status: isActFuture ? 'SCHEDULED' : (act.status || 'NOT_STARTED'),
               delivered: act.status === 'COMPLETED' ? 1 : 0,
               total: 1,
               failed: 0,
-              pending: act.status === 'NOT_STARTED' ? 1 : 0,
+              pending: act.status === 'NOT_STARTED' && !isActFuture ? 1 : 0,
+              scheduled: isActFuture ? 1 : 0,
+              isScheduled: isActScheduled,
+              scheduledAt: c.scheduledAt ? new Date(c.scheduledAt).toISOString() : null,
               sessionId: sessionId || undefined,
               communicationId: commId || undefined,
               activityId: act.uuid,
@@ -448,6 +491,12 @@ export class CommunicationService {
               .find(Boolean) ||
             'N/A';
 
+          const isCommFuture = Boolean(
+            comm.isScheduled &&
+            comm.scheduledAt &&
+            new Date(comm.scheduledAt).getTime() > Date.now(),
+          );
+
           if (!targets.length) {
             overviewRows.push({
               id: `comm-${comm.uuid}`,
@@ -459,11 +508,14 @@ export class CommunicationService {
               groupName: 'General',
               recipientType: 'BENEFICIARY',
               phase: commPhase,
-              status: 'NOT_STARTED',
+              status: isCommFuture ? 'SCHEDULED' : 'NOT_STARTED',
               delivered: 0,
               total: 1,
               failed: 0,
-              pending: 1,
+              pending: isCommFuture ? 0 : 1,
+              scheduled: isCommFuture ? 1 : 0,
+              isScheduled: Boolean(comm.isScheduled),
+              scheduledAt: comm.scheduledAt ? comm.scheduledAt.toISOString() : null,
               communicationId: comm.uuid,
               subject: comm.subject || undefined,
               message:
@@ -495,11 +547,14 @@ export class CommunicationService {
                 ? 'STAKEHOLDER'
                 : 'BENEFICIARY',
               phase: targetPhase,
-              status: target.status || 'PENDING',
+              status: isCommFuture ? 'SCHEDULED' : (target.status || 'PENDING'),
               delivered: target.status === 'SENT' ? 1 : 0,
               total: 1,
               failed: target.status === 'FAILED' ? 1 : 0,
-              pending: target.status === 'PENDING' ? 1 : 0,
+              pending: target.status === 'PENDING' && !isCommFuture ? 1 : 0,
+              scheduled: isCommFuture ? 1 : 0,
+              isScheduled: Boolean(comm.isScheduled),
+              scheduledAt: comm.scheduledAt ? comm.scheduledAt.toISOString() : null,
               sessionId: target.sessionId || undefined,
               communicationId: comm.uuid,
               subject: comm.subject || undefined,
@@ -591,13 +646,21 @@ export class CommunicationService {
                 if (res.counts) {
                   item.delivered = res.counts.SUCCESS || 0;
                   item.failed = res.counts.FAIL || 0;
-                  item.pending =
-                    (res.counts.PENDING || 0) + (res.counts.SCHEDULED || 0);
+                  item.scheduled = res.counts.SCHEDULED || 0;
+                  item.pending = res.counts.PENDING || 0;
                   item.total =
                     res.counts.TOTAL ||
-                    item.delivered + item.failed + item.pending;
+                    item.delivered + item.failed + item.pending + item.scheduled;
                 }
               }
+            }
+            if (
+              item.isScheduled &&
+              item.scheduledAt &&
+              new Date(item.scheduledAt).getTime() > Date.now() &&
+              (item.delivered ?? 0) === 0
+            ) {
+              item.status = 'SCHEDULED';
             }
           }
         } catch {
@@ -626,11 +689,19 @@ export class CommunicationService {
     this.logger.log(`Updating communication: ${uuid}`);
     const communication = await this.findOne(uuid);
 
+    const isFutureScheduled = Boolean(
+      communication.isScheduled &&
+      communication.scheduledAt &&
+      new Date(communication.scheduledAt).getTime() > Date.now(),
+    );
+
     const data: Record<string, any> = this.toWritableData(dto);
 
     if (dto.targets !== undefined) {
       const isUntouched = communication.targets.every(
-        (target) => target.status === CommunicationTargetStatus.PENDING,
+        (target) =>
+          target.status === CommunicationTargetStatus.PENDING ||
+          isFutureScheduled,
       );
 
       if (!isUntouched) {
@@ -646,14 +717,37 @@ export class CommunicationService {
         deleteMany: {},
         createMany: { data: this.toTargetRows(dto.targets) },
       };
+    } else if (isFutureScheduled) {
+      data.targets = {
+        updateMany: {
+          where: {},
+          data: {
+            status: CommunicationTargetStatus.PENDING,
+            sessionId: null,
+          },
+        },
+      };
     }
 
     try {
-      return await this.prisma.communication.update({
+      const updated = await this.prisma.communication.update({
         where: { uuid },
         data,
         include: INCLUDE_TARGETS,
       });
+
+      if (updated.isScheduled && updated.scheduledAt) {
+        try {
+          await this.trigger(uuid, dto.xrefId || communication.xrefId);
+        } catch (triggerError: any) {
+          this.logger.error(
+            `Failed to schedule broadcast session in Connect for updated communication ${uuid}`,
+            triggerError,
+          );
+        }
+      }
+
+      return updated;
     } catch (error: any) {
       this.logger.error(`Failed to update communication ${uuid}`, error);
       throw new RpcException(
@@ -693,9 +787,17 @@ export class CommunicationService {
    * own comms session, and a failure for one group is recorded on that target
    * without stopping the others. Pass `targetUuids` to retry specific groups.
    */
-  async trigger(uuid: string, appId: string, targetUuids?: string[]) {
+  async trigger(uuid: string, appId?: string, targetUuids?: string[]) {
     this.logger.log(`Triggering communication: ${uuid}`);
     const communication = await this.findOne(uuid);
+    const effectiveAppId = appId || communication.xrefId;
+
+    if (!effectiveAppId) {
+      throw new RpcException({
+        message: 'Communication has no associated project (xrefId).',
+        code: 'COMMUNICATION_XREFID_MISSING',
+      });
+    }
 
     if (!communication.transportId) {
       throw new RpcException({
@@ -760,8 +862,14 @@ export class CommunicationService {
         const addresses = await this.activityService.getAddresses(
           target.groupType as CommunicationGroupType,
           target.groupId,
-          appId,
+          effectiveAppId,
           transport.validationAddress as ValidationAddress,
+        );
+
+        const isScheduledFuture = Boolean(
+          communication.isScheduled &&
+          communication.scheduledAt &&
+          new Date(communication.scheduledAt).getTime() > Date.now(),
         );
 
         const { data: session } = await this.commsClient.broadcast.create({
@@ -771,10 +879,14 @@ export class CommunicationService {
             content,
             meta: { subject },
           },
-          options: {},
+          options: isScheduledFuture
+            ? { scheduledTimestamp: new Date(communication.scheduledAt) }
+            : {},
           transport: communication.transportId,
-          trigger: TriggerType.IMMEDIATE,
-          xref: appId,
+          trigger: isScheduledFuture
+            ? TriggerType.SCHEDULED
+            : TriggerType.IMMEDIATE,
+          xref: effectiveAppId,
         });
 
         if (!session) {

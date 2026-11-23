@@ -3,6 +3,8 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
+  IsDateString,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -127,4 +129,22 @@ export class CreateCommunicationDto {
   @IsString()
   @IsOptional()
   createdBy?: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the communication is scheduled for future delivery',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isScheduled?: boolean;
+
+  @ApiProperty({
+    example: '2026-11-10T14:30:00.000Z',
+    description: 'The scheduled UTC date and time for broadcast execution',
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  scheduledAt?: string;
 }

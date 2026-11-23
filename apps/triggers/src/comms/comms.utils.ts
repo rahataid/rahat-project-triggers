@@ -1,4 +1,4 @@
-import { SessionStatus } from '@rumsan/connect';
+import { SessionStatus, TriggerType } from '@rumsan/connect';
 
 export interface BroadcastCounts {
   SUCCESS: number;
@@ -14,24 +14,12 @@ export interface SessionStatusResult {
   updatedAt?: string;
 }
 
-export function determineSessionStatus(
-  fallbackStatus: string = SessionStatus.COMPLETED,
-  counts: BroadcastCounts | null = null,
-  hasError = false,
-): string {
-  if (hasError) return SessionStatus.FAILED;
-  if (!counts || counts.TOTAL === 0) return fallbackStatus;
-  if (counts.PENDING + counts.SCHEDULED > 0) return SessionStatus.PENDING;
-  if (counts.FAIL > 0 && counts.SUCCESS === 0) return SessionStatus.FAILED;
-  return SessionStatus.COMPLETED;
-}
-
 export async function batchFetchSessionStatuses(
   commsClient: any,
   sessionIds: string[],
-  _chunkSize = 25,
+  chunkSize = 25,
   _timeoutMs = 6000,
-  xrefId?: string,
+  _xrefId?: string,
 ): Promise<Map<string, SessionStatusResult>> {
   const cache = new Map<string, SessionStatusResult>();
   const uniqueIds = Array.from(new Set(sessionIds.filter(Boolean)));
@@ -40,54 +28,97 @@ export async function batchFetchSessionStatuses(
     return cache;
   }
 
-  const { data: broadcasts } = await commsClient.broadcast.list({
-    ...(xrefId && xrefId !== 'all' && { xref: xrefId }),
-    perPage: 1000,
-  });
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    const chunk = uniqueIds.slice(i, i + chunkSize);
 
-  const countsBySession = new Map<string, BroadcastCounts>();
-  const updatedAtBySession = new Map<string, string>();
+    await Promise.allSettled(
+      chunk.map(async (sid) => {
+        try {
+          const [sessionRes, countRes] = await Promise.allSettled([
+            typeof commsClient.session?.get === 'function'
+              ? commsClient.session.get(sid)
+              : Promise.reject(new Error('session.get unavailable')),
+            typeof commsClient.session?.broadcastCount === 'function'
+              ? commsClient.session.broadcastCount({ sessions: [sid] })
+              : Promise.reject(new Error('broadcastCount unavailable')),
+          ]);
 
-  if (Array.isArray(broadcasts)) {
-    for (const b of broadcasts) {
-      if (!b.session) continue;
-      if (!countsBySession.has(b.session)) {
-        countsBySession.set(b.session, {
-          SUCCESS: 0,
-          FAIL: 0,
-          PENDING: 0,
-          SCHEDULED: 0,
-          TOTAL: 0,
-        });
-      }
-      const c = countsBySession.get(b.session)!;
-      c.TOTAL++;
-      if (b.status === 'SUCCESS') c.SUCCESS++;
-      else if (b.status === 'FAIL') c.FAIL++;
-      else if (b.status === 'SCHEDULED') c.SCHEDULED++;
-      else c.PENDING++;
+          const session =
+            sessionRes.status === 'fulfilled'
+              ? sessionRes.value?.data?.data ??
+                sessionRes.value?.data ??
+                sessionRes.value
+              : null;
 
-      if (b.updatedAt || b.createdAt) {
-        updatedAtBySession.set(b.session, b.updatedAt || b.createdAt);
-      }
-    }
-  }
+          const rawCount =
+            countRes.status === 'fulfilled'
+              ? countRes.value?.data?.data ??
+                countRes.value?.data ??
+                countRes.value
+              : null;
 
-  const EMPTY_COUNTS: BroadcastCounts = {
-    SUCCESS: 0,
-    FAIL: 0,
-    PENDING: 0,
-    SCHEDULED: 0,
-    TOTAL: 0,
-  };
+          const counts: BroadcastCounts | null = rawCount
+            ? {
+                SUCCESS: Number(rawCount.SUCCESS || 0),
+                FAIL: Number(rawCount.FAIL || 0),
+                PENDING: Number(rawCount.PENDING || 0),
+                SCHEDULED: Number(rawCount.SCHEDULED || 0),
+                TOTAL: Number(rawCount.TOTAL || 0),
+              }
+            : null;
 
-  for (const sid of uniqueIds) {
-    const counts = countsBySession.get(sid) ?? EMPTY_COUNTS;
-    cache.set(sid, {
-      status: determineSessionStatus(SessionStatus.COMPLETED, counts),
-      counts,
-      updatedAt: updatedAtBySession.get(sid),
-    });
+          if (!session) {
+            cache.set(sid, {
+              status: SessionStatus.FAILED,
+              counts: null,
+            });
+            return;
+          }
+
+          const rawStatus = String(session.status || '').toUpperCase();
+          const triggerType = String(session.triggerType || '').toUpperCase();
+          const isScheduled =
+            triggerType === TriggerType.SCHEDULED ||
+            (counts !== null &&
+              counts.SCHEDULED > 0 &&
+              counts.PENDING === 0 &&
+              counts.SUCCESS === 0);
+
+          let resolvedStatus: string;
+          if (rawStatus === SessionStatus.FAILED || rawStatus === 'FAILED') {
+            resolvedStatus = SessionStatus.FAILED;
+          } else if (
+            rawStatus === SessionStatus.COMPLETED ||
+            rawStatus === 'COMPLETED'
+          ) {
+            resolvedStatus = SessionStatus.COMPLETED;
+          } else if (isScheduled && rawStatus !== SessionStatus.COMPLETED) {
+            resolvedStatus = 'SCHEDULED';
+          } else if (
+            rawStatus === SessionStatus.PENDING ||
+            rawStatus === 'PENDING'
+          ) {
+            resolvedStatus = SessionStatus.PENDING;
+          } else {
+            resolvedStatus = isScheduled ? 'SCHEDULED' : SessionStatus.PENDING;
+          }
+
+          cache.set(sid, {
+            status: resolvedStatus,
+            counts,
+            updatedAt:
+              session.updatedAt?.toString() ||
+              session.createdAt?.toString() ||
+              undefined,
+          });
+        } catch {
+          cache.set(sid, {
+            status: SessionStatus.FAILED,
+            counts: null,
+          });
+        }
+      }),
+    );
   }
 
   return cache;
