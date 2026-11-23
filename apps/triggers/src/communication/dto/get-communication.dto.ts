@@ -106,4 +106,22 @@ export class GetCommunicationDto {
   @IsIn(['asc', 'desc'])
   @IsOptional()
   order?: 'asc' | 'desc' = 'desc';
+
+  @ApiProperty({
+    example: '2026-01-01',
+    description: 'Filter communications created on or after this date',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiProperty({
+    example: '2026-12-31',
+    description: 'Filter communications created on or before this date',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  endDate?: string;
 }

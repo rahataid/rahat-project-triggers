@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
 import { CommsService, type CommsClient } from 'src/comms/comms.service';
+import { batchFetchSessionStatuses } from 'src/comms/comms.utils';
 import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import {
@@ -31,7 +32,7 @@ export class ActivityService {
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
     private readonly commsService: CommsService,
     private readonly sseService: SseService,
-  ) { }
+  ) {}
 
   private get commsClient(): CommsClient {
     return this.commsService.getCurrentClient();
@@ -475,13 +476,40 @@ export class ActivityService {
           let startedAt = null;
           let updatedAt = null;
           if (communication.sessionId) {
-            const sessionDetails = await commsClient.session.get(
-              communication.sessionId,
-            );
-            sessionStatus = sessionDetails.data.status;
-            completedAt = sessionDetails.data.updatedAt;
-            startedAt = sessionDetails.data.createdAt;
-            updatedAt = sessionDetails.data.updatedAt;
+            const promises: Promise<any>[] = [
+              commsClient.session.get(communication.sessionId),
+            ];
+            if (commsClient.session.broadcastCount) {
+              promises.push(
+                commsClient.session.broadcastCount({
+                  sessions: [communication.sessionId],
+                }),
+              );
+            }
+            const [sessionRes, countRes] = await Promise.allSettled(promises);
+            if (sessionRes.status === 'fulfilled' && sessionRes.value?.data) {
+              const sessionDetails = sessionRes.value;
+              sessionStatus = sessionDetails.data.status;
+              completedAt = sessionDetails.data.updatedAt;
+              startedAt = sessionDetails.data.createdAt;
+              updatedAt = sessionDetails.data.updatedAt;
+            }
+            if (
+              countRes &&
+              countRes.status === 'fulfilled' &&
+              countRes.value?.data
+            ) {
+              const counts = countRes.value.data;
+              const fail = Number(counts.FAIL ?? counts.fail ?? 0);
+              const success = Number(counts.SUCCESS ?? counts.success ?? 0);
+              const total = Number(counts.TOTAL ?? counts.total ?? 0);
+              if (
+                (fail > 0 && success === 0) ||
+                (total > 0 && fail === total)
+              ) {
+                sessionStatus = SessionStatus.FAILED;
+              }
+            }
           }
 
           const transport = await commsClient.transport.get(
@@ -544,6 +572,7 @@ export class ActivityService {
       status,
       appId,
       riverBasin,
+      activeYear,
       isAutomated,
     } = payload;
     try {
@@ -555,11 +584,14 @@ export class ActivityService {
             isAutomated: isAutomated === 'true' ? true : false,
           }),
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
-          ...(riverBasin && {
+          ...((riverBasin || activeYear) && {
             phase: {
-              source: {
-                riverBasin,
-              },
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
             },
           }),
           ...(category && { categoryId: category }),
@@ -618,6 +650,8 @@ export class ActivityService {
         responsibility,
         status,
         appId,
+        riverBasin,
+        activeYear,
       } = payload;
       this.logger.log(`Fetching all activities for project ${appId}`);
 
@@ -626,6 +660,16 @@ export class ActivityService {
           app: appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...((riverBasin || activeYear) && {
+            phase: {
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
+            },
+          }),
           ...(category && { categoryId: category }),
           ...(phase && { phaseId: phase }),
           ...(isComplete && { isComplete: isComplete }),
@@ -692,7 +736,7 @@ export class ActivityService {
       );
 
       // Enrich with session status
-      results = await this.enrichWithSessionStatus(results);
+      results = await this.enrichWithSessionStatus(results, appId);
 
       // filter by communication status if exit
       if (filters?.sessionStatus) {
@@ -795,12 +839,12 @@ export class ActivityService {
     );
   }
 
-  private async enrichWithSessionStatus(results: any[]) {
+  private async enrichWithSessionStatus(results: any[], appId?: string) {
     // Group by sessionId to reduce API calls
     const sessionIds = [
       ...new Set(results.map((r) => r.sessionId).filter(Boolean)),
     ];
-    const sessionDataCache = await this.fetchSessionData(sessionIds);
+    const sessionDataCache = await this.fetchSessionData(sessionIds, appId);
 
     return results.map((comm) => {
       if (!comm.sessionId) {
@@ -821,24 +865,15 @@ export class ActivityService {
 
   private async fetchSessionData(
     sessionIds: string[],
+    appId?: string,
   ): Promise<Map<string, any>> {
-    const sessionCache = new Map();
-
-    // Batch fetch session data to reduce API calls
-    const sessionPromises = sessionIds.map(async (sessionId) => {
-      try {
-        const { data } = await this.commsClient.session.get(sessionId);
-        sessionCache.set(sessionId, data);
-      } catch (error: any) {
-        this.logger.warn(
-          `Failed to fetch session status for sessionId: ${sessionId}`,
-        );
-        sessionCache.set(sessionId, { status: 'WORK IN PROGRESS' });
-      }
-    });
-
-    await Promise.all(sessionPromises);
-    return sessionCache;
+    return batchFetchSessionStatuses(
+      this.commsClient,
+      sessionIds,
+      25,
+      6000,
+      appId,
+    );
   }
 
   private async buildTransportCache(): Promise<Map<string, string>> {
@@ -968,8 +1003,16 @@ export class ActivityService {
         appId,
         filters = {},
         riverBasin,
+        startDate: payloadStartDate,
+        endDate: payloadEndDate,
       } = payload;
       const { title, phase, status } = filters;
+      const startDate = payloadStartDate || filters.startDate;
+      const endDate = payloadEndDate || filters.endDate;
+
+      const dateFilter: Prisma.DateTimeFilter = {};
+      if (startDate) dateFilter.gte = new Date(startDate);
+      if (endDate) dateFilter.lte = new Date(endDate);
 
       const where: Prisma.ActivityWhereInput = {
         isDeleted: false,
@@ -977,7 +1020,10 @@ export class ActivityService {
           not: [],
         },
         phase: {
-          ...(phase && { name: phase }),
+          ...(phase &&
+            phase !== 'all' && {
+              name: { equals: phase, mode: 'insensitive' },
+            }),
           ...(activeYear && { activeYear }),
           ...(riverBasin && {
             source: {
@@ -985,7 +1031,8 @@ export class ActivityService {
             },
           }),
         },
-        app: appId,
+        ...(appId && appId !== 'all' && { app: appId }),
+        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
         ...(title && {
           title: { contains: title, mode: 'insensitive' },
         }),
@@ -1018,63 +1065,79 @@ export class ActivityService {
 
       //fetches and updates communication session status for each activity and summarizes the overall status per activity.
       // TODO: Need to implement filtering based on status
-      const enhancedData = await Promise.all(
-        activities.map(async (activity: any) => {
-          const enhancedComms = await Promise.all(
-            activity.activityCommunication.map(async (comm) => {
-              if (!comm.sessionId) {
-                return {
-                  ...comm,
-                  sessionStatus: 'Not Started',
-                };
-              }
+      const allSessionIds = activities
+        .flatMap((a: any) => a.activityCommunication ?? [])
+        .map((c: any) => c.sessionId)
+        .filter(Boolean);
 
-              try {
-                const { data } = await this.commsClient.session.get(
-                  comm.sessionId,
-                );
-                return {
-                  ...comm,
-                  sessionStatus: data.status,
-                };
-              } catch (error: any) {
-                this.logger.warn(
-                  `Failed to fetch session status for sessionId: ${comm.sessionId}`,
-                );
-                return {
-                  ...comm,
-                  sessionStatus: 'WORK IN PROGRESS',
-                };
-              }
-            }),
+      const effectiveAppId =
+        appId && appId !== 'all'
+          ? appId
+          : ((activities.find((a: any) => a.app) as any)?.app as string);
+
+      const sessionCache = await batchFetchSessionStatuses(
+        this.commsClient,
+        allSessionIds,
+        25,
+        6000,
+        effectiveAppId,
+      );
+
+      const enhancedData = activities.map((activity: any) => {
+        const comms = Array.isArray(activity.activityCommunication)
+          ? activity.activityCommunication
+          : [];
+
+        const enhancedComms = comms.map((comm: any) => {
+          if (!comm.sessionId) {
+            return {
+              ...comm,
+              sessionStatus: 'Not Started',
+              counts: null,
+            };
+          }
+
+          const session = sessionCache.get(comm.sessionId);
+          return {
+            ...comm,
+            sessionStatus: session?.status || 'WORK IN PROGRESS',
+            counts: session?.counts ?? null,
+            updatedAt: session?.updatedAt,
+          };
+        });
+
+        let commStatus: string | null;
+
+        if (!enhancedComms.length) {
+          commStatus = 'Null';
+        } else {
+          const allCompleted = enhancedComms.every(
+            (comm) => comm.sessionStatus.toLowerCase() === 'completed',
           );
 
-          let commStatus: string | null;
+          const isNotStarted = enhancedComms.every(
+            (comm) => comm.sessionStatus.toLowerCase() === 'not started',
+          );
 
-          if (!enhancedComms.length) {
-            commStatus = 'Null';
-          } else {
-            const allCompleted = enhancedComms.every(
-              (comm) => comm.sessionStatus.toLowerCase() === 'completed',
-            );
+          const allFailed = enhancedComms.every(
+            (comm) => comm.sessionStatus.toLowerCase() === 'failed',
+          );
 
-            const isNotStarted = enhancedComms.every(
-              (comm) => comm.sessionStatus.toLowerCase() === 'not started',
-            );
-            commStatus = allCompleted
-              ? 'Completed'
+          commStatus = allCompleted
+            ? 'Completed'
+            : allFailed
+              ? 'Failed'
               : isNotStarted
                 ? 'Not Started'
                 : 'Work in Progress';
-          }
+        }
 
-          return {
-            ...activity,
-            activityCommunication: enhancedComms,
-            commStatus,
-          };
-        }),
-      );
+        return {
+          ...activity,
+          activityCommunication: enhancedComms,
+          commStatus,
+        };
+      });
 
       return {
         data: enhancedData,
@@ -1801,24 +1864,21 @@ export class ActivityService {
 
   async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-    const { appId, startDate, endDate, filters = {} } = payload;
+    const { appId, startDate, endDate, filters = {} } =
+      typeof payload === 'string' ? { appId: payload, filters: {} } : payload;
     try {
       // Step 1: Fetch all activities with their related communications
-      const where: any = { app: appId };
+      const where: any = {};
+      if (appId && appId !== 'all') where.app = appId;
       if (startDate || endDate) {
         where.createdAt = {};
         if (startDate) where.createdAt.gte = new Date(startDate);
         if (endDate) where.createdAt.lte = new Date(endDate);
       }
-      if (filters.phase) {
-        where.phase = { name: filters.phase };
+      if (filters.phase && filters.phase !== 'all') {
+        where.phase = { name: { equals: filters.phase, mode: 'insensitive' } };
       }
-      const activities = await this.prisma.activity.findMany({
-        where,
-        select: {
-          activityCommunication: true,
-        },
-      });
+
       // Step 2: Flatten communication data and extract necessary fields
       const commsToProcess: {
         groupType: string;
@@ -1826,45 +1886,96 @@ export class ActivityService {
         sessionId: string;
       }[] = [];
 
-      for (const activity of activities) {
-        const comms: any = activity.activityCommunication;
-        for (const comm of comms) {
-          const { sessionId, groupType, transportId } = comm;
-          if (sessionId && groupType && transportId) {
-            commsToProcess.push({ sessionId, groupType, transportId });
+      if (filters.source !== 'communications') {
+        const activities = await this.prisma.activity.findMany({
+          where,
+          select: { activityCommunication: true },
+        });
+
+        for (const { activityCommunication } of activities) {
+          if (!Array.isArray(activityCommunication)) continue;
+          for (const comm of activityCommunication as any[]) {
+            if (comm?.sessionId && comm?.groupType && comm?.transportId) {
+              commsToProcess.push({
+                sessionId: comm.sessionId,
+                groupType: comm.groupType,
+                transportId: comm.transportId,
+              });
+            }
           }
         }
       }
+
+      if (
+        (!filters.phase || filters.phase === 'all') &&
+        (filters.source === 'all' || filters.source === 'communications') &&
+        this.prisma.communicationGroupTarget
+      ) {
+        const commWhere: any = { isDeleted: false };
+        if (appId && appId !== 'all') commWhere.xrefId = appId;
+        if (startDate || endDate) {
+          commWhere.createdAt = {};
+          if (startDate) commWhere.createdAt.gte = new Date(startDate);
+          if (endDate) commWhere.createdAt.lte = new Date(endDate);
+        }
+
+        const targets = await this.prisma.communicationGroupTarget.findMany({
+          where: {
+            sessionId: { not: null },
+            communication: commWhere,
+          },
+          select: {
+            sessionId: true,
+            groupType: true,
+            communication: { select: { transportId: true } },
+          },
+        });
+
+        for (const target of targets) {
+          if (target.sessionId && target.groupType && target.communication?.transportId) {
+            commsToProcess.push({
+              sessionId: target.sessionId,
+              groupType: target.groupType,
+              transportId: target.communication.transportId,
+            });
+          }
+        }
+      }
+
       // Step 3: Map transportId to its readable transport name using external client
       const transportIdMap = new Map<string, string>();
-      const uniqueTransportIds = [
-        ...new Set(commsToProcess.map((c) => c.transportId)),
-      ];
+      const uniqueTransportIds = [...new Set(commsToProcess.map((c) => c.transportId))];
 
       const transportResponses = await Promise.all(
-        uniqueTransportIds.map((id) => this.commsClient.transport.get(id)),
+        uniqueTransportIds.map((id) =>
+          this.commsClient.transport.get(id).catch((err) => {
+            this.logger.warn(`Failed to fetch transport ${id}`, err);
+            return null;
+          }),
+        ),
       );
 
       transportResponses.forEach((res, idx) => {
-        transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+        if (res?.data?.name) {
+          transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+        }
       });
+
       // Step 4: Build a nested structure to group sessionIds by groupType and transportType
-      const sessions: Record<string, Record<string, Set<string>>> = {
+      const sessions: Record<'BENEFICIARY' | 'STAKEHOLDERS', Record<string, Set<string>>> = {
         BENEFICIARY: {},
         STAKEHOLDERS: {},
       };
 
       for (const { groupType, transportId, sessionId } of commsToProcess) {
-        const group = groupType.toUpperCase();
         const transportType = transportIdMap.get(transportId);
-        if (!transportType || !sessions[group]) continue;
-        // Group sessionIds under their respective groupType and transport name.
-        // Structure: sessions[groupType][transportType] = Set of sessionIds
-        if (!sessions[group][transportType]) {
-          sessions[group][transportType] = new Set();
-        }
+        if (!transportType) continue;
+
+        const group = groupType.toUpperCase().startsWith('BENEFICIAR') ? 'BENEFICIARY' : 'STAKEHOLDERS';
+        sessions[group][transportType] ??= new Set();
         sessions[group][transportType].add(sessionId);
       }
+
       // Step 5: Initialize result structure and prepare for broadcasting session count requests
       const result: Record<string, Record<string, any>> = {
         beneficiary: {},
@@ -1873,31 +1984,37 @@ export class ActivityService {
 
       const resultKeys: { groupKey: string; transportType: string }[] = [];
       const broadcastPromises: Promise<any>[] = [];
+
       // Step 6: For each group + transport combination, request broadcast stats
       for (const [groupType, transportMap] of Object.entries(sessions)) {
-        const groupKey =
-          groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
+        const groupKey = groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
 
-        for (const [transportType, sessionSet] of Object.entries(
-          transportMap,
-        )) {
-          const sessionList = Array.from(sessionSet);
-          // Enqueue a broadcast count request for each unique transport + group combination
+        for (const [transportType, sessionSet] of Object.entries(transportMap)) {
           broadcastPromises.push(
-            this.commsClient.session.broadcastCount({
-              sessions: sessionList,
-            }),
+            this.commsClient.session
+              .broadcastCount({ sessions: Array.from(sessionSet) })
+              .catch((err) => {
+                this.logger.warn(
+                  `Failed to fetch broadcastCount for ${groupKey} ${transportType}`,
+                  err,
+                );
+                return null;
+              }),
           );
           resultKeys.push({ groupKey, transportType });
         }
       }
+
       // Step 7: Resolve all broadcast count requests and map the results back
       const broadcastResults = await Promise.all(broadcastPromises);
 
       broadcastResults.forEach((res, idx) => {
         const { groupKey, transportType } = resultKeys[idx];
-        result[groupKey][transportType] = res.data;
+        if (res?.data) {
+          result[groupKey][transportType] = res.data;
+        }
       });
+
       // Final structured output containing session broadcast stats
       return result;
     } catch (error: any) {
