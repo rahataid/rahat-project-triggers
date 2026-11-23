@@ -71,6 +71,17 @@ export class TriggerService {
         triggers.map((item) => this.createTriggerItem(appId, item, user?.name)),
       );
 
+      // TODO: Need to think about onchain queue update
+      // const queueData: AddTriggerJobDto[] = triggersData.map((trigger) =>
+      //   this.buildAddTriggerJobDto(trigger),
+      // );
+
+      // const res = await this.sendAddTriggerToOnChain(appId, queueData);
+
+      // this.logger.log(`
+      //   Total ${triggersData.length} triggers added for action: ${res?.name} to stellar queue for AA ${appId}
+      //   `);
+
       return triggersData;
     } catch (error: any) {
       this.logger.error(`Error in create triggers for app ${appId}:`, error);
@@ -85,6 +96,9 @@ export class TriggerService {
     createdBy: string,
   ) {
     if (dto.source === DataSource.MANUAL) {
+      this.logger.log(
+        `User requested MANUAL Trigger, So creating manual trigger`,
+      );
       return await this.createTrigger(appId, dto, createdBy);
     }
 
@@ -105,6 +119,9 @@ export class TriggerService {
 
   async updateTransaction(payload: UpdateTriggerTransactionDto) {
     const { uuid, transactionHash } = payload;
+    this.logger.log(
+      `Updating trigger transaction hash on trigger with uuid: ${uuid}`,
+    );
 
     try {
       const trigger = await this.prisma.trigger.findUnique({
@@ -143,7 +160,7 @@ export class TriggerService {
 
   async update(payload: UpdateTriggerPayloadDto) {
     const { uuid, appId, ...dto } = payload;
-
+    this.logger.log(`Updating trigger with uuid: ${uuid}`);
     if (!uuid) {
       throw new BadRequestException({
         message: 'uuid is required',
@@ -213,6 +230,15 @@ export class TriggerService {
         },
       });
 
+      // TODO: Need to think about onchain queue update
+      // const queueData = this.buildUpdateTriggerParamsJobDto(updatedTrigger);
+
+      // const res = await this.sendUpdateTriggerToOnChain(appId, queueData);
+
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${res?.name} for AA ${appId}
+      //   `);
+
       await this.sseService.publishEvent('phase.updated', updatedTrigger);
 
       return updatedTrigger;
@@ -224,6 +250,7 @@ export class TriggerService {
   }
 
   async getAll(payload: GetTriggersDto) {
+    this.logger.log(`Getting all triggers for app`, payload);
     try {
       const { riverBasin, activeYear, phaseId, page, perPage } = payload as any;
 
@@ -279,6 +306,7 @@ export class TriggerService {
         },
       );
     } catch (error: any) {
+      this.logger.error(error);
       if (error instanceof RpcException) throw error;
       throw new RpcException(error.message);
     }
@@ -286,6 +314,7 @@ export class TriggerService {
 
   async findOne(payload: findOneTriggerDto) {
     const { uuid } = payload;
+    this.logger.log(`Getting trigger with uuid: ${uuid}`);
     try {
       return await this.prisma.trigger.findUnique({
         where: {
@@ -307,6 +336,7 @@ export class TriggerService {
   }
 
   async createTrigger(appId: string, dto: CreateTriggerDto, createdBy: string) {
+    this.logger.log(`Creating ${dto.source} trigger for app: ${appId}`);
     try {
       const { phaseId, ...rest } = dto;
       const phase = await this.phasesService.findOne(phaseId);
@@ -353,7 +383,6 @@ export class TriggerService {
 
   async remove(payload: RemoveTriggerPayloadDto) {
     const { uuid } = payload;
-
     if (!uuid) {
       throw new BadRequestException({
         message: 'Uuid is required',
@@ -687,6 +716,16 @@ export class TriggerService {
         return updatedTrigger;
       }
 
+      // TODO: make this function dynamic based on chain type
+      // const res = await this.sendUpdateTriggerToOnChain(
+      //   appId ? appId : appIds?.app,
+      //   jobDetails,
+      // );
+
+      // this.logger.log(`
+      //   Trigger added to stellar queue with id: ${jobDetails.id}, action: ${res?.name} for appId ${appId}
+      //   `);
+
       const notification: NotificationPayload = {
         projectId: appId || appIds?.app,
         title: `Trigger Statement Met for ${updatedTrigger.phase.riverBasin}`,
@@ -933,21 +972,40 @@ export class TriggerService {
           .map((a, i) => `${i + 1}. ${a.title} — ${statusLabel(a.status)}`)
           .join('\n');
 
-        const textDescription =
-          `The trigger statement “${triggerTitle}” has been met for the ${phaseName} phase, with a lead time of ${leadTime} for ${riverBasin}.\n\n` +
-          `Your Assigned Activities are as follows:\n${textActivities}\n\n` +
-          `Your Activity Summary for This Lead Time\n` +
-          `* Total Activities: ${total}\n` +
-          `* Pending: ${pending}\n` +
-          `* In Progress: ${inProgress}\n` +
-          `* Completed: ${completed}` +
-          (delayed > 0 ? `\n* Delayed: ${delayed}` : '') +
-          `\n\nRequired Actions\n` +
-          `1. Review the activities assigned to you.\n` +
-          `2. Complete any pending or in-progress activities as required.\n` +
-          `3. Update the activity status and progress in the Rahat Platform.\n` +
-          `4. Record completion details and any relevant remarks or evidence, where applicable.\n\n` +
-          `Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.\n\n`;
+        const textDescription = `The trigger statement “${triggerTitle}” has been met for the ${phaseName} phase, with a lead time of ${leadTime} for ${riverBasin}.
+
+Your Assigned Activities are as follows:
+${textActivities}
+
+Your Activity Summary for This Lead Time
+* Total Activities: ${total}
+* Pending: ${pending}
+* In Progress: ${inProgress}
+* Completed: ${completed}${delayed > 0 ? `\n* Delayed: ${delayed}` : ''}
+
+Required Actions
+1. Review the activities assigned to you.
+2. Complete any pending or in-progress activities as required.
+3. Update the activity status and progress in the Rahat Platform.
+4. Record completion details and any relevant remarks or evidence, where applicable.
+
+Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.`;
+
+        // const textDescription =
+        //   `The trigger statement “${triggerTitle}” has been met for the ${phaseName} phase, with a lead time of ${leadTime} for ${riverBasin}.\n\n` +
+        //   `Your Assigned Activities are as follows:\n${textActivities}\n\n` +
+        //   `Your Activity Summary for This Lead Time\n` +
+        //   `* Total Activities: ${total}\n` +
+        //   `* Pending: ${pending}\n` +
+        //   `* In Progress: ${inProgress}\n` +
+        //   `* Completed: ${completed}` +
+        //   (delayed > 0 ? `\n* Delayed: ${delayed}` : '') +
+        //   `\n\nRequired Actions\n` +
+        //   `1. Review the activities assigned to you.\n` +
+        //   `2. Complete any pending or in-progress activities as required.\n` +
+        //   `3. Update the activity status and progress in the Rahat Platform.\n` +
+        //   `4. Record completion details and any relevant remarks or evidence, where applicable.\n\n` +
+        //   `Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.\n\n`;
 
         // ---------- HTML (EMAIL) ----------
         const htmlActivities = managerActivities
@@ -957,29 +1015,53 @@ export class TriggerService {
           )
           .join('');
 
-        const htmlDescription =
-          `<div style="text-align:left;">` +
-          `<p>Dear ${USER_NAME_PLACEHOLDER},</p>` +
-          `<p>The trigger statement “<strong>${escapeHtml(triggerTitle)}</strong>” has been met for the <strong>${escapeHtml(phaseName)}</strong> phase, with a lead time of <strong>${escapeHtml(leadTime)}</strong> for <strong>${escapeHtml(riverBasin)}</strong>.</p>` +
-          `<p>Your Assigned Activities for the project <strong>${PROJECT_NAME_PLACEHOLDER}</strong> are as follows:</p>` +
-          `<ol>${htmlActivities}</ol>` +
-          `<p><strong>Your Activity Summary for This Lead Time</strong></p>` +
-          `<ul>` +
-          `<li>Total Activities: <strong>${total}</strong></li>` +
-          `<li>Pending: <strong>${pending}</strong></li>` +
-          `<li>In Progress: <strong>${inProgress}</strong></li>` +
-          `<li>Completed: <strong>${completed}</strong></li>` +
-          (delayed > 0 ? `<li>Delayed: <strong>${delayed}</strong></li>` : '') +
-          `</ul>` +
-          `<p><strong>Required Actions</strong></p>` +
-          `<ol>` +
-          `<li>Review the activities assigned to you.</li>` +
-          `<li>Complete any pending or in-progress activities as required.</li>` +
-          `<li>Update the activity status and progress in the Rahat Platform.</li>` +
-          `<li>Record completion details and any relevant remarks or evidence, where applicable.</li>` +
-          `</ol>` +
-          `<p>Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.</p>` +
-          `</div>`;
+        const htmlDescription = `
+<div style="text-align:left;">
+  <p>Dear ${USER_NAME_PLACEHOLDER},</p>
+  <p>The trigger statement “<strong>${escapeHtml(triggerTitle)}</strong>” has been met for the <strong>${escapeHtml(phaseName)}</strong> phase, with a lead time of <strong>${escapeHtml(leadTime)}</strong> for <strong>${escapeHtml(riverBasin)}</strong>.</p>
+  <p>Your Assigned Activities for the project <strong>${PROJECT_NAME_PLACEHOLDER}</strong> are as follows:</p>
+  <ol>${htmlActivities}</ol>
+  <p><strong>Your Activity Summary for This Lead Time</strong></p>
+  <ul>
+    <li>Total Activities: <strong>${total}</strong></li>
+    <li>Pending: <strong>${pending}</strong></li>
+    <li>In Progress: <strong>${inProgress}</strong></li>
+    <li>Completed: <strong>${completed}</strong></li>
+    ${delayed > 0 ? `<li>Delayed: <strong>${delayed}</strong></li>` : ''}
+  </ul>
+  <p><strong>Required Actions</strong></p>
+  <ol>
+    <li>Review the activities assigned to you.</li>
+    <li>Complete any pending or in-progress activities as required.</li>
+    <li>Update the activity status and progress in the Rahat Platform.</li>
+    <li>Record completion details and any relevant remarks or evidence, where applicable.</li>
+  </ol>
+  <p>Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.</p>
+</div>`.trim();
+
+        // const htmlDescription =
+        //   `<div style="text-align:left;">` +
+        //   `<p>Dear ${USER_NAME_PLACEHOLDER},</p>` +
+        //   `<p>The trigger statement “<strong>${escapeHtml(triggerTitle)}</strong>” has been met for the <strong>${escapeHtml(phaseName)}</strong> phase, with a lead time of <strong>${escapeHtml(leadTime)}</strong> for <strong>${escapeHtml(riverBasin)}</strong>.</p>` +
+        //   `<p>Your Assigned Activities for the project <strong>${PROJECT_NAME_PLACEHOLDER}</strong> are as follows:</p>` +
+        //   `<ol>${htmlActivities}</ol>` +
+        //   `<p><strong>Your Activity Summary for This Lead Time</strong></p>` +
+        //   `<ul>` +
+        //   `<li>Total Activities: <strong>${total}</strong></li>` +
+        //   `<li>Pending: <strong>${pending}</strong></li>` +
+        //   `<li>In Progress: <strong>${inProgress}</strong></li>` +
+        //   `<li>Completed: <strong>${completed}</strong></li>` +
+        //   (delayed > 0 ? `<li>Delayed: <strong>${delayed}</strong></li>` : '') +
+        //   `</ul>` +
+        //   `<p><strong>Required Actions</strong></p>` +
+        //   `<ol>` +
+        //   `<li>Review the activities assigned to you.</li>` +
+        //   `<li>Complete any pending or in-progress activities as required.</li>` +
+        //   `<li>Update the activity status and progress in the Rahat Platform.</li>` +
+        //   `<li>Record completion details and any relevant remarks or evidence, where applicable.</li>` +
+        //   `</ol>` +
+        // `<p>Please ensure that all activity statuses are up to date so the project team can monitor implementation progress and coordinate any outstanding actions.</p>` +
+        // `</div>`;
 
         const base = {
           projectId,
