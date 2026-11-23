@@ -569,6 +569,7 @@ export class TriggerService {
             NotificationChannel.IN_APP,
             NotificationChannel.PUSH,
             NotificationChannel.EMAIL,
+            //sms is not in work yet, it will be implemented in future
             NotificationChannel.SMS,
           ],
         };
@@ -737,6 +738,7 @@ export class TriggerService {
           NotificationChannel.IN_APP,
           NotificationChannel.PUSH,
           NotificationChannel.EMAIL,
+          //sms is not in work yet, it will be implemented in future
           NotificationChannel.SMS,
         ],
       };
