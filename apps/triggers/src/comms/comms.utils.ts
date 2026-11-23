@@ -1,4 +1,4 @@
-import { SessionStatus, TriggerType } from '@rumsan/connect';
+import { SessionStatus } from '@rumsan/connect';
 
 export interface BroadcastCounts {
   SUCCESS: number;
@@ -76,31 +76,27 @@ export async function batchFetchSessionStatuses(
           }
 
           const rawStatus = String(session.status || '').toUpperCase();
-          const triggerType = String(session.triggerType || '').toUpperCase();
-          const isScheduled =
-            triggerType === TriggerType.SCHEDULED ||
-            (counts !== null &&
-              counts.SCHEDULED > 0 &&
-              counts.PENDING === 0 &&
-              counts.SUCCESS === 0);
 
           let resolvedStatus: string;
-          if (rawStatus === SessionStatus.FAILED || rawStatus === 'FAILED') {
+          if (
+            counts &&
+            counts.TOTAL > 0 &&
+            counts.PENDING === 0 &&
+            counts.SCHEDULED === 0
+          ) {
+            resolvedStatus =
+              counts.SUCCESS > 0
+                ? SessionStatus.COMPLETED
+                : SessionStatus.FAILED;
+          } else if (rawStatus === SessionStatus.FAILED || rawStatus === 'FAILED') {
             resolvedStatus = SessionStatus.FAILED;
           } else if (
             rawStatus === SessionStatus.COMPLETED ||
             rawStatus === 'COMPLETED'
           ) {
             resolvedStatus = SessionStatus.COMPLETED;
-          } else if (isScheduled && rawStatus !== SessionStatus.COMPLETED) {
-            resolvedStatus = 'SCHEDULED';
-          } else if (
-            rawStatus === SessionStatus.PENDING ||
-            rawStatus === 'PENDING'
-          ) {
-            resolvedStatus = SessionStatus.PENDING;
           } else {
-            resolvedStatus = isScheduled ? 'SCHEDULED' : SessionStatus.PENDING;
+            resolvedStatus = SessionStatus.PENDING;
           }
 
           cache.set(sid, {

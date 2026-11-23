@@ -1,4 +1,5 @@
 import {
+  CommunicationStatus,
   CommunicationTargetStatus,
   paginator,
   PaginatorTypes,
@@ -49,6 +50,53 @@ const TRIGGERABLE_STATUSES: CommunicationTargetStatus[] = [
   CommunicationTargetStatus.PENDING,
   CommunicationTargetStatus.FAILED,
 ];
+
+type TargetOutcome = 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+/**
+ * Rolls enriched targets up into the communication's overall status.
+ * Returns null when a session's state could not be read from comms.
+ */
+function deriveCommunicationStatus(
+  targets: any[],
+  isCommFuture: boolean,
+): CommunicationStatus | null {
+  const active = targets.filter(
+    (t) => t.status !== CommunicationTargetStatus.CANCELLED,
+  );
+
+  if (targets.length && !active.length) return CommunicationStatus.CANCELLED;
+  if (isCommFuture && active.every((t) => !t.counts?.SUCCESS)) {
+    return CommunicationStatus.SCHEDULED;
+  }
+  if (active.every((t) => t.status === CommunicationTargetStatus.PENDING)) {
+    return CommunicationStatus.NOT_STARTED;
+  }
+
+  const outcomes = active.map((t): TargetOutcome | null => {
+    if (t.status === CommunicationTargetStatus.FAILED || t.error) return 'FAILED';
+    if (!t.sessionId) return 'IN_PROGRESS';
+    if (!t.counts) {
+      if (t.sessionStatus === SessionStatus.FAILED) return 'FAILED';
+      if (t.sessionStatus === SessionStatus.COMPLETED) return 'COMPLETED';
+      return null;
+    }
+
+    const pendingActive =
+      Number(t.counts.PENDING || 0) + Number(t.counts.SCHEDULED || 0);
+    if (pendingActive > 0) return 'IN_PROGRESS';
+    if (t.counts.SUCCESS > 0) return 'COMPLETED';
+    if (t.counts.FAIL > 0) return 'FAILED';
+    return t.sessionStatus === SessionStatus.COMPLETED
+      ? 'COMPLETED'
+      : 'IN_PROGRESS';
+  });
+
+  if (outcomes.includes(null)) return null;
+  if (outcomes.includes('IN_PROGRESS')) return CommunicationStatus.IN_PROGRESS;
+  if (outcomes.every((o) => o === 'FAILED')) return CommunicationStatus.FAILED;
+  return CommunicationStatus.COMPLETED;
+}
 
 @Injectable()
 export class CommunicationService {
@@ -160,6 +208,13 @@ export class CommunicationService {
       order = 'desc',
     } = dto || {};
 
+    if (status && !Object.values(CommunicationStatus).includes(status)) {
+      throw new RpcException({
+        message: `Invalid status. Expected one of: ${Object.values(CommunicationStatus).join(', ')}`,
+        code: 'INVALID_COMMUNICATION_STATUS',
+      });
+    }
+
     const sortField = SORTABLE_FIELDS.includes(sort as any)
       ? sort
       : DEFAULT_SORT_FIELD;
@@ -168,7 +223,6 @@ export class CommunicationService {
       ...(groupId && { groupId }),
       ...(groupType && { groupType }),
       ...(sessionId && { sessionId }),
-      ...(status && { status }),
     };
 
     const dateFilter: Record<string, Date> = {};
@@ -180,7 +234,10 @@ export class CommunicationService {
         isDeleted: false,
         ...(title && { title: { contains: title, mode: 'insensitive' } }),
         ...(xrefId && xrefId !== 'all' && { xrefId }),
-        ...(transportId && { transportId }),
+        ...(transportId && {
+          transportId: Array.isArray(transportId) ? { in: transportId } : transportId,
+        }),
+        ...(status && { status }),
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
         ...(Object.keys(targetFilter).length && {
           targets: { some: targetFilter },
@@ -233,7 +290,9 @@ export class CommunicationService {
       effectiveXrefId,
     );
 
-    return communications.map((comm) => {
+    const statusChanges = new Map<CommunicationStatus, number[]>();
+
+    const enriched = communications.map((comm) => {
       if (!comm.targets?.length) return comm;
 
       const isCommFuture = Boolean(
@@ -277,11 +336,34 @@ export class CommunicationService {
         };
       });
 
+      const status =
+        deriveCommunicationStatus(targets, isCommFuture) ?? (comm as any).status;
+
+      if (status !== (comm as any).status) {
+        statusChanges.set(status, [
+          ...(statusChanges.get(status) ?? []),
+          (comm as any).id,
+        ]);
+      }
+
       return {
         ...comm,
+        status,
         targets,
       };
     });
+
+    await Promise.all(
+      [...statusChanges].map(([status, ids]) =>
+        this.prisma.communication
+          .updateMany({ where: { id: { in: ids } }, data: { status } })
+          .catch((error) =>
+            this.logger.error('Failed to persist communication status', error),
+          ),
+      ),
+    );
+
+    return enriched;
   }
 
   async findOne(uuid: string) {
