@@ -27,6 +27,13 @@ export class CommunicationController {
   }
 
   @MessagePattern({
+    cmd: MS_TRIGGERS_JOBS.COMMUNICATIONS.GET_OVERVIEW,
+  })
+  async getOverview(@Payload() payload: any) {
+    return this.communicationService.getCommunicationOverview(payload);
+  }
+
+  @MessagePattern({
     cmd: MS_TRIGGERS_JOBS.COMMUNICATIONS.GET_ONE,
   })
   async getOne(@Payload() payload: { uuid: string }) {
