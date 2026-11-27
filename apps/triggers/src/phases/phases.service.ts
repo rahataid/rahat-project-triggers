@@ -1,3 +1,4 @@
+//rahat-project-triggers/triggers/apps/triggers/src/phases/phases.service.ts
 import {
   BadRequestException,
   forwardRef,
@@ -114,7 +115,8 @@ export class PhasesService {
 
     if (canTriggerPayout && !disbursementMethods?.length) {
       throw new RpcException({
-        message: 'disbursementMethods is required when canTriggerPayout is true',
+        message:
+          'disbursementMethods is required when canTriggerPayout is true',
         code: 'DISBURSEMENT_METHODS_REQUIRED_FOR_PAYOUT',
       });
     }
@@ -122,6 +124,7 @@ export class PhasesService {
     if (disbursementMethods?.length) {
       await this.validateUniqueDisbursementMethods(
         river_basin,
+        activeYear,
         disbursementMethods,
       );
     }
@@ -242,7 +245,8 @@ export class PhasesService {
 
     if (rest.canTriggerPayout && !rest.disbursementMethods?.length) {
       throw new RpcException({
-        message: 'disbursementMethods is required when canTriggerPayout is true',
+        message:
+          'disbursementMethods is required when canTriggerPayout is true',
         code: 'DISBURSEMENT_METHODS_REQUIRED_FOR_PAYOUT',
       });
     }
@@ -250,6 +254,7 @@ export class PhasesService {
     if (rest.disbursementMethods?.length) {
       await this.validateUniqueDisbursementMethods(
         phase.riverBasin,
+        phase.activeYear,
         rest.disbursementMethods,
         uuid,
       );
@@ -624,12 +629,20 @@ export class PhasesService {
       this.eventEmitter.emit(EVENTS.PHASE_ACTIVATED, {
         phaseId: phaseDetails.uuid,
       });
+
       this.eventEmitter.emit(EVENTS.NOTIFICATION.CREATE, {
         payload: {
           title: `${phaseDetails.name}  Phase Activated for ${phaseDetails.source.riverBasin}`,
           description: `${phaseDetails.name} Phase has been activated through automated trigger for year ${phaseDetails.activeYear}, in the ${phaseDetails.source.riverBasin} river basin.`,
           group: 'Phase Acivation',
           notify: true,
+          push: {
+            data: {
+              phaseUuid: phaseDetails.uuid,
+              riverBasin: phaseDetails.source.riverBasin,
+              activeYear: phaseDetails.activeYear,
+            },
+          },
         },
       });
 
@@ -893,12 +906,14 @@ export class PhasesService {
 
   private async validateUniqueDisbursementMethods(
     riverBasin: string,
+    activeYear: string,
     methods: string[],
     excludeUuid?: string,
   ) {
     const existingPhases = await this.prisma.phase.findMany({
       where: {
         riverBasin,
+        activeYear,
         ...(excludeUuid && { uuid: { not: excludeUuid } }),
       },
     });
@@ -913,10 +928,10 @@ export class PhasesService {
 
       if (conflict) {
         this.logger.warn(
-          `Disbursement method "${method}" already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}`,
+          `Disbursement method "${method}" already assigned to phase "${conflict.name}" for riverBasin ${riverBasin} and activeYear ${activeYear}`,
         );
         throw new RpcException({
-          message: `Disbursement method "${method}" is already assigned to phase "${conflict.name}" (${conflict.activeYear}) for riverBasin ${riverBasin}. Each method can only be used by one phase per project.`,
+          message: `Disbursement method "${method}" is already assigned to phase "${conflict.name}" for riverBasin ${riverBasin} and activeYear ${activeYear}. Each method can only be used by one phase per river basin and active year.`,
           code: 'DISBURSEMENT_METHOD_ALREADY_ASSIGNED_TO_PHASE',
           params: {
             method,
@@ -964,7 +979,11 @@ export class PhasesService {
       throw new RpcException({
         message: `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${triggerCount} trigger(s) are associated with it. Please remove them first.`,
         code: 'CANNOT_DELETE_PHASE_WITH_TRIGGERS',
-        params: { name: phase.name, activeYear: phase.activeYear, count: triggerCount },
+        params: {
+          name: phase.name,
+          activeYear: phase.activeYear,
+          count: triggerCount,
+        },
       });
     }
 
@@ -975,7 +994,11 @@ export class PhasesService {
       throw new RpcException({
         message: `Cannot delete phase "${phase.name}" (${phase.activeYear}): ${activityCount} activity(s) are associated with it. Please remove them first.`,
         code: 'CANNOT_DELETE_PHASE_WITH_ACTIVITIES',
-        params: { name: phase.name, activeYear: phase.activeYear, count: activityCount },
+        params: {
+          name: phase.name,
+          activeYear: phase.activeYear,
+          count: activityCount,
+        },
       });
     }
 

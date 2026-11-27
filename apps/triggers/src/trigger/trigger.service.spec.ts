@@ -134,15 +134,11 @@ describe('TriggerService', () => {
         },
         {
           provide: SseService,
-<<<<<<< HEAD
           useValue: mockSseService,
         },
         {
           provide: TriggerCallbackService,
           useValue: mockTriggerCallbackService,
-=======
-          useValue: { publishEvent: jest.fn() },
->>>>>>> f298a83b1f9f3be7c86bfcc5c38ed0700405fde2
         },
       ],
     }).compile();

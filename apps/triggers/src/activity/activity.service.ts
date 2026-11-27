@@ -93,6 +93,25 @@ export class ActivityService {
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
+      if (Array.isArray(newActivity.activityCommunication)) {
+        for (const comm of newActivity.activityCommunication as any[]) {
+          if (comm?.isScheduled && comm?.scheduledAt && comm?.communicationId && !comm?.sessionId) {
+            try {
+              await this.triggerCommunication({
+                activityId: newActivity.uuid,
+                communicationId: comm.communicationId,
+                appId: payload.appId,
+              });
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled communication ${comm.communicationId}`,
+                err,
+              );
+            }
+          }
+        }
+      }
+
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
       await this.sseService.publishEvent('activity.created', newActivity);
 
@@ -476,10 +495,30 @@ export class ActivityService {
             sessionId: string;
           };
 
-          let sessionStatus = SessionStatus.NEW;
+          let sessionStatus: string = SessionStatus.NEW;
           let completedAt = null;
           let startedAt = null;
           let updatedAt = null;
+
+          if (!communication.sessionId && (communication.isScheduled || communication.scheduledAt)) {
+            try {
+              const triggered = await this.triggerCommunication({
+                activityId: activityData.uuid,
+                communicationId: communication.communicationId,
+                appId,
+              });
+              if (triggered?.cuid) {
+                communication.sessionId = triggered.cuid;
+                sessionStatus = 'SCHEDULED';
+              }
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled activity communication ${communication.communicationId}`,
+                err,
+              );
+            }
+          }
+
           if (communication.sessionId) {
             const promises: Promise<any>[] = [
               commsClient.session.get(communication.sessionId),
@@ -508,13 +547,23 @@ export class ActivityService {
               const fail = Number(counts.FAIL ?? counts.fail ?? 0);
               const success = Number(counts.SUCCESS ?? counts.success ?? 0);
               const total = Number(counts.TOTAL ?? counts.total ?? 0);
+              const scheduled = Number(counts.SCHEDULED ?? counts.scheduled ?? 0);
               if (
                 (fail > 0 && success === 0) ||
                 (total > 0 && fail === total)
               ) {
                 sessionStatus = SessionStatus.FAILED;
+              } else if (scheduled > 0 && success === 0 && fail === 0) {
+                sessionStatus = 'SCHEDULED';
               }
             }
+          }
+
+          if (
+            sessionStatus === SessionStatus.NEW &&
+            (communication.isScheduled || communication.scheduledAt)
+          ) {
+            sessionStatus = 'SCHEDULED';
           }
 
           const transport = await commsClient.transport.get(
@@ -1386,6 +1435,26 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+
+      if (Array.isArray(updatedActivity.activityCommunication)) {
+        for (const comm of updatedActivity.activityCommunication as any[]) {
+          if (comm?.isScheduled && comm?.scheduledAt && comm?.communicationId && !comm?.sessionId) {
+            try {
+              await this.triggerCommunication({
+                activityId: updatedActivity.uuid,
+                communicationId: comm.communicationId,
+                appId: activity.app,
+              });
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled communication ${comm.communicationId}`,
+                err,
+              );
+            }
+          }
+        }
+      }
+
       await this.sseService.publishEvent('activity.updated', updatedActivity);
       return updatedActivity;
     } catch (error: any) {
@@ -1722,6 +1791,10 @@ export class ActivityService {
       transportId: string;
       communicationId: string;
       subject: string;
+      isScheduled?: boolean;
+      scheduledAt?: string;
+      sessionId?: string;
+      sessionStatus?: string;
     }>;
 
     const selectedCommunication = parsedCommunications.find(
@@ -1771,6 +1844,12 @@ export class ActivityService {
       messageContent = selectedCommunication.message as string;
     }
 
+    const isScheduledFuture = Boolean(
+      selectedCommunication?.isScheduled &&
+        selectedCommunication?.scheduledAt &&
+        new Date(selectedCommunication.scheduledAt).getTime() > Date.now(),
+    );
+
     /// cva_communication microservice
     const { data: sessionData } = await this.commsClient.broadcast.create({
       addresses: addresses,
@@ -1781,9 +1860,13 @@ export class ActivityService {
           subject: messageSubject,
         },
       },
-      options: {},
+      options: isScheduledFuture
+        ? { scheduledTimestamp: new Date(selectedCommunication.scheduledAt) }
+        : {},
       transport: selectedCommunication.transportId,
-      trigger: TriggerType.IMMEDIATE,
+      trigger: isScheduledFuture
+        ? TriggerType.SCHEDULED
+        : TriggerType.IMMEDIATE,
       xref: payload.appId,
     });
 
@@ -1800,6 +1883,9 @@ export class ActivityService {
         return {
           ...c,
           sessionId: sessionData.cuid,
+          sessionStatus: isScheduledFuture
+            ? 'SCHEDULED'
+            : SessionStatus.PENDING,
         };
       }
       return c;
@@ -1899,26 +1985,21 @@ export class ActivityService {
 
   async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-    const { appId, startDate, endDate, filters = {} } = payload;
+    const { appId, startDate, endDate, filters = {} } =
+      typeof payload === 'string' ? { appId: payload, filters: {} } : payload;
     try {
       // Step 1: Fetch all activities with their related communications
-      const where: any = { app: appId };
+      const where: any = {};
+      if (appId && appId !== 'all') where.app = appId;
       if (startDate || endDate) {
         where.createdAt = {};
         if (startDate) where.createdAt.gte = new Date(startDate);
         if (endDate) where.createdAt.lte = new Date(endDate);
       }
-      if (filters.phase) {
-        where.phase = {
-          name: { equals: filters.phase, mode: 'insensitive' },
-        };
+      if (filters.phase && filters.phase !== 'all') {
+        where.phase = { name: { equals: filters.phase, mode: 'insensitive' } };
       }
-      const activities = await this.prisma.activity.findMany({
-        where,
-        select: {
-          activityCommunication: true,
-        },
-      });
+
       // Step 2: Flatten communication data and extract necessary fields
       const commsToProcess: {
         groupType: string;
@@ -1926,45 +2007,96 @@ export class ActivityService {
         sessionId: string;
       }[] = [];
 
-      for (const activity of activities) {
-        const comms: any = activity.activityCommunication;
-        for (const comm of comms) {
-          const { sessionId, groupType, transportId } = comm;
-          if (sessionId && groupType && transportId) {
-            commsToProcess.push({ sessionId, groupType, transportId });
+      if (filters.source !== 'communications') {
+        const activities = await this.prisma.activity.findMany({
+          where,
+          select: { activityCommunication: true },
+        });
+
+        for (const { activityCommunication } of activities) {
+          if (!Array.isArray(activityCommunication)) continue;
+          for (const comm of activityCommunication as any[]) {
+            if (comm?.sessionId && comm?.groupType && comm?.transportId) {
+              commsToProcess.push({
+                sessionId: comm.sessionId,
+                groupType: comm.groupType,
+                transportId: comm.transportId,
+              });
+            }
           }
         }
       }
+
+      if (
+        (!filters.phase || filters.phase === 'all') &&
+        (filters.source === 'all' || filters.source === 'communications') &&
+        this.prisma.communicationGroupTarget
+      ) {
+        const commWhere: any = { isDeleted: false };
+        if (appId && appId !== 'all') commWhere.xrefId = appId;
+        if (startDate || endDate) {
+          commWhere.createdAt = {};
+          if (startDate) commWhere.createdAt.gte = new Date(startDate);
+          if (endDate) commWhere.createdAt.lte = new Date(endDate);
+        }
+
+        const targets = await this.prisma.communicationGroupTarget.findMany({
+          where: {
+            sessionId: { not: null },
+            communication: commWhere,
+          },
+          select: {
+            sessionId: true,
+            groupType: true,
+            communication: { select: { transportId: true } },
+          },
+        });
+
+        for (const target of targets) {
+          if (target.sessionId && target.groupType && target.communication?.transportId) {
+            commsToProcess.push({
+              sessionId: target.sessionId,
+              groupType: target.groupType,
+              transportId: target.communication.transportId,
+            });
+          }
+        }
+      }
+
       // Step 3: Map transportId to its readable transport name using external client
       const transportIdMap = new Map<string, string>();
-      const uniqueTransportIds = [
-        ...new Set(commsToProcess.map((c) => c.transportId)),
-      ];
+      const uniqueTransportIds = [...new Set(commsToProcess.map((c) => c.transportId))];
 
       const transportResponses = await Promise.all(
-        uniqueTransportIds.map((id) => this.commsClient.transport.get(id)),
+        uniqueTransportIds.map((id) =>
+          this.commsClient.transport.get(id).catch((err) => {
+            this.logger.warn(`Failed to fetch transport ${id}`, err);
+            return null;
+          }),
+        ),
       );
 
       transportResponses.forEach((res, idx) => {
-        transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+        if (res?.data?.name) {
+          transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+        }
       });
+
       // Step 4: Build a nested structure to group sessionIds by groupType and transportType
-      const sessions: Record<string, Record<string, Set<string>>> = {
+      const sessions: Record<'BENEFICIARY' | 'STAKEHOLDERS', Record<string, Set<string>>> = {
         BENEFICIARY: {},
         STAKEHOLDERS: {},
       };
 
       for (const { groupType, transportId, sessionId } of commsToProcess) {
-        const group = groupType.toUpperCase();
         const transportType = transportIdMap.get(transportId);
-        if (!transportType || !sessions[group]) continue;
-        // Group sessionIds under their respective groupType and transport name.
-        // Structure: sessions[groupType][transportType] = Set of sessionIds
-        if (!sessions[group][transportType]) {
-          sessions[group][transportType] = new Set();
-        }
+        if (!transportType) continue;
+
+        const group = groupType.toUpperCase().startsWith('BENEFICIAR') ? 'BENEFICIARY' : 'STAKEHOLDERS';
+        sessions[group][transportType] ??= new Set();
         sessions[group][transportType].add(sessionId);
       }
+
       // Step 5: Initialize result structure and prepare for broadcasting session count requests
       const result: Record<string, Record<string, any>> = {
         beneficiary: {},
@@ -1973,31 +2105,37 @@ export class ActivityService {
 
       const resultKeys: { groupKey: string; transportType: string }[] = [];
       const broadcastPromises: Promise<any>[] = [];
+
       // Step 6: For each group + transport combination, request broadcast stats
       for (const [groupType, transportMap] of Object.entries(sessions)) {
-        const groupKey =
-          groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
+        const groupKey = groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
 
-        for (const [transportType, sessionSet] of Object.entries(
-          transportMap,
-        )) {
-          const sessionList = Array.from(sessionSet);
-          // Enqueue a broadcast count request for each unique transport + group combination
+        for (const [transportType, sessionSet] of Object.entries(transportMap)) {
           broadcastPromises.push(
-            this.commsClient.session.broadcastCount({
-              sessions: sessionList,
-            }),
+            this.commsClient.session
+              .broadcastCount({ sessions: Array.from(sessionSet) })
+              .catch((err) => {
+                this.logger.warn(
+                  `Failed to fetch broadcastCount for ${groupKey} ${transportType}`,
+                  err,
+                );
+                return null;
+              }),
           );
           resultKeys.push({ groupKey, transportType });
         }
       }
+
       // Step 7: Resolve all broadcast count requests and map the results back
       const broadcastResults = await Promise.all(broadcastPromises);
 
       broadcastResults.forEach((res, idx) => {
         const { groupKey, transportType } = resultKeys[idx];
-        result[groupKey][transportType] = res.data;
+        if (res?.data) {
+          result[groupKey][transportType] = res.data;
+        }
       });
+
       // Final structured output containing session broadcast stats
       return result;
     } catch (error: any) {
