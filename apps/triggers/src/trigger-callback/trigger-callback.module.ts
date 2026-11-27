@@ -7,6 +7,7 @@ import { BQUEUE, CORE_MODULE } from 'src/constant';
 import { TriggerCallbackController } from './trigger-callback.controller';
 import { TriggerCallbackService } from './trigger-callback.service';
 import { TriggerCallbackDispatcher } from './trigger-callback.dispatcher';
+import { TriggerCallbackListener } from './trigger-callback.listener';
 
 @Module({
   imports: [
@@ -36,7 +37,11 @@ import { TriggerCallbackDispatcher } from './trigger-callback.dispatcher';
     ),
   ],
   controllers: [TriggerCallbackController],
-  providers: [TriggerCallbackService, TriggerCallbackDispatcher],
+  providers: [
+    TriggerCallbackService,
+    TriggerCallbackDispatcher,
+    TriggerCallbackListener,
+  ],
   exports: [TriggerCallbackService, TriggerCallbackDispatcher],
 })
 export class TriggerCallbackModule {}

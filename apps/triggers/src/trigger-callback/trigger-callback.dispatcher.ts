@@ -151,6 +151,14 @@ export class TriggerCallbackDispatcher {
       throw new Error(`Activity ${activityUuid} not found`);
     }
 
+    // Deleted activity: nothing to send. Return instead of throwing so Bull doesn't retry.
+    if (activity.isDeleted) {
+      this.logger.warn(
+        `Activity ${activityUuid} is deleted; skipping communication dispatch`,
+      );
+      return { skipped: 'activity deleted', activityUuid };
+    }
+
     const allComms = JSON.parse(
       JSON.stringify(activity.activityCommunication ?? []),
     ) as Array<{ communicationId: string; sessionId?: string }>;

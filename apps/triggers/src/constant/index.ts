@@ -218,6 +218,8 @@ export const EVENTS = {
   ACTIVITY_COMPLETED: 'events.activity_completed',
   ACTIVITY_DELETED: 'events.activity_deleted',
   ACTIVITY_ADDED: 'events.activity_added',
+  ACTIVITY_COMMUNICATIONS_REMOVED: 'events.activity_communications_removed',
+  TRIGGER_DELETED: 'events.trigger_deleted',
   BENEFICIARY_CREATED: 'events.beneficiary_created',
   BENEFICIARY_REMOVED: 'events.beneficiary_updated',
   BENEFICIARY_UPDATED: 'events.beneficiary_updated',

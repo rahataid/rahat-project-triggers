@@ -267,24 +267,120 @@ export class TriggerCallbackService {
         existing.type === TriggerCallbackType.ACTIVITY_COMMUNICATION &&
         existing.xref
       ) {
-        const linkedCount = await tx.triggerCallback.count({
-          where: {
-            xref: existing.xref,
-            type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
-            isActive: true,
-            isDeleted: false,
-          },
-        });
-
-        if (linkedCount === 0) {
-          await tx.activity.update({
-            where: { uuid: existing.xref },
-            data: { hasTriggerCallback: false },
-          });
-        }
+        await this.syncHasTriggerCallback(tx, [existing.xref]);
       }
 
       return callback;
+    });
+  }
+
+  /** Sets Activity.hasTriggerCallback from the live ACTIVITY_COMMUNICATION callbacks still linking each activity. */
+  private async syncHasTriggerCallback(
+    tx: Prisma.TransactionClient,
+    activityUuids: string[],
+  ) {
+    for (const activityUuid of new Set(activityUuids)) {
+      const linkedCount = await tx.triggerCallback.count({
+        where: {
+          xref: activityUuid,
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          isActive: true,
+          isDeleted: false,
+          trigger: { isDeleted: false },
+        },
+      });
+
+      await tx.activity.updateMany({
+        where: { uuid: activityUuid },
+        data: { hasTriggerCallback: linkedCount > 0 },
+      });
+    }
+  }
+
+  /** Trigger deleted: soft-deletes all of its callbacks and re-syncs the activities they linked. */
+  async removeByTrigger(triggerUuid: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const callbacks = await tx.triggerCallback.findMany({
+        where: { triggerId: triggerUuid, isDeleted: false },
+        select: { type: true, xref: true },
+      });
+
+      if (!callbacks.length) return { count: 0 };
+
+      const affectedXrefs = callbacks
+        .filter(
+          (c) => c.type === TriggerCallbackType.ACTIVITY_COMMUNICATION && c.xref,
+        )
+        .map((c) => c.xref as string);
+
+      const result = await tx.triggerCallback.updateMany({
+        where: { triggerId: triggerUuid, isDeleted: false },
+        data: { isDeleted: true },
+      });
+
+      await this.syncHasTriggerCallback(tx, affectedXrefs);
+
+      return result;
+    });
+  }
+
+  /** Activity deleted: soft-deletes only the callbacks pointing at that activity; other callbacks on the same triggers are untouched. */
+  async removeByActivity(activityUuid: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.triggerCallback.updateMany({
+        where: {
+          xref: activityUuid,
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          isDeleted: false,
+        },
+        data: { isDeleted: true },
+      });
+
+      await tx.activity.updateMany({
+        where: { uuid: activityUuid },
+        data: { hasTriggerCallback: false },
+      });
+
+      return result;
+    });
+  }
+
+  /**
+   * Communications removed from an activity: drops their ids from each callback's
+   * communicationIds. A callback whose list becomes empty is soft-deleted, because an
+   * empty list means "send all pending communications". Callbacks that already target
+   * all communications (empty list) are left as they are.
+   */
+  async pruneCommunications(activityUuid: string, removedIds: string[]) {
+    if (!removedIds?.length) return;
+    const removed = new Set(removedIds);
+
+    return this.prisma.$transaction(async (tx) => {
+      const callbacks = await tx.triggerCallback.findMany({
+        where: {
+          xref: activityUuid,
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          isDeleted: false,
+        },
+      });
+
+      for (const callback of callbacks) {
+        const config = (callback.config ?? {}) as Record<string, any>;
+        const ids: string[] = config.communicationIds ?? [];
+        if (!ids.length) continue;
+
+        const kept = ids.filter((id) => !removed.has(id));
+        if (kept.length === ids.length) continue;
+
+        await tx.triggerCallback.update({
+          where: { uuid: callback.uuid },
+          data: kept.length
+            ? { config: { ...config, communicationIds: kept } }
+            : { isDeleted: true },
+        });
+      }
+
+      await this.syncHasTriggerCallback(tx, [activityUuid]);
     });
   }
 
@@ -349,9 +445,9 @@ export class TriggerCallbackService {
         include: { phase: true },
       });
 
-      if (!trigger) {
+      if (!trigger || trigger.isDeleted) {
         this.logger.warn(
-          `Trigger ${triggerUuid} not found; skipping callback dispatch`,
+          `Trigger ${triggerUuid} not found or deleted; skipping callback dispatch`,
         );
         return;
       }
@@ -449,9 +545,30 @@ export class TriggerCallbackService {
 
   /** Carries callbacks over to the trigger re-created during a phase revert, re-armed for the next fire. */
   async cloneForNewTrigger(oldTriggerId: string, newTriggerId: string) {
-    const callbacks = await this.prisma.triggerCallback.findMany({
+    const allCallbacks = await this.prisma.triggerCallback.findMany({
       where: { triggerId: oldTriggerId, isDeleted: false },
     });
+
+    if (!allCallbacks.length) return;
+
+    // Don't re-arm ACTIVITY_COMMUNICATION callbacks whose activity was deleted.
+    const activityXrefs = allCallbacks
+      .filter(
+        (c) => c.type === TriggerCallbackType.ACTIVITY_COMMUNICATION && c.xref,
+      )
+      .map((c) => c.xref as string);
+    const liveActivities = activityXrefs.length
+      ? await this.prisma.activity.findMany({
+          where: { uuid: { in: activityXrefs }, isDeleted: false },
+          select: { uuid: true },
+        })
+      : [];
+    const liveActivityIds = new Set(liveActivities.map((a) => a.uuid));
+    const callbacks = allCallbacks.filter(
+      (c) =>
+        c.type !== TriggerCallbackType.ACTIVITY_COMMUNICATION ||
+        (c.xref && liveActivityIds.has(c.xref)),
+    );
 
     if (!callbacks.length) return;
 
@@ -461,6 +578,7 @@ export class TriggerCallbackService {
         type: callback.type,
         name: callback.name,
         config: callback.config as any,
+        xref: callback.xref,
         isActive: callback.isActive,
         order: callback.order,
         createdBy: callback.createdBy,

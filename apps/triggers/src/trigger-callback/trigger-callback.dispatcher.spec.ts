@@ -275,6 +275,27 @@ describe('TriggerCallbackDispatcher', () => {
       );
     });
 
+    it('skips without throwing when the activity has been deleted', async () => {
+      mockPrismaService.triggerCallback.findUnique.mockResolvedValue({
+        uuid: 'cb-1',
+        isDeleted: false,
+        type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        xref: 'activity-1',
+        config: {},
+      });
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        uuid: 'activity-1',
+        app: 'app-1',
+        isDeleted: true,
+        activityCommunication: [{ communicationId: 'comm-1' }],
+      });
+
+      await expect(dispatcher.dispatch(baseJob, 1)).resolves.toBeUndefined();
+
+      expect(mockCommunicationQueue.add).not.toHaveBeenCalled();
+      expect(mockPrismaService.activity.update).not.toHaveBeenCalled();
+    });
+
     it('fails when the activity does not exist', async () => {
       mockPrismaService.triggerCallback.findUnique.mockResolvedValue({
         uuid: 'cb-1',

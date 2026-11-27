@@ -499,6 +499,7 @@ export class TriggerService {
           isDeleted: true,
         },
       });
+      this.eventEmitter.emit(EVENTS.TRIGGER_DELETED, { triggerUuid: uuid });
       await this.sseService.publishEvent('trigger.updated', updatedTrigger);
 
       return updatedTrigger;

@@ -1250,7 +1250,9 @@ export class ActivityService {
         },
       });
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
+      this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {
+        activityUuid: payload.uuid,
+      });
       await this.sseService.publishEvent('activity.updated', deletedActivity);
 
       return deletedActivity;
@@ -1435,6 +1437,22 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+
+      const remainingCommIds = new Set(
+        ((updatedActivity.activityCommunication as any[]) ?? []).map(
+          (c) => c?.communicationId,
+        ),
+      );
+      const removedCommIds = ((activity.activityCommunication as any[]) ?? [])
+        .map((c) => c?.communicationId)
+        .filter((id) => id && !remainingCommIds.has(id));
+
+      if (removedCommIds.length) {
+        this.eventEmitter.emit(EVENTS.ACTIVITY_COMMUNICATIONS_REMOVED, {
+          activityUuid: uuid,
+          communicationIds: removedCommIds,
+        });
+      }
 
       if (Array.isArray(updatedActivity.activityCommunication)) {
         for (const comm of updatedActivity.activityCommunication as any[]) {
