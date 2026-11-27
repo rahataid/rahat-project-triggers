@@ -11,6 +11,7 @@ describe('TriggerCallbackService', () => {
   const mockPrismaService = {
     trigger: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     triggerCallback: {
       create: jest.fn(),
@@ -19,10 +20,18 @@ describe('TriggerCallbackService', () => {
       update: jest.fn(),
       updateMany: jest.fn(),
       createMany: jest.fn(),
+      deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     triggerCallbackLog: {
       findMany: jest.fn(),
     },
+    activity: {
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      findMany: jest.fn(),
+    },
+    $transaction: jest.fn((callback: any) => callback(mockPrismaService)),
   };
 
   const mockCallbackQueue: jest.Mocked<Partial<Queue>> = {
@@ -54,18 +63,20 @@ describe('TriggerCallbackService', () => {
 
   describe('create', () => {
     it('creates a callback when the trigger exists and config is valid', async () => {
-      mockPrismaService.trigger.findUnique.mockResolvedValue({
-        uuid: 'trigger-1',
-      });
+      mockPrismaService.trigger.findMany.mockResolvedValue([
+        { uuid: 'trigger-1' },
+      ]);
       mockPrismaService.triggerCallback.create.mockResolvedValue({
         uuid: 'cb-1',
       });
 
-      const result = await service.create({
-        triggerId: 'trigger-1',
-        type: TriggerCallbackType.WEBHOOK,
-        config: { url: 'https://example.com/hook' },
-      } as any);
+      const result = await service.create([
+        {
+          triggerId: 'trigger-1',
+          type: TriggerCallbackType.WEBHOOK,
+          config: { url: 'https://example.com/hook' },
+        } as any,
+      ]);
 
       expect(mockPrismaService.triggerCallback.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -75,29 +86,225 @@ describe('TriggerCallbackService', () => {
           order: 0,
         }),
       });
-      expect(result).toEqual({ uuid: 'cb-1' });
+      expect(result).toEqual([{ uuid: 'cb-1' }]);
     });
 
     it('rejects an invalid config for the given type', async () => {
       await expect(
-        service.create({
-          triggerId: 'trigger-1',
-          type: TriggerCallbackType.WEBHOOK,
-          config: { url: 'not-a-url' },
-        } as any),
+        service.create([
+          {
+            triggerId: 'trigger-1',
+            type: TriggerCallbackType.WEBHOOK,
+            config: { url: 'not-a-url' },
+          } as any,
+        ]),
       ).rejects.toThrow(RpcException);
 
       expect(mockPrismaService.triggerCallback.create).not.toHaveBeenCalled();
     });
 
     it('rejects when the trigger does not exist', async () => {
-      mockPrismaService.trigger.findUnique.mockResolvedValue(null);
+      mockPrismaService.trigger.findMany.mockResolvedValue([]);
 
       await expect(
-        service.create({
-          triggerId: 'missing-trigger',
-          type: TriggerCallbackType.INTERNAL_EVENT,
-          config: { event: 'events.notification.create' },
+        service.create([
+          {
+            triggerId: 'missing-trigger',
+            type: TriggerCallbackType.INTERNAL_EVENT,
+            config: { event: 'events.notification.create' },
+          } as any,
+        ]),
+      ).rejects.toThrow(RpcException);
+    });
+  });
+
+  describe('updateByXref', () => {
+    it('deletes existing callbacks for xrefId and recreates the replacement set', async () => {
+      mockPrismaService.trigger.findMany.mockResolvedValue([
+        { uuid: 'trigger-1' },
+        { uuid: 'trigger-2' },
+      ]);
+      mockPrismaService.triggerCallback.deleteMany.mockResolvedValue({
+        count: 2,
+      });
+      mockPrismaService.triggerCallback.create
+        .mockResolvedValueOnce({ uuid: 'cb-new-1' })
+        .mockResolvedValueOnce({ uuid: 'cb-new-2' });
+
+      const result = await service.updateByXref({
+        xrefId: 'activity-1',
+        triggerCallbackConfig: [
+          {
+            triggerId: 'trigger-1',
+            type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+            config: {},
+            xref: 'activity-1',
+          },
+          {
+            triggerId: 'trigger-2',
+            type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+            config: {},
+            xref: 'activity-1',
+          },
+        ],
+      } as any);
+
+      expect(mockPrismaService.triggerCallback.deleteMany).toHaveBeenCalledWith(
+        { where: { xref: 'activity-1' } },
+      );
+      expect(mockPrismaService.triggerCallback.create).toHaveBeenCalledTimes(2);
+      expect(mockPrismaService.activity.update).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: true },
+      });
+      expect(result).toEqual([{ uuid: 'cb-new-1' }, { uuid: 'cb-new-2' }]);
+    });
+
+    it('clears all callbacks for xrefId when triggerCallbackConfig is empty', async () => {
+      mockPrismaService.triggerCallback.deleteMany.mockResolvedValue({
+        count: 2,
+      });
+
+      const result = await service.updateByXref({
+        xrefId: 'activity-1',
+        triggerCallbackConfig: [],
+      } as any);
+
+      expect(mockPrismaService.triggerCallback.deleteMany).toHaveBeenCalledWith(
+        { where: { xref: 'activity-1' } },
+      );
+      expect(mockPrismaService.triggerCallback.create).not.toHaveBeenCalled();
+      expect(mockPrismaService.activity.update).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: false },
+      });
+      expect(result).toEqual([]);
+    });
+
+    it('rejects when xrefId is missing', async () => {
+      await expect(
+        service.updateByXref({
+          xrefId: '',
+          triggerCallbackConfig: [
+            {
+              triggerId: 'trigger-1',
+              type: TriggerCallbackType.INTERNAL_EVENT,
+              config: { event: 'events.notification.create' },
+            },
+          ],
+        } as any),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('rejects when a replacement trigger does not exist', async () => {
+      mockPrismaService.trigger.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.updateByXref({
+          xrefId: 'activity-1',
+          triggerCallbackConfig: [
+            {
+              triggerId: 'missing-trigger',
+              type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+              config: {},
+              xref: 'activity-1',
+            },
+          ],
+        } as any),
+      ).rejects.toThrow(RpcException);
+
+      expect(mockPrismaService.triggerCallback.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateByTrigger', () => {
+    it('clears hasTriggerCallback for every previously linked activity, then recreates callbacks', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        {
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          xref: 'activity-1',
+        },
+        {
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          xref: 'activity-2',
+        },
+      ]);
+      mockPrismaService.trigger.findMany.mockResolvedValue([
+        { uuid: 'trigger-1' },
+      ]);
+      mockPrismaService.triggerCallback.deleteMany.mockResolvedValue({
+        count: 2,
+      });
+      mockPrismaService.triggerCallback.create.mockResolvedValue({
+        uuid: 'cb-new-1',
+      });
+
+      const result = await service.updateByTrigger({
+        triggerId: 'trigger-1',
+        triggerCallbackConfig: [
+          {
+            triggerId: 'trigger-1',
+            type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+            config: {},
+            xref: 'activity-1',
+          },
+        ],
+      } as any);
+
+      expect(mockPrismaService.triggerCallback.findMany).toHaveBeenCalledWith({
+        where: { triggerId: 'trigger-1' },
+        select: { type: true, xref: true },
+      });
+      expect(mockPrismaService.activity.update).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: false },
+      });
+      expect(mockPrismaService.activity.update).toHaveBeenCalledWith({
+        where: { uuid: 'activity-2' },
+        data: { hasTriggerCallback: false },
+      });
+      expect(mockPrismaService.triggerCallback.deleteMany).toHaveBeenCalledWith(
+        { where: { triggerId: 'trigger-1' } },
+      );
+      expect(mockPrismaService.activity.update).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: true },
+      });
+      expect(result).toEqual([{ uuid: 'cb-new-1' }]);
+    });
+
+    it('clears all callbacks for triggerId when triggerCallbackConfig is empty', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        {
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          xref: 'activity-1',
+        },
+      ]);
+      mockPrismaService.triggerCallback.deleteMany.mockResolvedValue({
+        count: 1,
+      });
+
+      const result = await service.updateByTrigger({
+        triggerId: 'trigger-1',
+        triggerCallbackConfig: [],
+      } as any);
+
+      expect(mockPrismaService.activity.update).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: false },
+      });
+      expect(mockPrismaService.triggerCallback.deleteMany).toHaveBeenCalledWith(
+        { where: { triggerId: 'trigger-1' } },
+      );
+      expect(mockPrismaService.triggerCallback.create).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
+    it('rejects when triggerId is missing', async () => {
+      await expect(
+        service.updateByTrigger({
+          triggerId: '',
+          triggerCallbackConfig: [],
         } as any),
       ).rejects.toThrow(RpcException);
     });
@@ -182,6 +389,142 @@ describe('TriggerCallbackService', () => {
     });
   });
 
+  describe('removeByTrigger (trigger deleted)', () => {
+    it('soft-deletes the trigger callbacks and keeps hasTriggerCallback true when the activity is still linked to another trigger', async () => {
+      // activity-1 is linked to 3 triggers; trigger-1 is deleted
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        { type: TriggerCallbackType.ACTIVITY_COMMUNICATION, xref: 'activity-1' },
+        { type: TriggerCallbackType.WEBHOOK, xref: null },
+      ]);
+      mockPrismaService.triggerCallback.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.triggerCallback.count.mockResolvedValue(2);
+
+      const result = await service.removeByTrigger('trigger-1');
+
+      expect(result).toEqual({ count: 2 });
+      expect(mockPrismaService.triggerCallback.updateMany).toHaveBeenCalledWith({
+        where: { triggerId: 'trigger-1', isDeleted: false },
+        data: { isDeleted: true },
+      });
+      expect(mockPrismaService.triggerCallback.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          xref: 'activity-1',
+          isDeleted: false,
+          trigger: { isDeleted: false },
+        }),
+      });
+      expect(mockPrismaService.activity.updateMany).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: true },
+      });
+    });
+
+    it('sets hasTriggerCallback false when the deleted trigger was the only link', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        { type: TriggerCallbackType.ACTIVITY_COMMUNICATION, xref: 'activity-1' },
+      ]);
+      mockPrismaService.triggerCallback.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.triggerCallback.count.mockResolvedValue(0);
+
+      await service.removeByTrigger('trigger-1');
+
+      expect(mockPrismaService.activity.updateMany).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: false },
+      });
+    });
+
+    it('does nothing when the trigger has no callbacks', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([]);
+
+      await service.removeByTrigger('trigger-1');
+
+      expect(mockPrismaService.triggerCallback.updateMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.activity.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeByActivity (activity deleted)', () => {
+    it('soft-deletes only the callbacks pointing at that activity', async () => {
+      // trigger-1 is linked to 3 activities; activity-2 is deleted
+      mockPrismaService.triggerCallback.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.removeByActivity('activity-2');
+
+      expect(result).toEqual({ count: 1 });
+      expect(mockPrismaService.triggerCallback.updateMany).toHaveBeenCalledWith({
+        where: {
+          xref: 'activity-2',
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          isDeleted: false,
+        },
+        data: { isDeleted: true },
+      });
+      expect(mockPrismaService.activity.updateMany).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.activity.updateMany).toHaveBeenCalledWith({
+        where: { uuid: 'activity-2' },
+        data: { hasTriggerCallback: false },
+      });
+    });
+  });
+
+  describe('pruneCommunications (communications removed from activity)', () => {
+    const callback = (uuid: string, communicationIds?: string[]) => ({
+      uuid,
+      type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+      xref: 'activity-1',
+      config: { appId: 'app-1', ...(communicationIds && { communicationIds }) },
+    });
+
+    it('drops removed ids but keeps the callback when other ids remain', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        callback('cb-1', ['comm-1', 'comm-2']),
+      ]);
+      mockPrismaService.triggerCallback.count.mockResolvedValue(1);
+
+      await service.pruneCommunications('activity-1', ['comm-1']);
+
+      expect(mockPrismaService.triggerCallback.update).toHaveBeenCalledWith({
+        where: { uuid: 'cb-1' },
+        data: { config: { appId: 'app-1', communicationIds: ['comm-2'] } },
+      });
+      expect(mockPrismaService.activity.updateMany).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: true },
+      });
+    });
+
+    it('soft-deletes the callback when all of its targeted ids are removed', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        callback('cb-1', ['comm-1']),
+      ]);
+      mockPrismaService.triggerCallback.count.mockResolvedValue(0);
+
+      await service.pruneCommunications('activity-1', ['comm-1']);
+
+      expect(mockPrismaService.triggerCallback.update).toHaveBeenCalledWith({
+        where: { uuid: 'cb-1' },
+        data: { isDeleted: true },
+      });
+      expect(mockPrismaService.activity.updateMany).toHaveBeenCalledWith({
+        where: { uuid: 'activity-1' },
+        data: { hasTriggerCallback: false },
+      });
+    });
+
+    it('leaves callbacks that target all communications or none of the removed ids untouched', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        callback('cb-all'),
+        callback('cb-other', ['comm-9']),
+      ]);
+      mockPrismaService.triggerCallback.count.mockResolvedValue(2);
+
+      await service.pruneCommunications('activity-1', ['comm-1']);
+
+      expect(mockPrismaService.triggerCallback.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('cloneForNewTrigger', () => {
     it('copies active callbacks onto the new trigger with dispatchedAt reset', async () => {
       mockPrismaService.triggerCallback.findMany.mockResolvedValue([
@@ -204,6 +547,41 @@ describe('TriggerCallbackService', () => {
             triggerId: 'trigger-new',
             type: TriggerCallbackType.WEBHOOK,
             name: 'Notify partner',
+          }),
+        ],
+      });
+    });
+
+    it('keeps xref on ACTIVITY_COMMUNICATION callbacks and skips ones whose activity was deleted', async () => {
+      mockPrismaService.triggerCallback.findMany.mockResolvedValue([
+        {
+          uuid: 'cb-live',
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          xref: 'activity-live',
+          config: {},
+          isActive: true,
+          order: 0,
+        },
+        {
+          uuid: 'cb-dead',
+          type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+          xref: 'activity-deleted',
+          config: {},
+          isActive: true,
+          order: 1,
+        },
+      ]);
+      mockPrismaService.activity.findMany.mockResolvedValue([
+        { uuid: 'activity-live' },
+      ]);
+
+      await service.cloneForNewTrigger('trigger-old', 'trigger-new');
+
+      expect(mockPrismaService.triggerCallback.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            triggerId: 'trigger-new',
+            xref: 'activity-live',
           }),
         ],
       });

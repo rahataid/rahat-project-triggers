@@ -6,7 +6,8 @@ import { paginator, PaginatorTypes } from '@lib/database';
 import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
 import { getTriggerAndActivityCompletionTimeDifference } from 'src/common';
-import type { CommsClient } from 'src/comms/comms.service';
+import { CommsService, type CommsClient } from 'src/comms/comms.service';
+import { batchFetchSessionStatuses } from 'src/comms/comms.utils';
 import { EVENTS, JOBS, MS_TRIGGER_CLIENTS } from 'src/constant';
 import { ActivityCommunicationData, SessionStatus } from 'src/constant/types';
 import {
@@ -16,7 +17,12 @@ import {
   UpdateActivityDto,
 } from './dto';
 import { paginateResult } from 'src/utils/pagination';
-import { PrismaService, Prisma, ActivityStatus } from '@lib/database';
+import {
+  PrismaService,
+  Prisma,
+  ActivityStatus,
+  TriggerCallbackType,
+} from '@lib/database';
 import { GetActivityByStakeholderUuidDto } from './dto/get-activity-by-stakeholder-uuid.dto';
 import { SseService } from 'src/sse/sse.service';
 
@@ -29,10 +35,13 @@ export class ActivityService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     @Inject(MS_TRIGGER_CLIENTS.RAHAT) private readonly client: ClientProxy,
-    @Inject('COMMS_CLIENT')
-    private commsClient: CommsClient,
+    private readonly commsService: CommsService,
     private readonly sseService: SseService,
   ) {}
+
+  private get commsClient(): CommsClient {
+    return this.commsService.getCurrentClient();
+  }
   // create(appId: string, dto: CreateActivityDto) {
   //   return this.prisma.activity.create({
   // data: {
@@ -84,12 +93,32 @@ export class ActivityService {
 
       this.logger.log(`New activity created with uuid: ${newActivity.uuid}`);
 
+      if (Array.isArray(newActivity.activityCommunication)) {
+        for (const comm of newActivity.activityCommunication as any[]) {
+          if (comm?.isScheduled && comm?.scheduledAt && comm?.communicationId && !comm?.sessionId) {
+            try {
+              await this.triggerCommunication({
+                activityId: newActivity.uuid,
+                communicationId: comm.communicationId,
+                appId: payload.appId,
+              });
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled communication ${comm.communicationId}`,
+                err,
+              );
+            }
+          }
+        }
+      }
+
       this.eventEmitter.emit(EVENTS.ACTIVITY_ADDED, { appId: payload.appId });
       await this.sseService.publishEvent('activity.created', newActivity);
 
       return newActivity;
     } catch (error: any) {
       this.logger.error('Something went wrong while adding activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -163,7 +192,10 @@ export class ActivityService {
 
   async validateBulkAdd(payload: CreateActivityDto[]) {
     if (!payload?.length) {
-      throw new RpcException('No activities provided');
+      throw new RpcException({
+        message: 'No activities provided',
+        code: 'NO_ACTIVITIES_PROVIDED',
+      });
     }
 
     const appId = payload[0]?.appId;
@@ -244,7 +276,10 @@ export class ActivityService {
 
     try {
       if (!payload?.length) {
-        throw new RpcException('No activities provided');
+        throw new RpcException({
+          message: 'No activities provided',
+          code: 'NO_ACTIVITIES_PROVIDED',
+        });
       }
 
       const createdActivities = await this.prisma.$transaction(
@@ -319,6 +354,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while adding activities', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -429,11 +465,11 @@ export class ActivityService {
         },
         include: {
           category: true,
-          phase: {
-            include: {
-              source: true,
-            },
-          },
+          // phase: {
+          //   include: {
+          //     source: true,
+          //   },
+          // },
           manager: true,
         },
       });
@@ -444,6 +480,13 @@ export class ActivityService {
       appId = appId ?? (activityData?.app || null);
 
       if (Array.isArray(aComm) && aComm.length) {
+        const commsClient = await this.commsService.getClient();
+        if (!commsClient) {
+          throw new Error(
+            'Comms client is not available. Please try again shortly.',
+          );
+        }
+
         for (const comm of aComm) {
           const communication = JSON.parse(
             JSON.stringify(comm),
@@ -452,20 +495,78 @@ export class ActivityService {
             sessionId: string;
           };
 
-          let sessionStatus = SessionStatus.NEW;
+          let sessionStatus: string = SessionStatus.NEW;
           let completedAt = null;
-          if (communication.sessionId) {
-            const sessionDetails = await this.commsClient.session.get(
-              communication.sessionId,
-            );
-            sessionStatus = sessionDetails.data.status;
-            completedAt = sessionDetails.data.updatedAt;
-          }
-          // const transport = await this.commsClient.transport.get(
-          //   communication.transportId,
-          // );
+          let startedAt = null;
+          let updatedAt = null;
 
-          const transport = await this.commsClient.transport.get(
+          if (!communication.sessionId && (communication.isScheduled || communication.scheduledAt)) {
+            try {
+              const triggered = await this.triggerCommunication({
+                activityId: activityData.uuid,
+                communicationId: communication.communicationId,
+                appId,
+              });
+              if (triggered?.cuid) {
+                communication.sessionId = triggered.cuid;
+                sessionStatus = 'SCHEDULED';
+              }
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled activity communication ${communication.communicationId}`,
+                err,
+              );
+            }
+          }
+
+          if (communication.sessionId) {
+            const promises: Promise<any>[] = [
+              commsClient.session.get(communication.sessionId),
+            ];
+            if (commsClient.session.broadcastCount) {
+              promises.push(
+                commsClient.session.broadcastCount({
+                  sessions: [communication.sessionId],
+                }),
+              );
+            }
+            const [sessionRes, countRes] = await Promise.allSettled(promises);
+            if (sessionRes.status === 'fulfilled' && sessionRes.value?.data) {
+              const sessionDetails = sessionRes.value;
+              sessionStatus = sessionDetails.data.status;
+              completedAt = sessionDetails.data.updatedAt;
+              startedAt = sessionDetails.data.createdAt;
+              updatedAt = sessionDetails.data.updatedAt;
+            }
+            if (
+              countRes &&
+              countRes.status === 'fulfilled' &&
+              countRes.value?.data
+            ) {
+              const counts = countRes.value.data;
+              const fail = Number(counts.FAIL ?? counts.fail ?? 0);
+              const success = Number(counts.SUCCESS ?? counts.success ?? 0);
+              const total = Number(counts.TOTAL ?? counts.total ?? 0);
+              const scheduled = Number(counts.SCHEDULED ?? counts.scheduled ?? 0);
+              if (
+                (fail > 0 && success === 0) ||
+                (total > 0 && fail === total)
+              ) {
+                sessionStatus = SessionStatus.FAILED;
+              } else if (scheduled > 0 && success === 0 && fail === 0) {
+                sessionStatus = 'SCHEDULED';
+              }
+            }
+          }
+
+          if (
+            sessionStatus === SessionStatus.NEW &&
+            (communication.isScheduled || communication.scheduledAt)
+          ) {
+            sessionStatus = 'SCHEDULED';
+          }
+
+          const transport = await commsClient.transport.get(
             communication.transportId,
           );
           const transportName = transport.data.name;
@@ -488,6 +589,8 @@ export class ActivityService {
             transportName: transportName,
             sessionStatus,
             completedAt,
+            startedAt,
+            updatedAt,
             ...(communication.sessionId && {
               sessionId: communication.sessionId,
             }),
@@ -495,15 +598,46 @@ export class ActivityService {
         }
       }
 
+      const triggersCallback = await this.getRelatedTriggers(uuid);
+
       return {
         ...activityData,
         activityCommunication,
         activityPayout,
+        triggersCallback,
       };
     } catch (error: any) {
       this.logger.error('Something went wrong while fetching activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
+  }
+
+  private async getRelatedTriggers(activityUuid: string) {
+    const callbacks = await this.prisma.triggerCallback.findMany({
+      where: {
+        type: TriggerCallbackType.ACTIVITY_COMMUNICATION,
+        isDeleted: false,
+        xref: activityUuid,
+      },
+      select: {
+        uuid: true,
+        config: true,
+        trigger: { select: { uuid: true, title: true } },
+      },
+    });
+
+    // const triggerUuids = new Set<string>();
+    // const triggers: { uuid: string; title: string | null }[] = [];
+
+    // for (const callback of callbacks) {
+    //   if (!triggerUuids.has(callback.trigger.uuid)) {
+    //     triggerUuids.add(callback.trigger.uuid);
+    //     triggers.push(callback.trigger);
+    //   }
+    // }
+
+    return callbacks;
   }
 
   async getAll(payload: GetActivityDto) {
@@ -522,6 +656,7 @@ export class ActivityService {
       status,
       appId,
       riverBasin,
+      activeYear,
       isAutomated,
     } = payload;
     try {
@@ -533,11 +668,14 @@ export class ActivityService {
             isAutomated: isAutomated === 'true' ? true : false,
           }),
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
-          ...(riverBasin && {
+          ...((riverBasin || activeYear) && {
             phase: {
-              source: {
-                riverBasin,
-              },
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
             },
           }),
           ...(category && { categoryId: category }),
@@ -578,6 +716,7 @@ export class ActivityService {
         'Something went wrong while fetching activities',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -595,6 +734,8 @@ export class ActivityService {
         responsibility,
         status,
         appId,
+        riverBasin,
+        activeYear,
       } = payload;
       this.logger.log(`Fetching all activities for project ${appId}`);
 
@@ -603,6 +744,16 @@ export class ActivityService {
           app: appId,
           isDeleted: false,
           ...(title && { title: { contains: title, mode: 'insensitive' } }),
+          ...((riverBasin || activeYear) && {
+            phase: {
+              ...(activeYear && { activeYear }),
+              ...(riverBasin && {
+                source: {
+                  riverBasin,
+                },
+              }),
+            },
+          }),
           ...(category && { categoryId: category }),
           ...(phase && { phaseId: phase }),
           ...(isComplete && { isComplete: isComplete }),
@@ -640,6 +791,7 @@ export class ActivityService {
         'Something went wrong while fetching activities',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -650,7 +802,10 @@ export class ActivityService {
       const { page, perPage, appId, filters = {} } = payload;
 
       if (!filters.transportName) {
-        throw new RpcException('Transport name not found ');
+        throw new RpcException({
+          message: 'Transport name not found ',
+          code: 'TRANSPORT_NAME_NOT_FOUND',
+        });
       }
 
       // Get base communication data
@@ -665,7 +820,7 @@ export class ActivityService {
       );
 
       // Enrich with session status
-      results = await this.enrichWithSessionStatus(results);
+      results = await this.enrichWithSessionStatus(results, appId);
 
       // filter by communication status if exit
       if (filters?.sessionStatus) {
@@ -702,6 +857,7 @@ export class ActivityService {
         'Something went wrong while fetching activities having communications',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -767,12 +923,12 @@ export class ActivityService {
     );
   }
 
-  private async enrichWithSessionStatus(results: any[]) {
+  private async enrichWithSessionStatus(results: any[], appId?: string) {
     // Group by sessionId to reduce API calls
     const sessionIds = [
       ...new Set(results.map((r) => r.sessionId).filter(Boolean)),
     ];
-    const sessionDataCache = await this.fetchSessionData(sessionIds);
+    const sessionDataCache = await this.fetchSessionData(sessionIds, appId);
 
     return results.map((comm) => {
       if (!comm.sessionId) {
@@ -793,24 +949,15 @@ export class ActivityService {
 
   private async fetchSessionData(
     sessionIds: string[],
+    appId?: string,
   ): Promise<Map<string, any>> {
-    const sessionCache = new Map();
-
-    // Batch fetch session data to reduce API calls
-    const sessionPromises = sessionIds.map(async (sessionId) => {
-      try {
-        const { data } = await this.commsClient.session.get(sessionId);
-        sessionCache.set(sessionId, data);
-      } catch (error: any) {
-        this.logger.warn(
-          `Failed to fetch session status for sessionId: ${sessionId}`,
-        );
-        sessionCache.set(sessionId, { status: 'WORK IN PROGRESS' });
-      }
-    });
-
-    await Promise.all(sessionPromises);
-    return sessionCache;
+    return batchFetchSessionStatuses(
+      this.commsClient,
+      sessionIds,
+      25,
+      6000,
+      appId,
+    );
   }
 
   private async buildTransportCache(): Promise<Map<string, string>> {
@@ -940,8 +1087,16 @@ export class ActivityService {
         appId,
         filters = {},
         riverBasin,
+        startDate: payloadStartDate,
+        endDate: payloadEndDate,
       } = payload;
       const { title, phase, status } = filters;
+      const startDate = payloadStartDate || filters.startDate;
+      const endDate = payloadEndDate || filters.endDate;
+
+      const dateFilter: Prisma.DateTimeFilter = {};
+      if (startDate) dateFilter.gte = new Date(startDate);
+      if (endDate) dateFilter.lte = new Date(endDate);
 
       const where: Prisma.ActivityWhereInput = {
         isDeleted: false,
@@ -949,7 +1104,10 @@ export class ActivityService {
           not: [],
         },
         phase: {
-          ...(phase && { name: phase }),
+          ...(phase &&
+            phase !== 'all' && {
+              name: { equals: phase, mode: 'insensitive' },
+            }),
           ...(activeYear && { activeYear }),
           ...(riverBasin && {
             source: {
@@ -957,7 +1115,8 @@ export class ActivityService {
             },
           }),
         },
-        app: appId,
+        ...(appId && appId !== 'all' && { app: appId }),
+        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
         ...(title && {
           title: { contains: title, mode: 'insensitive' },
         }),
@@ -990,63 +1149,79 @@ export class ActivityService {
 
       //fetches and updates communication session status for each activity and summarizes the overall status per activity.
       // TODO: Need to implement filtering based on status
-      const enhancedData = await Promise.all(
-        activities.map(async (activity: any) => {
-          const enhancedComms = await Promise.all(
-            activity.activityCommunication.map(async (comm) => {
-              if (!comm.sessionId) {
-                return {
-                  ...comm,
-                  sessionStatus: 'Not Started',
-                };
-              }
+      const allSessionIds = activities
+        .flatMap((a: any) => a.activityCommunication ?? [])
+        .map((c: any) => c.sessionId)
+        .filter(Boolean);
 
-              try {
-                const { data } = await this.commsClient.session.get(
-                  comm.sessionId,
-                );
-                return {
-                  ...comm,
-                  sessionStatus: data.status,
-                };
-              } catch (error: any) {
-                this.logger.warn(
-                  `Failed to fetch session status for sessionId: ${comm.sessionId}`,
-                );
-                return {
-                  ...comm,
-                  sessionStatus: 'WORK IN PROGRESS',
-                };
-              }
-            }),
+      const effectiveAppId =
+        appId && appId !== 'all'
+          ? appId
+          : ((activities.find((a: any) => a.app) as any)?.app as string);
+
+      const sessionCache = await batchFetchSessionStatuses(
+        this.commsClient,
+        allSessionIds,
+        25,
+        6000,
+        effectiveAppId,
+      );
+
+      const enhancedData = activities.map((activity: any) => {
+        const comms = Array.isArray(activity.activityCommunication)
+          ? activity.activityCommunication
+          : [];
+
+        const enhancedComms = comms.map((comm: any) => {
+          if (!comm.sessionId) {
+            return {
+              ...comm,
+              sessionStatus: 'Not Started',
+              counts: null,
+            };
+          }
+
+          const session = sessionCache.get(comm.sessionId);
+          return {
+            ...comm,
+            sessionStatus: session?.status || 'WORK IN PROGRESS',
+            counts: session?.counts ?? null,
+            updatedAt: session?.updatedAt,
+          };
+        });
+
+        let commStatus: string | null;
+
+        if (!enhancedComms.length) {
+          commStatus = 'Null';
+        } else {
+          const allCompleted = enhancedComms.every(
+            (comm) => comm.sessionStatus.toLowerCase() === 'completed',
           );
 
-          let commStatus: string | null;
+          const isNotStarted = enhancedComms.every(
+            (comm) => comm.sessionStatus.toLowerCase() === 'not started',
+          );
 
-          if (!enhancedComms.length) {
-            commStatus = 'Null';
-          } else {
-            const allCompleted = enhancedComms.every(
-              (comm) => comm.sessionStatus.toLowerCase() === 'completed',
-            );
+          const allFailed = enhancedComms.every(
+            (comm) => comm.sessionStatus.toLowerCase() === 'failed',
+          );
 
-            const isNotStarted = enhancedComms.every(
-              (comm) => comm.sessionStatus.toLowerCase() === 'not started',
-            );
-            commStatus = allCompleted
-              ? 'Completed'
+          commStatus = allCompleted
+            ? 'Completed'
+            : allFailed
+              ? 'Failed'
               : isNotStarted
                 ? 'Not Started'
                 : 'Work in Progress';
-          }
+        }
 
-          return {
-            ...activity,
-            activityCommunication: enhancedComms,
-            commStatus,
-          };
-        }),
-      );
+        return {
+          ...activity,
+          activityCommunication: enhancedComms,
+          commStatus,
+        };
+      });
 
       return {
         data: enhancedData,
@@ -1058,6 +1233,7 @@ export class ActivityService {
         error,
       );
 
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1074,12 +1250,15 @@ export class ActivityService {
         },
       });
 
-      this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {});
+      this.eventEmitter.emit(EVENTS.ACTIVITY_DELETED, {
+        activityUuid: payload.uuid,
+      });
       await this.sseService.publishEvent('activity.updated', deletedActivity);
 
       return deletedActivity;
     } catch (error: any) {
       this.logger.error('Error while deleting activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1103,7 +1282,11 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn(`Activity not found: ${uuid}`);
-        throw new RpcException(`Activity not found: ${uuid}`);
+        throw new RpcException({
+          message: `Activity not found: ${uuid}`,
+          code: 'ACTIVITY_NOT_FOUND',
+          params: { uuid },
+        });
       }
 
       const docs = activityDocuments
@@ -1159,6 +1342,7 @@ export class ActivityService {
       return updatedActivity;
     } catch (error: any) {
       this.logger.log('Error while updating activity status', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1188,7 +1372,10 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn('Activity not found');
-        throw new RpcException('Activity not found.');
+        throw new RpcException({
+          message: 'Activity not found.',
+          code: 'ACTIVITY_NOT_FOUND',
+        });
       }
 
       const updateActivityCommunicationPayload = [];
@@ -1250,10 +1437,47 @@ export class ActivityService {
           updatedAt: new Date(),
         },
       });
+
+      const remainingCommIds = new Set(
+        ((updatedActivity.activityCommunication as any[]) ?? []).map(
+          (c) => c?.communicationId,
+        ),
+      );
+      const removedCommIds = ((activity.activityCommunication as any[]) ?? [])
+        .map((c) => c?.communicationId)
+        .filter((id) => id && !remainingCommIds.has(id));
+
+      if (removedCommIds.length) {
+        this.eventEmitter.emit(EVENTS.ACTIVITY_COMMUNICATIONS_REMOVED, {
+          activityUuid: uuid,
+          communicationIds: removedCommIds,
+        });
+      }
+
+      if (Array.isArray(updatedActivity.activityCommunication)) {
+        for (const comm of updatedActivity.activityCommunication as any[]) {
+          if (comm?.isScheduled && comm?.scheduledAt && comm?.communicationId && !comm?.sessionId) {
+            try {
+              await this.triggerCommunication({
+                activityId: updatedActivity.uuid,
+                communicationId: comm.communicationId,
+                appId: activity.app,
+              });
+            } catch (err: any) {
+              this.logger.error(
+                `Failed to auto-trigger scheduled communication ${comm.communicationId}`,
+                err,
+              );
+            }
+          }
+        }
+      }
+
       await this.sseService.publishEvent('activity.updated', updatedActivity);
       return updatedActivity;
     } catch (error: any) {
       this.logger.error('Error while updating activity', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1300,6 +1524,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Error while fetching session logs', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1337,7 +1562,10 @@ export class ActivityService {
 
       if (!activity) {
         this.logger.warn('Activity Communication not found');
-        throw new RpcException('Activity communication not found.');
+        throw new RpcException({
+          message: 'Activity communication not found.',
+          code: 'ACTIVITY_COMMUNICATION_NOT_FOUND',
+        });
       }
 
       const { activityCommunication } = activity;
@@ -1366,13 +1594,17 @@ export class ActivityService {
         this.logger.warn(
           "Selected Communication doesn't exist in current activity",
         );
-        throw new RpcException(
-          "Selected Communication doesn't exist in current activity",
-        );
+        throw new RpcException({
+          message: "Selected Communication doesn't exist in current activity",
+          code: 'SELECTED_COMMUNICATION_NOT_IN_ACTIVITY',
+        });
       }
 
       if (!Object.keys(selectedCommunication).length) {
-        throw new RpcException('Selected communication not found.');
+        throw new RpcException({
+          message: 'Selected communication not found.',
+          code: 'SELECTED_COMMUNICATION_NOT_FOUND',
+        });
       }
 
       return { selectedCommunication, activity };
@@ -1381,6 +1613,7 @@ export class ActivityService {
         'Error while fetching activity communication details',
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1417,15 +1650,22 @@ export class ActivityService {
         );
         groupName = group.name;
       } else {
-        throw new Error('Invalid group type');
+        throw new RpcException({
+          message: 'Invalid group type',
+          code: 'INVALID_GROUP_TYPE',
+        });
       }
       if (!group) {
-        throw new Error('No response from microservice');
+        throw new RpcException({
+          message: 'No response from microservice',
+          code: 'NO_RESPONSE_FROM_MICROSERVICE',
+        });
       }
 
       return { group, groupName };
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1466,6 +1706,7 @@ export class ActivityService {
       };
     } catch (error: any) {
       this.logger.error('Error while fetching communication stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1475,7 +1716,10 @@ export class ActivityService {
 
     if (!appId) {
       this.logger.warn('App ID is missing');
-      throw new RpcException('App ID is missing');
+      throw new RpcException({
+        message: 'App ID is missing',
+        code: 'APP_ID_MISSING',
+      });
     }
 
     try {
@@ -1520,6 +1764,7 @@ export class ActivityService {
       return result;
     } catch (error: any) {
       this.logger.error('Error while fetching transport session stats', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }
@@ -1531,7 +1776,10 @@ export class ActivityService {
   }) {
     if (!payload?.communicationId || !payload?.activityId) {
       this.logger.warn('Communication ID or Activity ID is missing');
-      throw new RpcException('Communication ID or Activity ID is missing');
+      throw new RpcException({
+        message: 'Communication ID or Activity ID is missing',
+        code: 'COMM_OR_ACTIVITY_ID_MISSING',
+      });
     }
 
     this.logger.log(`Triggering communication for ${payload.activityId}`);
@@ -1540,7 +1788,11 @@ export class ActivityService {
         uuid: payload.activityId,
       },
     });
-    if (!activity) throw new RpcException('Activity communication not found.');
+    if (!activity)
+      throw new RpcException({
+        message: 'Activity communication not found.',
+        code: 'ACTIVITY_COMMUNICATION_NOT_FOUND',
+      });
     const { activityCommunication } = activity;
 
     const parsedCommunications = JSON.parse(
@@ -1557,6 +1809,10 @@ export class ActivityService {
       transportId: string;
       communicationId: string;
       subject: string;
+      isScheduled?: boolean;
+      scheduledAt?: string;
+      sessionId?: string;
+      sessionStatus?: string;
     }>;
 
     const selectedCommunication = parsedCommunications.find(
@@ -1564,7 +1820,10 @@ export class ActivityService {
     );
 
     if (!Object.keys(selectedCommunication).length)
-      throw new RpcException('Selected communication not found.');
+      throw new RpcException({
+        message: 'Selected communication not found.',
+        code: 'SELECTED_COMMUNICATION_NOT_FOUND',
+      });
 
     const transportDetails = await this.commsClient.transport.get(
       selectedCommunication.transportId,
@@ -1572,7 +1831,10 @@ export class ActivityService {
 
     if (!transportDetails.data) {
       this.logger.warn('Selected transport not found');
-      throw new RpcException('Selected transport not found.');
+      throw new RpcException({
+        message: 'Selected transport not found.',
+        code: 'SELECTED_TRANSPORT_NOT_FOUND',
+      });
     }
 
     const addresses = await this.getAddresses(
@@ -1600,6 +1862,12 @@ export class ActivityService {
       messageContent = selectedCommunication.message as string;
     }
 
+    const isScheduledFuture = Boolean(
+      selectedCommunication?.isScheduled &&
+        selectedCommunication?.scheduledAt &&
+        new Date(selectedCommunication.scheduledAt).getTime() > Date.now(),
+    );
+
     /// cva_communication microservice
     const { data: sessionData } = await this.commsClient.broadcast.create({
       addresses: addresses,
@@ -1610,15 +1878,22 @@ export class ActivityService {
           subject: messageSubject,
         },
       },
-      options: {},
+      options: isScheduledFuture
+        ? { scheduledTimestamp: new Date(selectedCommunication.scheduledAt) }
+        : {},
       transport: selectedCommunication.transportId,
-      trigger: TriggerType.IMMEDIATE,
+      trigger: isScheduledFuture
+        ? TriggerType.SCHEDULED
+        : TriggerType.IMMEDIATE,
       xref: payload.appId,
     });
 
     if (!sessionData) {
       this.logger.warn('Session not found');
-      throw new RpcException('Session not found.');
+      throw new RpcException({
+        message: 'Session not found.',
+        code: 'SESSION_NOT_FOUND',
+      });
     }
 
     const updatedCommunicationsData = parsedCommunications.map((c) => {
@@ -1626,6 +1901,9 @@ export class ActivityService {
         return {
           ...c,
           sessionId: sessionData.cuid,
+          sessionStatus: isScheduledFuture
+            ? 'SCHEDULED'
+            : SessionStatus.PENDING,
         };
       }
       return c;
@@ -1655,7 +1933,11 @@ export class ActivityService {
 
     switch (groupType) {
       case 'STAKEHOLDERS':
-        if (!group) throw new RpcException('Stakeholders group not found.');
+        if (!group)
+          throw new RpcException({
+            message: 'Stakeholders group not found.',
+            code: 'STAKEHOLDERS_GROUP_NOT_FOUND',
+          });
         //  Extract and validate contact addresses for stakeholders
         return group.stakeholders
           .map((stakeholder) => {
@@ -1681,7 +1963,11 @@ export class ActivityService {
           })
           .filter(Boolean);
       case 'BENEFICIARY':
-        if (!group) throw new RpcException('Beneficiary group not found.');
+        if (!group)
+          throw new RpcException({
+            message: 'Beneficiary group not found.',
+            code: 'BENEFICIARY_GROUP_NOT_FOUND',
+          });
 
         const groupedBeneficiaries = group.groupedBeneficiaries;
         //  Extract and validate contact addresses for beneficiaries
@@ -1717,24 +2003,21 @@ export class ActivityService {
 
   async getTransportSessionStatsByGroup(payload) {
     this.logger.log(`Fetching transport session stats by group`);
-    const { appId, startDate, endDate, filters = {} } = payload;
+    const { appId, startDate, endDate, filters = {} } =
+      typeof payload === 'string' ? { appId: payload, filters: {} } : payload;
     try {
       // Step 1: Fetch all activities with their related communications
-      const where: any = { app: appId };
+      const where: any = {};
+      if (appId && appId !== 'all') where.app = appId;
       if (startDate || endDate) {
         where.createdAt = {};
         if (startDate) where.createdAt.gte = new Date(startDate);
         if (endDate) where.createdAt.lte = new Date(endDate);
       }
-      if (filters.phase) {
-        where.phase = { name: filters.phase };
+      if (filters.phase && filters.phase !== 'all') {
+        where.phase = { name: { equals: filters.phase, mode: 'insensitive' } };
       }
-      const activities = await this.prisma.activity.findMany({
-        where,
-        select: {
-          activityCommunication: true,
-        },
-      });
+
       // Step 2: Flatten communication data and extract necessary fields
       const commsToProcess: {
         groupType: string;
@@ -1742,45 +2025,96 @@ export class ActivityService {
         sessionId: string;
       }[] = [];
 
-      for (const activity of activities) {
-        const comms: any = activity.activityCommunication;
-        for (const comm of comms) {
-          const { sessionId, groupType, transportId } = comm;
-          if (sessionId && groupType && transportId) {
-            commsToProcess.push({ sessionId, groupType, transportId });
+      if (filters.source !== 'communications') {
+        const activities = await this.prisma.activity.findMany({
+          where,
+          select: { activityCommunication: true },
+        });
+
+        for (const { activityCommunication } of activities) {
+          if (!Array.isArray(activityCommunication)) continue;
+          for (const comm of activityCommunication as any[]) {
+            if (comm?.sessionId && comm?.groupType && comm?.transportId) {
+              commsToProcess.push({
+                sessionId: comm.sessionId,
+                groupType: comm.groupType,
+                transportId: comm.transportId,
+              });
+            }
           }
         }
       }
+
+      if (
+        (!filters.phase || filters.phase === 'all') &&
+        (filters.source === 'all' || filters.source === 'communications') &&
+        this.prisma.communicationGroupTarget
+      ) {
+        const commWhere: any = { isDeleted: false };
+        if (appId && appId !== 'all') commWhere.xrefId = appId;
+        if (startDate || endDate) {
+          commWhere.createdAt = {};
+          if (startDate) commWhere.createdAt.gte = new Date(startDate);
+          if (endDate) commWhere.createdAt.lte = new Date(endDate);
+        }
+
+        const targets = await this.prisma.communicationGroupTarget.findMany({
+          where: {
+            sessionId: { not: null },
+            communication: commWhere,
+          },
+          select: {
+            sessionId: true,
+            groupType: true,
+            communication: { select: { transportId: true } },
+          },
+        });
+
+        for (const target of targets) {
+          if (target.sessionId && target.groupType && target.communication?.transportId) {
+            commsToProcess.push({
+              sessionId: target.sessionId,
+              groupType: target.groupType,
+              transportId: target.communication.transportId,
+            });
+          }
+        }
+      }
+
       // Step 3: Map transportId to its readable transport name using external client
       const transportIdMap = new Map<string, string>();
-      const uniqueTransportIds = [
-        ...new Set(commsToProcess.map((c) => c.transportId)),
-      ];
+      const uniqueTransportIds = [...new Set(commsToProcess.map((c) => c.transportId))];
 
       const transportResponses = await Promise.all(
-        uniqueTransportIds.map((id) => this.commsClient.transport.get(id)),
+        uniqueTransportIds.map((id) =>
+          this.commsClient.transport.get(id).catch((err) => {
+            this.logger.warn(`Failed to fetch transport ${id}`, err);
+            return null;
+          }),
+        ),
       );
 
       transportResponses.forEach((res, idx) => {
-        transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+        if (res?.data?.name) {
+          transportIdMap.set(uniqueTransportIds[idx], res.data.name);
+        }
       });
+
       // Step 4: Build a nested structure to group sessionIds by groupType and transportType
-      const sessions: Record<string, Record<string, Set<string>>> = {
+      const sessions: Record<'BENEFICIARY' | 'STAKEHOLDERS', Record<string, Set<string>>> = {
         BENEFICIARY: {},
         STAKEHOLDERS: {},
       };
 
       for (const { groupType, transportId, sessionId } of commsToProcess) {
-        const group = groupType.toUpperCase();
         const transportType = transportIdMap.get(transportId);
-        if (!transportType || !sessions[group]) continue;
-        // Group sessionIds under their respective groupType and transport name.
-        // Structure: sessions[groupType][transportType] = Set of sessionIds
-        if (!sessions[group][transportType]) {
-          sessions[group][transportType] = new Set();
-        }
+        if (!transportType) continue;
+
+        const group = groupType.toUpperCase().startsWith('BENEFICIAR') ? 'BENEFICIARY' : 'STAKEHOLDERS';
+        sessions[group][transportType] ??= new Set();
         sessions[group][transportType].add(sessionId);
       }
+
       // Step 5: Initialize result structure and prepare for broadcasting session count requests
       const result: Record<string, Record<string, any>> = {
         beneficiary: {},
@@ -1789,35 +2123,42 @@ export class ActivityService {
 
       const resultKeys: { groupKey: string; transportType: string }[] = [];
       const broadcastPromises: Promise<any>[] = [];
+
       // Step 6: For each group + transport combination, request broadcast stats
       for (const [groupType, transportMap] of Object.entries(sessions)) {
-        const groupKey =
-          groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
+        const groupKey = groupType === 'BENEFICIARY' ? 'beneficiary' : 'stakeholder';
 
-        for (const [transportType, sessionSet] of Object.entries(
-          transportMap,
-        )) {
-          const sessionList = Array.from(sessionSet);
-          // Enqueue a broadcast count request for each unique transport + group combination
+        for (const [transportType, sessionSet] of Object.entries(transportMap)) {
           broadcastPromises.push(
-            this.commsClient.session.broadcastCount({
-              sessions: sessionList,
-            }),
+            this.commsClient.session
+              .broadcastCount({ sessions: Array.from(sessionSet) })
+              .catch((err) => {
+                this.logger.warn(
+                  `Failed to fetch broadcastCount for ${groupKey} ${transportType}`,
+                  err,
+                );
+                return null;
+              }),
           );
           resultKeys.push({ groupKey, transportType });
         }
       }
+
       // Step 7: Resolve all broadcast count requests and map the results back
       const broadcastResults = await Promise.all(broadcastPromises);
 
       broadcastResults.forEach((res, idx) => {
         const { groupKey, transportType } = resultKeys[idx];
-        result[groupKey][transportType] = res.data;
+        if (res?.data) {
+          result[groupKey][transportType] = res.data;
+        }
       });
+
       // Final structured output containing session broadcast stats
       return result;
     } catch (error: any) {
       this.logger.error('Error while fetching group details', error);
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error);
     }
   }
@@ -1849,6 +2190,7 @@ export class ActivityService {
         `Error while fetching activities for stakeholder ${stakeholderGroupUuid}`,
         error,
       );
+      if (error instanceof RpcException) throw error;
       throw new RpcException(error?.message || 'Something went wrong');
     }
   }

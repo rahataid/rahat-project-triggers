@@ -1,0 +1,82 @@
+enum CommunicationTargetStatus {
+    PENDING
+    PROCESSING
+    SENT
+    FAILED
+    CANCELLED
+
+    @@schema("public")
+}
+
+enum CommunicationStatus {
+    SCHEDULED
+    NOT_STARTED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+    CANCELLED
+
+    @@schema("public")
+}
+
+model Communication {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+
+    xrefId String?
+
+    title   String
+    message String?
+    subject String?
+
+    audioURL Json? @db.JsonB()
+
+    // Shared across all group deliveries
+    transportId String?
+
+    //Schedule Communication
+    isScheduled Boolean @default(false)
+    scheduledAt    DateTime?
+
+    status CommunicationStatus @default(NOT_STARTED)
+
+    isDeleted Boolean @default(false)
+    createdBy String?
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    targets CommunicationGroupTarget[]
+
+    @@index([xrefId])
+    @@index([transportId])
+    @@index([xrefId, status])
+    @@map("tbl_communications")
+    @@schema("public")
+}
+
+model CommunicationGroupTarget {
+    id   Int    @id @default(autoincrement())
+    uuid String @unique @default(uuid())
+
+    communicationId Int
+
+    groupId   String
+    groupType String
+
+    // Different for each group delivery
+    sessionId String?
+
+    status CommunicationTargetStatus @default(PENDING)
+    error  String?
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime? @updatedAt()
+
+    communication Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+
+    @@unique([communicationId, groupType, groupId])
+    @@index([groupType, groupId])
+    @@map("tbl_communication_group_targets")
+    @@schema("public")
+}
